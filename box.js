@@ -139,11 +139,17 @@ box.deriv=math.derivative;
 box.latex=function(data, style=''){
   let json=JSON.stringify(data);
   div='divplot'+new Date().getTime()+vm.plotdiv++;
+  if(false){
  vm.selected.result+=
     '<div class="latex" id="'+div+'" style="'+style+'">'+MathJax.tex2svg(data, {em: 16, ex: 6, display: false}).outerHTML+'</div>';
-  //console.log(MathJax.tex2svg(data, {em: 16, ex: 6, display: false}).outerHTML);
-  //vm.selected.resultScript+='document.getElementById("'+div+'").appendChild(MathJax.tex2svg('+json+', {em: 16, ex: 6, display: true}));';
-  //vm.$nextTick(()=>{eval(vm.selected.resultScript);});
+  }else{
+    let json=JSON.stringify(data); 
+    vm.selected.result+=
+      '<div class="latex" id="'+div+'" style="'+style+'"></div>';
+    let scr='document.getElementById("'+div+'").appendChild(MathJax.tex2svg('+json+', {em: 16, ex: 6, display: true}));'
+    vm.selected.resultScript+=scr;
+    vm.$nextTick(()=>{eval(scr);});
+  }
 };
 /*
 //safe box

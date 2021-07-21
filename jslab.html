@@ -53,7 +53,8 @@
     <script src="codemirror/addon/hint/show-hint.js"></script>
     <script src="codemirror/addon/hint/javascript-hint.js"></script>
     <script src="codemirror/mode/javascript/javascript.js"></script>
-    <script src="codemirror/mode/markdown/markdown.js"></script>
+    <script src="codemirror/mode/markdown/markdown.js"></script>    
+    <script src="codemirror/addon/edit/closebrackets.js"></script>
 
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <!--script src="https://unpkg.com/vue@next"></script-->
@@ -153,7 +154,6 @@
       display: inline-block;
     }
     .latex{
-      width:45%;
       display: inline-block;
     }
   }
@@ -199,19 +199,21 @@
   
   
     <div class="toolbar">
-      <button @click="this.saveBlock()">Save&s</button>
+      <button @click="this.saveBlock()">Save&s</button>      
       <button @click="this.loadBlock()">Load</button>
+      <button @click="this.exportBlock()">Export</button>
       <button @click="this.evalCode()">Run&r</button>
       <button @click="this.runAll()">RunAll</button>
       <button @click="this.addblock()">Add&n</button>
       <button @click="this.insertBlock()">Ins</button>
-      <button @click="this.deleteBlock()">Del</button> 
+      <button @click="this.deleteBlock()">Del</button>
       <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()">UnDel</button> 
+      <button @click="this.loadHelp()">Help</button>
     </div>
     <div class="toolbarspace"></div>
     <div class="clearfix"></div>
 
-    <div v-for="(block,index) in blocks" class="codeblock" :key="block.code">
+    <div v-for="(block,index) in blocks" class="codeblock" :key="block.uuid">
       <div class="selected-ind"  :class="{selected:index==selectedIndex}">&nbsp;</div>
       <div class="codeinfo">
         In[{{block.eindex==-1?'&nbsp;':block.eindex}}]:
@@ -240,12 +242,17 @@ const App = {
       selectedIndex:0,
       maxIndex:0,
       maxeIndex:0,
+      filename:'',
 
       updateInd:0,
       plotdiv:0,
+      uuid_pos:0,
     };
   },
-  watch: {   
+  watch: {
+    filename(newvalue){
+      document.title=`js lab [${newvalue}]`;
+    }
   },
   computed: {
     selected(){
@@ -276,46 +283,89 @@ const App = {
     updatecmeditor(){
       ++this.updateInd;
     },
-    saveBlock(name='last'){
+    serialize(cb){
       this.updatecmeditor();
       this.$nextTick(()=>
       { 
-        if(typeof(Storage)!=="undefined")        
-        {
-          let tosave={
-            blocks:this.$data.blocks, 
-            maxIndex:this.$data.maxIndex,
-            maxeIndex:this.$data.maxeIndex,
-            version:0.2,
-          }
-          localStorage['blocks_'+name]=JSON.stringify(tosave);
-        }
+        let tosave={
+          blocks:this.$data.blocks, 
+          maxIndex:this.$data.maxIndex,
+          maxeIndex:this.$data.maxeIndex,
+          version:0.2,
+        };
+        let cnt=JSON.stringify(tosave);
+        cb(cnt);
       });
     },
-    loadBlock(name='last'){
+    saveBlock(){     
       if(typeof(Storage)!=="undefined")        
       {
-        if(localStorage['blocks_'+name]){
-          let data=JSON.parse(localStorage['blocks_'+name]);          
-          if(data.version && data.version==0.2){
-            this.$data.blocks=data.blocks;
-            this.$data.maxIndex=data.maxIndex;
-            this.$data.maxeIndex=data.maxeIndex;
-          }else{//old storage format
-            this.$data.blocks=data;
+        this.serialize(cnt=>localStorage['blocks_'+this.filename]=cnt);
+        localStorage['lastblocks']=this.filename;
+      }
+    },
+    exportBlock(){
+      this.serialize(cnt=>
+      {
+        var mimeType = 'text/plain';
+	      document.getElementById('createInvote').href= 'data:' + mimeType  +  ';charset=utf-8,' + encodeURIComponent(cnt);
+	      document.getElementById('createInvote').click();
+      });
+    },
+    loadData(filename,data){
+      this.filename=filename;
+      this.$data.blocks=[];
+      if(data.version && data.version==0.2){
+        this.$data.blocks=data.blocks;
+        for(let b of this.$data.blocks){
+          //if(!('uuid' in b)){//should always change uuid for VUE to work
+            b['uuid']=new Date().getTime()+'-'+this.uuid_pos++;
+          //}
+        }
+        this.$data.maxIndex=data.maxIndex;
+        this.$data.maxeIndex=data.maxeIndex;
+      }else{//old storage format
+        this.$data.blocks=data;
+      }
+      setTimeout(()=>{
+        for(let b of this.$data.blocks){
+          if(b.resultScript && b.resultScript!=''){
+            eval(b.resultScript );
           }
-          this.$nextTick(()=>{
-
-            for(let b of this.$data.blocks){
-              if(b.resultScript && b.resultScript!=''){
-                eval(b.resultScript );
-              }
-            }            
-          });
+        }            
+      },0);
+    },
+    loadBlock(name){
+      if(typeof(Storage)!=="undefined")        
+      {       
+        if(!name){
+          if(localStorage['lastblocks']){
+            name=localStorage['lastblocks'];
+          }else{
+            name='last';
+          }
+        }        
+        if(localStorage['blocks_'+name]){          
+          let data=JSON.parse(localStorage['blocks_'+name]);          
+          this.loadData(name,data);
           return true;
         }
       }
       return false;
+    },
+    loadHelp(){
+      let that=this;
+      axios.get('help.json')
+      .then(function (response) {        
+        console.log(response);
+        that.loadData('help.json',response.data);
+      })
+      .catch(function (error) {
+        alert('error!'+error);
+        console.log(error);
+      })
+      .then(function () {        
+      });
     },
     evalCode(){      
       this.updatecmeditor();
@@ -379,6 +429,7 @@ const App = {
         code:"",
         result:null,
         resultScript:'',
+        uuid:new Date().getTime()+'-'+this.uuid_pos++,
       });
       //++this.maxIndex;
     },
@@ -450,7 +501,8 @@ myapp.component('codemirror', {
       extraKeys: {"": "autocomplete"},
       mode: {name: "javascript", globalVars: true},
       autoCloseTags: true,
-      viewportMargin: Infinity,      
+      viewportMargin: Infinity, 
+      autoCloseBrackets: true,
     });
 
     this.editor.on("focus",function(){
@@ -487,5 +539,6 @@ vm=myapp.mount("#app");
 <div id="footer" style='width:100%;text-align: center;color:gainsboro;font-size: xx-small;margin-top: 50px;'>
   <a href="https://github.com/kikoqiu" target="_blank">copyright © 2021-2021 kikoqiu@163.com</a> 
 </div>
+<a onfocus="this.blur();" download="blocks.json" id="createInvote" style='display:none;' >code</a>
 </body>
 </html>
