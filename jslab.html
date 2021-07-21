@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no"> 
+    <title>js lab</title>
+
+    <script src="libbf.js/libbf.js"></script>
+    <script src="libbf.js/bf.js"></script>
+    <script>
+      bfjs.gc_ele_limit=100;  
+    </script>    
+
+    <script src="https://unpkg.com/mathjs@9.4.3/lib/browser/math.js"></script>
+    <!--script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script-->
+    <!--script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"  defer="defer"></script-->
+    <script src="tex-svg.js" defer="defer" ></script>
+    <script>
+      MathJax = {
+        tex: {
+          inlineMath: []
+        },
+        svg: {
+          fontCache: 'global'
+        }
+      };
+      </script>
+    <!--script src="https://cdn.plot.ly/plotly-2.2.0.min.js"></script-->
+    <script src="plotly-2.2.0.min.js"></script>
+
+    <!-- v6 <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script> -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script>module={};</script>
+    <script src="bpo.js"></script>
+    <script>Babel.registerPlugin("bpo", module.exports);</script>
+
+    <script src="box.js"></script>
+    
+
+
+
+    
+    <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css"-->
+
+    <!--link rel="stylesheet" href="https://unpkg.com/element-plus/lib/theme-chalk/index.css">
+    <script src="https://unpkg.com/element-plus/lib/index.full.js"></script-->
+
+      
+    <link rel="stylesheet" href="codemirror/lib/codemirror.css">
+    <link rel="stylesheet" href="codemirror/addon/hint/show-hint.css">
+    <script src="codemirror/lib/codemirror.js"></script>
+    <script src="codemirror/addon/hint/show-hint.js"></script>
+    <script src="codemirror/addon/hint/javascript-hint.js"></script>
+    <script src="codemirror/mode/javascript/javascript.js"></script>
+    <script src="codemirror/mode/markdown/markdown.js"></script>
+
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <!--script src="https://unpkg.com/vue@next"></script-->
+    <script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script>  
+
+
+
+
+  <style>
+    .clearfix:after {
+      visibility: hidden;
+      display: block;
+      font-size: 0;
+      content: " ";
+      clear: both;
+      height: 0;
+    }
+
+    .toolbar{
+      position:fixed;
+      width:100vw;
+      overflow:auto;
+      /*height:30px;*/
+      z-index: 99999;
+      background-color:aliceblue;
+      opacity: 0.8;
+    }
+    @media print { 
+      .toolbar{
+        display: none;
+      }
+    }
+    .toolbarspace{
+      width:100%;
+      height:30px;
+    }
+    .toolbar button{
+      float:left;
+    }
+    .CodeMirror {
+      border: 1px solid #eee;
+      height: auto;
+    }
+    .codeblock{
+      margin-top: 20px;     
+      position:relative; 
+    }
+    .codeinfo{
+      width:60px;
+      float:left;
+      text-align: right;
+      min-height: 1px;
+    }
+    .codeinfo .selected{
+      font-weight: bold;
+    }
+    .codecontent{
+      width:calc( 100% - 80px );
+      float:left;
+      position: relative;
+    }
+    .coderesult{
+      width:calc( 100% - 80px );
+      float:left;
+      position: relative;
+      word-wrap:break-word;
+    }
+   
+    control {
+      position: absolute;
+      right: 5px;
+      top: 5px;
+      z-index: 25;
+    }
+
+    .selected-ind{
+      width:5px !important;
+      float:left;
+      background-color: #aaf;
+      border-radius: 3cm;
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      visibility :hidden;
+    }
+    .selected-ind.selected{
+      visibility:visible;
+    }
+
+
+
+  @media screen and (orientation : landscape){
+    .plot{
+      width:45%;
+      height:300px;       
+      display: inline-block;
+    }
+    .latex{
+      width:45%;
+      display: inline-block;
+    }
+  }
+
+
+  @media screen and (orientation : portrait){
+    .codeinfo{
+      text-align: left;
+      padding-left:20px;
+    }
+    .plot{
+      width:100%;
+      height:450px; 
+      display: inline-block;
+    }
+    .latex{
+      width:100%;
+      display: inline-block;
+    }
+    .codecontent{
+      width:calc( 100% - 10px );
+      float:right;
+    }
+    .coderesult{
+      width:calc( 100% - 10px );
+      float:right;
+    }
+    .coderesult{
+      overflow: scroll;
+    }
+   
+  }
+
+
+
+  </style>
+  <script>
+
+  </script>
+</head>
+<body>
+<div id="app" style='width:100%;'>
+  
+  
+    <div class="toolbar">
+      <button @click="this.saveBlock()">Save&s</button>
+      <button @click="this.loadBlock()">Load</button>
+      <button @click="this.evalCode()">Run&r</button>
+      <button @click="this.runAll()">RunAll</button>
+      <button @click="this.addblock()">Add&n</button>
+      <button @click="this.insertBlock()">Ins</button>
+      <button @click="this.deleteBlock()">Del</button> 
+      <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()">UnDel</button> 
+    </div>
+    <div class="toolbarspace"></div>
+    <div class="clearfix"></div>
+
+    <div v-for="(block,index) in blocks" class="codeblock" :key="block.code">
+      <div class="selected-ind"  :class="{selected:index==selectedIndex}">&nbsp;</div>
+      <div class="codeinfo">
+        In[{{block.eindex==-1?'&nbsp;':block.eindex}}]:
+      </div>
+      <div class="codecontent">
+        <codemirror v-model:code="block.code" @focus="selectedIndex=index" :update-ind="updateInd"  ></codemirror>
+      </div>
+      <div class="codeinfo">
+      </div>
+      <div class="coderesult">
+        <span v-html="block.result"></span>
+      </div>
+      <div class="clearfix"></div>
+    </div>
+</div>
+  
+<script>
+const App = {
+  components: {
+  },
+  data(){
+    let blocks=[];
+    return {
+      blocks,      
+      lastDeleted:null,      
+      selectedIndex:0,
+      maxIndex:0,
+      maxeIndex:0,
+
+      updateInd:0,
+      plotdiv:0,
+    };
+  },
+  watch: {   
+  },
+  computed: {
+    selected(){
+      if(this.selectedIndex<this.blocks.length)return this.blocks[this.selectedIndex];      
+      return null;     
+    }   
+  },
+  created(){
+  },
+  mounted() {
+    if(!this.loadBlock()){
+      this.addblock();
+    }    
+    document.addEventListener("keydown",keydown);
+    let that=this;
+    function keydown(event){
+        if(event.keyCode== 'R'.charCodeAt(0) && event.ctrlKey/*121f10+ctrl*/){//
+            event.preventDefault();  
+            that.evalCode();
+        }
+        if(event.keyCode==83 && event.ctrlKey/*S+ctrl*/){
+            event.preventDefault();   
+            that.saveBlock();
+        }
+    }
+  },
+  methods:{    
+    updatecmeditor(){
+      ++this.updateInd;
+    },
+    saveBlock(name='last'){
+      this.updatecmeditor();
+      this.$nextTick(()=>
+      { 
+        if(typeof(Storage)!=="undefined")        
+        {
+          let tosave={
+            blocks:this.$data.blocks, 
+            maxIndex:this.$data.maxIndex,
+            maxeIndex:this.$data.maxeIndex,
+            version:0.2,
+          }
+          localStorage['blocks_'+name]=JSON.stringify(tosave);
+        }
+      });
+    },
+    loadBlock(name='last'){
+      if(typeof(Storage)!=="undefined")        
+      {
+        if(localStorage['blocks_'+name]){
+          let data=JSON.parse(localStorage['blocks_'+name]);          
+          if(data.version && data.version==0.2){
+            this.$data.blocks=data.blocks;
+            this.$data.maxIndex=data.maxIndex;
+            this.$data.maxeIndex=data.maxeIndex;
+          }else{//old storage format
+            this.$data.blocks=data;
+          }
+          this.$nextTick(()=>{
+
+            for(let b of this.$data.blocks){
+              if(b.resultScript && b.resultScript!=''){
+                eval(b.resultScript );
+              }
+            }            
+          });
+          return true;
+        }
+      }
+      return false;
+    },
+    evalCode(){      
+      this.updatecmeditor();
+      this.saveBlock();
+      let cur=this.selected;
+      let that=this;
+      cur.eindex='*';
+      setTimeout(()=>{
+        try{
+          cur.result='';
+          cur.resultScript='';
+          evalresult=box.runcode(cur.code);
+          if(evalresult!=undefined){
+            cur.result+=String(evalresult);
+          }
+        }catch(e){
+          cur.result+='<pre>'+"name: " + e.name + "\nmessage: " + e.message + "\nstack: " + e.stack+'</pre>';
+          //throw e;
+        }
+        cur.eindex=this.maxeIndex++;
+        this.saveBlock();
+        
+      },1);
+    },
+    runAll(){      
+      this.updatecmeditor();
+      this.saveBlock();
+      this.maxeIndex=0;      
+      let that=this;
+      let i=0;
+      let next=()=>{
+        let cur=this.blocks[i];
+        this.selectedIndex=i;
+        cur.eindex='*';
+        setTimeout(()=>{
+          try{
+            cur.result='';
+            cur.resultScript='';
+            evalresult=box.runcode(cur.code);
+            if(evalresult!=undefined){
+              cur.result+=String(evalresult);
+            }
+          }catch(e){
+            cur.result+='<pre>'+"name: " + e.name + "\nmessage: " + e.message + "\nstack: " + e.stack+'</pre>';
+            //throw e;
+          }
+          cur.eindex=this.maxeIndex++;
+          ++i;
+          if(i<this.blocks.length){            
+            setTimeout(next,0);
+          }else{
+            this.saveBlock();
+          }
+        },1);
+      }
+      next();      
+    },
+    addblock(){
+      this.blocks.push({
+        eindex:-1,
+        code:"",
+        result:null,
+        resultScript:'',
+      });
+      //++this.maxIndex;
+    },
+    insertBlock(){
+      if(this.selectedIndex<this.blocks.length){
+        this.blocks.splice(this.selectedIndex+1,0,{
+          eindex:-1,
+          code:"",
+          result:null,
+          resultScript:'',
+        });
+        //++this.maxIndex;
+      }
+    },
+    deleteBlock(){
+      if(this.selectedIndex<this.blocks.length){
+        let deleted=this.blocks.splice(this.selectedIndex,1)[0];
+        this.lastDeleted={val:deleted,pos:this.selectedIndex};
+        if(this.selectedIndex>0){
+          this.selectedIndex==this.selectedIndex-1;
+        }
+      }
+      if(this.blocks.length<=0){
+        this.addblock();
+      }
+    },
+    unDeleteBlock(){
+      if(this.lastDeleted!=null){
+        this.blocks.splice(this.lastDeleted.pos,0,this.lastDeleted.val);
+        this.lastDeleted=null;
+      }
+    }
+  }
+};
+const myapp=Vue.createApp(App);
+
+
+myapp.component('codemirror', {
+  props: ['code','updateInd'],
+  data: function () {
+    return {
+     
+    }
+  },
+  components: {
+  },
+  template: `
+      <textarea ref="codeinput" class="codehighlight" v-model='code'>        
+      </textarea>
+      `,
+  computed: {   
+  },
+  methods: {  
+    updateValue(){
+      if(!!this.editor){
+        this.$emit('update:code', this.editor.getValue());
+      }      
+    }
+  },
+  watch:{
+    updateInd(){
+      this.updateValue();
+    }
+  },
+  mounted(){
+    let that=this;
+    this.editor = CodeMirror.fromTextArea(this.$refs.codeinput, {
+      lineNumbers: true,
+      extraKeys: {"": "autocomplete"},
+      mode: {name: "javascript", globalVars: true},
+      autoCloseTags: true,
+      viewportMargin: Infinity,      
+    });
+
+    this.editor.on("focus",function(){
+      that.$emit('focus');
+      });
+
+    this.editor.on("blur" ,function (){
+      that.$emit('blur');
+      });
+
+    this.editor.on("keyup", function (cm, event) {
+        if (!cm.state.completionActive &&!(event.ctrlKey)){ /*Enables keyboard navigation in autocomplete list*/            
+          if(
+            (event.keyCode >= 65 && event.keyCode <= 90) || (event.keyCode >= 47 && event.keyCode <= 57 && !event.shiftKey)
+            )            
+            {        /*Enter - do not open autocomplete list just after item has been selected in it*/ 
+                    CodeMirror.commands.autocomplete(cm, null, {completeSingle: false});
+                }
+         }
+    });
+  },
+  beforeUnmount() {
+  }
+});
+
+
+vm=myapp.mount("#app");
+
+</script>
+
+
+
+
+<div id="footer" style='width:100%;text-align: center;color:gainsboro;font-size: xx-small;margin-top: 50px;'>
+  <a href="https://github.com/kikoqiu" target="_blank">copyright © 2021-2021 kikoqiu@163.com</a> 
+</div>
+</body>
+</html>
