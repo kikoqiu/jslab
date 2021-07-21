@@ -1,0 +1,46 @@
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+  </head>
+
+  <body>
+  <script src="libbf.js"></script>
+  <script src="bf.js"></script>
+  <div id='output' style="word-wrap:break-word;width:100vw;"></div>
+  <script>
+
+
+function assert(q){
+  if(!q){
+    throw new Error(q);
+  }
+}
+function asserteq(a,b){
+  assert(a==b);
+}
+
+
+function test(ma,mb,times){
+  for(var i=0;i<times;++i){
+    a=Math.random();
+    b=Math.random();
+    asserteq(ma(a,b),mb(a,b));
+  }
+}
+
+bfjs.ready=function(){
+  test((a,b)=>a+b,(a,b)=>bfjs.bf(a).add(b).f64(),1000);
+  test((a,b)=>a-b,(a,b)=>bfjs.bf(a).sub(b).f64(),1000);
+  test((a,b)=>a*b,(a,b)=>bfjs.bf(a).mul(b).f64(),1000);
+  test((a,b)=>a/b,(a,b)=>bfjs.bf(a).div(b).f64(),1000);
+  test((a,b)=>a%b,(a,b)=>bfjs.bf(a).mod(b).f64(),1000);
+  
+  bfjs.decimal_precision(10240);
+  document.getElementById('output').innerHTML='PI='+bfjs.bf().setPI().toString();
+}
+  </script>
+  </body>
+</html>

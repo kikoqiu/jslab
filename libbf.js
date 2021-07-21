@@ -1,1 +1,0 @@
-D:/wamp64/www/libbf.js/deploy
