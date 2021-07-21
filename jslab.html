@@ -28,8 +28,9 @@
     <!--script src="https://cdn.plot.ly/plotly-2.2.0.min.js"></script-->
     <script src="plotly-2.2.0.min.js"></script>
 
-    <!-- v6 <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script> -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- v6 <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script> -->
+    <script src="babel.min.js"></script>
     <script>module={};</script>
     <script src="bpo.js"></script>
     <script>Babel.registerPlugin("bpo", module.exports);</script>
@@ -40,8 +41,12 @@
 
 
     
-    <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css"-->
+    <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" crossorigin="anonymous"-->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+    <!--script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script-->
+
+    <link rel="stylesheet" href="https://unpkg.com/purecss@2.0.6/build/pure-min.css" crossorigin="anonymous">
 
     <!--link rel="stylesheet" href="https://unpkg.com/element-plus/lib/theme-chalk/index.css">
     <script src="https://unpkg.com/element-plus/lib/index.full.js"></script-->
@@ -82,6 +87,12 @@
       background-color:aliceblue;
       opacity: 0.8;
     }
+    /*not used*/
+    .toolbar-wrapper{
+      position:fixed;
+      width:100vw;
+      z-index: 99999;
+    }
     @media print { 
       .toolbar{
         display: none;
@@ -89,10 +100,13 @@
     }
     .toolbarspace{
       width:100%;
-      height:30px;
+      height:40px;
     }
     .toolbar button{
       float:left;
+      margin:2px 2px;
+      padding:3px 5px;
+      width:50px;
     }
     .CodeMirror {
       border: 1px solid #eee;
@@ -196,19 +210,64 @@
 </head>
 <body>
 <div id="app" style='width:100%;'>
-  
-  
+    <div class='toolbar-wrapper'>
+    <!--div class="pure-menu pure-menu-horizontal">
+      <ul class="pure-menu-list">
+        <li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
+          <a href="javascript:void()" class="pure-menu-link">File</a>
+          <button class="pure-menu-link">File</button>
+          <ul class="pure-menu-children">
+            <li class="pure-menu-item">
+              <a href="javascript:void()" class="pure-menu-link" @click="this.saveBlock()">Save&s</a>
+            </li>
+            <li class="pure-menu-item">
+              <a href="javascript:void()" class="pure-menu-link" @click="this.loadBlock()">Load</a>
+            </li>
+            <li class="pure-menu-item">
+              <a href="javascript:void()" class="pure-menu-link" @click="this.exportBlock()">Export</a>
+            </li>
+          </ul>
+        </li>
+        <li class="pure-menu-item">
+          <a href="javascript:void()" class="pure-menu-link" @click="this.evalCode()">Run&r</a>
+        </li>
+        <li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
+          <a href="javascript:void()" class="pure-menu-link">Edit</a>
+          <ul class="pure-menu-children">
+            <li class="pure-menu-item">
+              <a href="javascript:void()" class="pure-menu-link" @click="this.runAll()">Run All</a>
+            </li>
+            <li class="pure-menu-item">
+              <a href="javascript:void()" class="pure-menu-link" @click="this.addblock()">Add&n</a>
+            </li>
+            <li class="pure-menu-item">
+              <a href="javascript:void()" class="pure-menu-link" @click="this.insertBlock()">Insert</a>
+            </li>
+            <li class="pure-menu-item">
+              <a href="javascript:void()" class="pure-menu-link" @click="this.deleteBlock()">Delete</a>
+            </li>
+            <li class="pure-menu-item">
+              <a href="javascript:void()" class="pure-menu-link" :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()">Undo Delete</a>
+            </li>
+          </ul>
+        </li>
+        <li class="pure-menu-item">
+          <a href="javascript:void()" class="pure-menu-link" @click="this.loadHelp()">Help</a>
+        </li>         
+      </ul>
+    </div-->
+  </div>
     <div class="toolbar">
-      <button @click="this.saveBlock()">Save&s</button>      
-      <button @click="this.loadBlock()">Load</button>
-      <button @click="this.exportBlock()">Export</button>
-      <button @click="this.evalCode()">Run&r</button>
-      <button @click="this.runAll()">RunAll</button>
-      <button @click="this.addblock()">Add&n</button>
-      <button @click="this.insertBlock()">Ins</button>
-      <button @click="this.deleteBlock()">Del</button>
-      <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()">UnDel</button> 
-      <button @click="this.loadHelp()">Help</button>
+      <button @click="this.saveBlock()"  title="Save Ctrl+s">Save</button>      
+      <button @click="this.loadBlock()" title="Load">Load</button>
+      <button @click="this.exportBlock()" title="Export"><i class="bi-arrow-bar-right" role="img" aria-label="Export" ></i></button>
+      <button @click="this.evalCode()" title="Run"><i class="bi-caret-right" role="img" aria-label="Run"></i></button>
+      <button @click="this.runAll()" title="RunAll"><i class="bi-skip-forward" role="img" aria-label="RunAll"></i></button>
+      <button @click="this.addblock()" title="Add &n"><i class="bi-plus-square" role="img" aria-label="Add"></i></button>
+      <button @click="this.insertBlock()" title="Insert"><i class="bi-box-arrow-in-down" role="img" aria-label="Insert"></i></button>
+      <button @click="this.deleteBlock()" title="Delete"><i class="bi-eraser" role="img" aria-label="Delete"></i></button>
+      <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()" title="UnDel"><i class="bi-arrow-bar-up" role="img" aria-label="UnDel"></i></button> 
+      <button @click="this.loadHelp()" title="Help">Help</button>
     </div>
     <div class="toolbarspace"></div>
     <div class="clearfix"></div>
