@@ -266,8 +266,8 @@
       <button @click="this.exportBlock()" title="Export"><i class="bi-arrow-bar-right" role="img" aria-label="Export" ></i></button>
       <button @click="this.evalCode()" title="Run"><i class="bi-caret-right" role="img" aria-label="Run"></i></button>
       <button @click="this.runAll()" title="RunAll"><i class="bi-skip-forward" role="img" aria-label="RunAll"></i></button>
-      <button @click="this.addblock()" title="Add &n"><i class="bi-plus-square" role="img" aria-label="Add"></i></button>
-      <button @click="this.insertBlock()" title="Insert"><i class="bi-box-arrow-in-down" role="img" aria-label="Insert"></i></button>
+      <button @click="this.addblock()" title="Add &n">Add</button>
+      <button @click="this.insertBlock()" title="Insert">Insert</button>
       <button @click="this.deleteBlock()" title="Delete"><i class="bi-eraser" role="img" aria-label="Delete"></i></button>
       <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()" title="UnDel"><i class="bi-arrow-bar-up" role="img" aria-label="UnDel"></i></button> 
       <button @click="this.loadHelp()" title="Help">Help</button>
@@ -285,9 +285,7 @@
       </div>
       <div class="codeinfo">
       </div>
-      <div class="coderesult">
-        <span v-html="block.result"></span>
-      </div>
+      <code-result :html="block.result" :script="block.resultScript"></code-result>
       <div class="clearfix"></div>
     </div>
 </div>
@@ -389,13 +387,6 @@ const App = {
       }else{//old storage format
         this.$data.blocks=data;
       }
-      setTimeout(()=>{
-        for(let b of this.$data.blocks){
-          if(b.resultScript && b.resultScript!=''){
-            eval(b.resultScript );
-          }
-        }            
-      },0);
     },
     loadBlock(name){
       if(typeof(Storage)!=="undefined")        
@@ -493,11 +484,12 @@ const App = {
         resultScript:'',
         uuid:new Date().getTime()+'-'+this.uuid_pos++,
       });
+      this.selectedIndex=this.blocks.length-1;
       //++this.maxIndex;
     },
     insertBlock(){
       if(this.selectedIndex<this.blocks.length){
-        this.blocks.splice(this.selectedIndex+1,0,{
+        this.blocks.splice(this.selectedIndex,0,{
           eindex:-1,
           code:"",
           result:null,
@@ -585,6 +577,54 @@ myapp.component('codemirror', {
                 }
          }
     });
+  },
+  beforeUnmount() {
+  }
+});
+
+
+myapp.component('codeResult', {
+  props: ['html','script'],
+  data: function () {
+    return {
+      timer:0,
+      key:0,
+    }
+  },
+  components: {
+  },
+  template: `
+      <div class="coderesult" :key='key'>
+        <span v-html="html"></span>
+      </div>
+      `,
+  computed: {   
+  },
+  methods: {  
+    update(){
+      if(this.timer!=0){
+        //clearTimeout(this.timer);
+        return;
+      }
+      let that=this;
+      function doUpdate(){
+        that.timer=0;
+        //not needed
+        //that.key=(new Date().getTime() + (Math.random() * 10000)).toFixed(0);
+        setTimeout(()=>eval(that.script),0);
+      }
+
+      this.timer=setTimeout(doUpdate,1);
+      
+    }
+  },
+  watch:{
+    script(){
+      this.update();
+    }
+  },
+  mounted(){
+    this.update();
   },
   beforeUnmount() {
   }

@@ -62,7 +62,6 @@ box.plotly=function(data, layout, config, style){
     '<div class="plot" id="'+div+'" style="'+style+';"></div>';
   let scr='Plotly.newPlot("'+div+'", '+json+');';
   vm.selected.resultScript+=scr;
-  vm.$nextTick(()=>{eval(scr);});
 };
 
 /**
@@ -148,7 +147,6 @@ box.latex=function(data, style=''){
       '<div class="latex" id="'+div+'" style="'+style+'"></div>';
     let scr='document.getElementById("'+div+'").appendChild(MathJax.tex2svg('+json+', {em: 16, ex: 6, display: true}));'
     vm.selected.resultScript+=scr;
-    vm.$nextTick(()=>{eval(scr);});
   }
 };
 /*
