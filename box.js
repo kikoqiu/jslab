@@ -1,4 +1,4 @@
-let box={};//window;
+var box={};//window;
 
 /**
  * range generator
@@ -60,7 +60,7 @@ box.plotly=function(data, layout, config, style){
   div='divplot'+new Date().getTime()+(vm.plotdiv++);
   vm.selected.result+=
     '<div class="plot" id="'+div+'" style="'+style+';"></div>';
-  let scr='Plotly.newPlot("'+div+'", '+json+');';
+  let scr='Plotly.react("'+div+'", '+json+');';//newPlot
   vm.selected.resultScript+=scr;
 };
 
@@ -128,7 +128,7 @@ box.eval_expr=function(e,scope){
  * Calc derivative of a mathjs expr
  */
 box.deriv=math.derivative;
-
+box.symplify=math.symplify;
 
 /**
  * display a latex expressoin
@@ -180,7 +180,9 @@ box.proxy=new Proxy(window, {
         return undefined;
       },
       has: function(target, prop) {
-        return true;
+        if(prop in box) return true;        
+        if(prop in target)return true;
+        return false;   
       },
       set: function(target, prop, value, receiver) {
         box[prop]=value;
@@ -210,3 +212,39 @@ box.runcode=function (code){
   }
   
 }
+
+
+
+
+
+
+box.pyloaded=false;
+box.loadpy=async function(){
+  if(box.pyloaded)return;
+  box.pyloaded=true;
+  await loadPyodide({
+      indexURL : "https://cdn.jsdelivr.net/pyodide/v0.17.0/full/"
+    });  
+}
+box.runpy=function(code){
+  let ret=pyodide.runPython(`
+    ${code}
+  `);
+  return ret;
+}
+box.loadpyPackage=async function(pname){
+  await pyodide.loadPackage(pname);
+}
+box.pypackages={};
+box.importpy=function(name,asname=name){
+  let ret=box.pypackages[name];
+  if(!ret){
+    box.runpy(`
+      import ${name} as ${asname}
+      `);
+    ret=pyodide.globals.get(asname);
+    box.pypackages[name]=ret;
+  }
+  return ret;
+}
+
