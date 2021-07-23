@@ -89,35 +89,47 @@ Flags.BF_RNDF=6; /* faithful rounding (nondeterministic, either RNDD or RNDU,
 
 var module=
 {
+	//faster but delayed gc, need more memory
+	gc_use_finalization:false,//(!!window.FinalizationRegistry),
 	gc_array: new Set(),
+	//gc_debug_set: new Set(),
+	gc_registry : new FinalizationRegistry(heldValue => {
+		module.libbf._delete_(heldValue);
+		//module.gc_debug_set.delete(heldValue);
+	}),
 	gc(){
+		if(this.gc_use_finalization)return;
 		if(this.gcing)return;
 		this.gcing=true;
-		let ele=[...this.gc_array.keys()].sort((a,b)=>{
+		let ele=[...this.gc_array].sort((a,b)=>{
 				let diff=b.visited-a.visited;
-				if(Math.abs(diff)>2**31){
+				if(diff>(2**31) || diff <-(2**31)){
 					diff*=-1;
 				}
 				return diff;
 			}
 		);
-		for(let i=Math.floor(this.gc_ele_limit/2);i<ele.length;++i){
+		let gcstartpos=Math.floor(this.gc_ele_limit/2);
+		for(let i=gcstartpos;i<ele.length;++i){
 			let e=ele[i];
-			e.dispose();
-			this.gc_array.delete(e);		
+			e.dispose();					
 		}
+		this.gc_array=new Set(ele.slice(0,gcstartpos));
 		this.gcing=false;
 	},
 	visit_index:0,
-	gc_track(f){
-		f.visited=this.visit_index++;
-		if(this.visit_index>=2**32){
-			this.visit_index=0;
+	gc_track(f,addToArray=true){
+		if(this.gc_use_finalization){
+			return;
 		}
+		f.visited=this.visit_index;
+		this.visit_index=(this.visit_index+1)%(2**32);
 		//f.visited=new Date().getTime();
-		module.gc_array.add(f);
-		if(this.gc_array.size>=this.gc_ele_limit){
-			this.gc();
+		if(addToArray){
+			module.gc_array.add(f);
+			if(this.gc_array.size>=this.gc_ele_limit){
+				this.gc();
+			}
 		}
 	},
 	precision:500,
@@ -156,8 +168,13 @@ var module=
 
 function bf(val,radix=10){
 	this.h=module.libbf._new_();
+	if(module.gc_use_finalization){
+		module.gc_registry.register(this, this.h,this);
+		//module.gc_debug_set.add(this.h);
+	}else{	
+		module.gc_track(this);
+	}
 	this.status=0;
-	module.gc_track(this);
 	switch(typeof(val)){
 		case "undefined":
 			break;
@@ -176,25 +193,42 @@ function bf(val,radix=10){
 }
 module._bf=bf;
 bf.prototype.dispose=function(recoverable=true){
-	if(this.h!=0){
-		if(recoverable){
-			this.strval=this.toString(32,Math.ceil((module.precision+32)/Math.log2(32)));
+	if(module.gc_use_finalization){
+		if(!recoverable){
+			module.gc_registry.unregister(this);
+			if(this.h!=0){
+				module.libbf._delete_(this.h);
+				//module.gc_debug_set.delete(this.h);
+				this.h=0;
+			}
 		}
-	}
-	if(this.h!=0){
-		module.libbf._delete_(this.h);
-		this.h=0;
-		//console.log('ele gced:'+this.strval);
+	}else{
+		if(this.h!=0){
+			if(recoverable){
+				this.strval=this.toString(32,Math.ceil((module.precision+32)/Math.log2(32)));
+			}
+		}
+		if(this.h!=0){
+			module.libbf._delete_(this.h);
+			this.h=0;
+		}
 	}
 }
 bf.prototype.geth=function(){	
-	//this would cause gc
-	module.gc_track(this);
-	if(this.h==0){
-		this.h=module.libbf._new_();
-		this.fromString(this.strval,32,module.precision);
-	}	
-	return this.h;
+	if(module.gc_use_finalization){
+		return this.h;
+	}else{		
+		if(this.h==0){
+			//this would cause gc		
+			module.gc_track(this,true);
+			this.h=module.libbf._new_();
+			this.fromString(this.strval,32,module.precision);
+		}else{
+			//this would not cause gc, because addToArray=false		
+			module.gc_track(this,false);
+		}
+		return this.h;
+	}
 }
 bf.prototype.checkstatus=function(s){
 	//if(s&Flags.BF_ST_INEXACT)console.log("libbf BF_ST_INEXACT ");
