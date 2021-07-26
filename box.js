@@ -218,10 +218,10 @@ box.runcode=function (code){
 
 
 
-box.pyloaded=false;
-box.loadpy=async function(){
-  if(box.pyloaded)return;
-  box.pyloaded=true;
+box._pyloaded=false;
+box._loadpy=async function(){
+  if(box._pyloaded)return;
+  box._pyloaded=true;
   await loadPyodide({
       indexURL : "https://cdn.jsdelivr.net/pyodide/v0.17.0/full/"
     });  
@@ -232,18 +232,26 @@ box.runpy=function(code){
   `);
   return ret;
 }
-box.loadpyPackage=async function(pname){
-  await pyodide.loadPackage(pname);
+box._loadedpypackages=new Set();
+box.loadpy=async function(...modules){
+  await box._loadpy();
+  for(let m of modules){
+    if(box._loadedpypackages.has(m)){
+      continue;
+    }
+    box._loadedpypackages.add(m);
+    await pyodide.loadPackage(m);
+  }
 }
-box.pypackages={};
+box._pypackages={};
 box.importpy=function(name,asname=name){
-  let ret=box.pypackages[name];
+  let ret=box._pypackages[name];
   if(!ret){
     box.runpy(`
       import ${name} as ${asname}
       `);
     ret=pyodide.globals.get(asname);
-    box.pypackages[name]=ret;
+    box._pypackages[name]=ret;
   }
   return ret;
 }
