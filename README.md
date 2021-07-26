@@ -1,4 +1,14 @@
 # jslab
  javascript scientific calculator with big decimal, plot support
- Try it here
+ 
+Try it here
 https://kikoqiu.github.io/jslab/jslab.html
+
+
+All the scripts run in your browser with mobile support (tested in android chrome).
+
+
+* big float support from https://github.com/kikoqiu/libbf.js
+* math.js support
+* latex draw support
+* plot support with plot.ly
