@@ -573,15 +573,22 @@ myapp.component('codemirror', {
       that.$emit('blur');
       });
 
-    this.editor.on("keyup", function (cm, event) {
-        if (!cm.state.completionActive &&!(event.ctrlKey)){ /*Enables keyboard navigation in autocomplete list*/            
+    /*this.editor.on("keyup", function (cm, event) {
+        if (!cm.state.completionActive &&!(event.ctrlKey)){ //Enables keyboard navigation in autocomplete list  
           if(
             (event.keyCode >= 65 && event.keyCode <= 90) || (event.keyCode >= 47 && event.keyCode <= 57 && !event.shiftKey)
             )            
-            {        /*Enter - do not open autocomplete list just after item has been selected in it*/ 
+            {       ///Enter - do not open autocomplete list just after item has been selected in it
                     CodeMirror.commands.autocomplete(cm, null, {completeSingle: false});
                 }
          }
+    });*/
+    this.changeregex=new RegExp(/[a-z\.]+/, 'i');
+    this.editor.on("change", function (cm,changeObj) {
+        //console.log(changeObj);
+        if(!cm.state.completionActive && changeObj.origin== "+input" && changeObj.text[0].match(that.changeregex)){
+            CodeMirror.commands.autocomplete(cm, null, {completeSingle: false});
+        }
     });
   },
   beforeUnmount() {
