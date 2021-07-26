@@ -190,13 +190,43 @@ box.proxy=new Proxy(window, {
       }
     }
   );
+
 /**
  * runs a piece of code
  * @param {*} code 
  * @returns 
  */
-box.runcode=function (code){
-  
+box.runcode=function (code){  
+  var input = code;
+  var currentCode = Babel.transform("(async function(){'bpo enable';\r\n"+input+"\r\n})();", 
+    { 
+      presets: [
+        [
+          "env",
+          {
+            exclude:["@babel/plugin-transform-async-to-generator",'@babel/plugin-transform-regenerator'],
+            useBuiltIns:false
+          }
+        ],
+      ] ,//env Babel.availablePresets//"es2017"
+      plugins: ["bpo"],
+      sourceType: "script"
+    }  ).code;
+  console.log(currentCode);
+  box.box=box;
+  box.currentCode=currentCode;
+  with(box.proxy){
+    let ret= eval(currentCode);
+    return ret;
+  }  
+}
+
+/**
+ * runs a piece of code
+ * @param {*} code 
+ * @returns 
+ */
+ box.runcodeSync_=function (code){  
   var input = code;
   var currentCode = Babel.transform("'bpo enable';\r\n"+input, 
   { 
@@ -204,15 +234,15 @@ box.runcode=function (code){
     plugins: ["bpo"]}
   ).code;
   console.log(currentCode);
-
+  box.box=box;
   box.currentCode=currentCode;
+
   with(box.proxy){
     let ret= eval(currentCode);
     return ret;
   }
   
 }
-
 
 
 
