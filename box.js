@@ -210,7 +210,8 @@ box.runcode=function (code){
         ],
       ] ,//env Babel.availablePresets//"es2017"
       plugins: ["bpo"],
-      sourceType: "script"
+      sourceType: "script",
+      sourceMaps:"inline",
     }  ).code;
   console.log(currentCode);
   box.box=box;
