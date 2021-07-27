@@ -263,8 +263,10 @@
     </div-->
   </div>
     <div class="toolbar">
+      <button @click="this.newFile()"  title="New">New</button> 
+      <button @click="this.openFile()" title="Open">Open</button>
       <button @click="this.saveBlock()"  title="Save Ctrl+s">Save</button>      
-      <button @click="this.loadBlock()" title="Load">Load</button>
+      <button @click="this.loadBlock()" title="Load">Load</button>      
       <button @click="this.exportBlock()" title="Export"><i class="bi-arrow-bar-right" role="img" aria-label="Export" ></i></button>
       <button @click="this.evalCode()" title="Run"><i class="bi-caret-right" role="img" aria-label="Run"></i></button>
       <button @click="this.runAll()" title="RunAll"><i class="bi-skip-forward" role="img" aria-label="RunAll"></i></button>
@@ -305,6 +307,7 @@ const App = {
       maxIndex:0,
       maxeIndex:0,
       filename:'',
+      lastRun:null,
 
       updateInd:0,
       plotdiv:0,
@@ -353,13 +356,45 @@ const App = {
           blocks:this.$data.blocks, 
           maxIndex:this.$data.maxIndex,
           maxeIndex:this.$data.maxeIndex,
+          lastRun:this.$data.lastRun,
           version:0.2,
         };
         let cnt=JSON.stringify(tosave);
         cb(cnt);
       });
     },
-    saveBlock(){     
+    clearAll(){     
+      Object.assign(this.$data, this.$options.data());
+    },
+    newFile(){
+      let filename=prompt('Input file name','new.json');
+      if(!filename)return;
+      this.clearAll();
+      this.$data.filename=filename;
+      this.addblock();
+    },
+    openFile(){
+      let files=[];
+      for(let n=0;n<localStorage.length;++n){
+        let f=localStorage.key(n);
+        if(f.startsWith('blocks_')){
+          files.push(f.substr(7));
+        }
+      }
+      let str="";
+      for(let n=0;n<files.length;++n){
+        let s=`${n}:${files[n]}`;
+        while(s.length<20)s+=' ';
+        str+=s;
+      }
+      let index=prompt("input the file index you want to open\r\n"+str,'');
+      if(index==undefined)return;
+      index=parseInt(index);
+      if(!isNaN(index)&&index<files.length){
+        this.loadBlock(files[index]);
+      }
+    },
+    saveBlock(){
       if(typeof(Storage)!=="undefined")        
       {
         this.serialize(cnt=>localStorage['blocks_'+this.filename]=cnt);
@@ -375,6 +410,7 @@ const App = {
       });
     },
     loadData(filename,data){
+      this.clearAll();
       this.filename=filename;
       this.$data.blocks=[];
       if(data.version && data.version==0.2){
@@ -386,6 +422,7 @@ const App = {
         }
         this.$data.maxIndex=data.maxIndex;
         this.$data.maxeIndex=data.maxeIndex;
+        this.$data.lastRun=data.lastRun;
       }else{//old storage format
         this.$data.blocks=data;
       }
