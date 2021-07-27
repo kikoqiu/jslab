@@ -12,6 +12,10 @@
     </script>    
 
     <script src="https://unpkg.com/mathjs@9.4.3/lib/browser/math.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.16.0/dist/numjs.min.js" defer="defer"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.17.0/full/pyodide.js" defer="defer"></script>
+
+
     <!--script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script-->
     <!--script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"  defer="defer"></script-->
     <script>
@@ -28,6 +32,7 @@
 
     <!--script src="https://cdn.plot.ly/plotly-2.2.0.min.js"></script-->
     <script src="plotly-2.2.0.min.js"></script>
+    
 
     <!-- v6 <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script> -->
@@ -37,10 +42,6 @@
     <script>Babel.registerPlugin("bpo", module.exports);</script>
 
     <script src="box.js?t=20210726"></script>
-    
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.17.0/full/pyodide.js"></script>
-
-
 
     
     <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" crossorigin="anonymous"-->
@@ -274,8 +275,9 @@
       <button @click="this.insertBlock()" title="Insert">Insert</button>
       <button @click="this.deleteBlock()" title="Delete"><i class="bi-eraser" role="img" aria-label="Delete"></i></button>
       <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()" title="UnDel"><i class="bi-arrow-bar-up" role="img" aria-label="UnDel"></i></button> 
-      <button @click="this.loadHelp()" title="Help">Help</button>
+      <button @click="this.loadHelp()" title="Help">Help</button>      
     </div>
+    <input type="file" ref="file" id="file" style="display: none">
     <div class="toolbarspace"></div>
     <div class="clearfix"></div>
 
@@ -521,10 +523,10 @@ const App = {
       }
       next();      
     },
-    addblock(){
+    addblock(icode=""){
       this.blocks.push({
         eindex:-1,
-        code:"",
+        code:icode,
         result:null,
         resultScript:'',
         uuid:new Date().getTime()+'-'+this.uuid_pos++,
@@ -561,7 +563,7 @@ const App = {
         this.blocks.splice(this.lastDeleted.pos,0,this.lastDeleted.val);
         this.lastDeleted=null;
       }
-    }
+    },
   }
 };
 const myapp=Vue.createApp(App);
