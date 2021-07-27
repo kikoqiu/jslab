@@ -56,11 +56,13 @@ box.plotly=function(data, layout, config, style){
   if(!style){
     style=''
   }
+  layout=JSON.stringify(layout);
+  config=JSON.stringify(config);  
   let json=JSON.stringify(data); 
   div='divplot'+new Date().getTime()+(vm.plotdiv++);
   vm.selected.result+=
     '<div class="plot" id="'+div+'" style="'+style+';"></div>';
-  let scr='Plotly.react("'+div+'", '+json+');';//newPlot
+  let scr=`Plotly.react("${div}", ${json},${layout},${config});`;//newPlot
   vm.selected.resultScript+=scr;
 };
 
@@ -71,6 +73,8 @@ box.plotly=function(data, layout, config, style){
 box.plot=function(...args){
   let style=null;  
   let data=[];
+  let layout=null;
+  let config=null;
   if(args.length==1){
     let x=range(0,args[0].length);
     let y=args[0];
@@ -83,11 +87,77 @@ box.plot=function(...args){
     }
     pos-=2;
     if(pos==args.length-1){
-      style=args[pos];
+      if(typeof(args[pos])=='string'){
+        style=args[pos];
+      }else if(typeof(args[pos])=='object'){
+        let dic=args[pos];
+        style=dic['style'];
+        let lbls=dic['labels']?dic['labels']:dic['names'];
+        if(lbls){
+          for(let i =0;i<data.length;++i){
+            data[i].name=lbls[i];
+          }
+        }        
+        layout=dic['layout'];
+        config=dic['config'];
+      }
+      
     }
   }
-  box.plotly(data,undefined,undefined,style);
+  box.plotly(data,layout,config,style);
 };
+
+/**
+ * 
+ * @param {String} type text bin binstr dataurl
+ * @returns 
+ */
+box.readFile=function(type='text'){
+  return new Promise((resolve,rej) => {    
+    let file=document.getElementById('file');
+    let done=false;
+    let doit=function() {
+      if(done)return;
+      done=true;
+      try{
+        var selectedFile = file.files[0];
+        if(!selectedFile)return rej(new Error('file not selected'));
+        var name = selectedFile.name; 
+        var size = selectedFile.size; 
+        console.log("filename:" + name + "size:" + size);
+        var reader = new FileReader(); 
+        switch(type){
+          case 'text':
+            reader.readAsText(selectedFile); 
+            break;
+          case 'bin':
+            reader.readAsArrayBuffer(selectedFile); 
+            break;
+        case 'binstr':
+            reader.readAsBinaryString(selectedFile); 
+            break;
+        case 'dataurl':
+            reader.readAsDataURL(selectedFile); 
+            break;
+          default:
+            return rej(new Error('unknown type '+type));
+        }        
+        reader.onload = function() {
+            //console.log(this.result);
+            resolve(this.result);
+        }
+        reader.onerror = function(event) {
+          return rej(new Error('on error '+event));
+        }
+      }catch(e){
+        return rej(e);
+      }
+    }
+    file.onchange=doit;
+    setTimeout(doit,60000);
+    file.click(); 
+  });  
+}
 
 /*box.fplot=function(func,rng,  style='width:600px;height:300px;'){
   box.plot(rng,rng.map(x=>func(x)))
