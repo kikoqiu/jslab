@@ -2,6 +2,13 @@ window._Op = (function(){
 	'bpo disable';
 	return {
 	add(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__add__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__radd__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -12,6 +19,13 @@ window._Op = (function(){
 	},
 
 	sub(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__sub__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__rsub__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -22,6 +36,13 @@ window._Op = (function(){
 	},
 
 	mul(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__mul__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__rmul__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -32,6 +53,13 @@ window._Op = (function(){
 	},
 
 	div(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__truediv__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__rtruediv__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -42,6 +70,13 @@ window._Op = (function(){
 	},
 
 	pow(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__pow__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__rpow__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -52,6 +87,13 @@ window._Op = (function(){
 	},
 
 	binaryAnd(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__and__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__rand__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -62,6 +104,13 @@ window._Op = (function(){
 	},
 
 	binaryOr(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__or__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__ror__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -72,6 +121,13 @@ window._Op = (function(){
 	},
 
 	binaryXor(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__xor_(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__rxor__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -82,6 +138,13 @@ window._Op = (function(){
 	},
 
 	binaryLShift(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__lshift__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__rlshift__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -92,6 +155,13 @@ window._Op = (function(){
 	},
 
 	binaryRShift(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__rshift__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__rrshift__(a);
+			}
+		}
 		if(typeof(a)!='object' && typeof(b)=='object'){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
@@ -102,6 +172,13 @@ window._Op = (function(){
 	},
 
 	less(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__lt__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__gt__(a);
+			}
+		}
 		if(typeof(a)=='object'&&a.operatorLess) return a.operatorLess(b);
 		else if(typeof(b)=='object'&&b.operatorGreater) return b.operatorGreater(a);
 		else if(typeof(a)=='object'&&a.operatorGreaterEqual) return !a.operatorGreaterEqual(b);		    
@@ -109,6 +186,13 @@ window._Op = (function(){
 	},
 
 	greater(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__gt__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__lt__(a);
+			}
+		}
 		if(typeof(a)=='object'&&a.operatorGreater) return a.operatorGreater(b);
 		else if(typeof(b)=='object'&&b.operatorLess) return b.operatorLess(a);
 		else if(typeof(a)=='object'&&a.operatorLessEqual) return !a.operatorLessEqual(b);		    
@@ -116,6 +200,13 @@ window._Op = (function(){
 	},
 
 	lessEqual(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__le__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__ge__(a);
+			}
+		}
 		if(typeof(a)=='object'&&a.operatorLessEqual) return a.operatorLessEqual(b);
 		else if(typeof(b)=='object'&&b.operatorGreaterEqual) return b.operatorGreaterEqual(a);
 		else if(typeof(a)=='object'&&a.operatorGreater) return !a.operatorGreater(b);		    
@@ -123,6 +214,13 @@ window._Op = (function(){
 	},
 
 	greaterEqual(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__ge__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__le__(a);
+			}
+		}
 		if(typeof(a)=='object'&&a.operatorGreaterEqual) return a.operatorGreaterEqual(b);
 		else if(typeof(b)=='object'&&b.operatorLessEqual) return b.operatorLessEqual(a);
 		else if(typeof(a)=='object'&&a.operatorLess) return !a.operatorLess(b);		    
@@ -130,6 +228,13 @@ window._Op = (function(){
 	},
 
 	equal(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__eq__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__eq__(a);
+			}
+		}
 		if(typeof(a)=='object'&&a.operatorEqual) return a.operatorEqual(b);
 		else if(typeof(a)=='object'&&a.operatorNotEqual) return !a.operatorNotEqual(b);
 		else if(typeof(b)=='object'&&b.operatorEqual) return b.operatorEqual(a);
@@ -138,6 +243,13 @@ window._Op = (function(){
 	},
 
 	notEqual(a, b) {
+		if(pyodide){
+			if(pyodide.isPyProxy(a)){
+				return a.__ne__(b);
+			}else if(pyodide.isPyProxy(b)){
+				return b.__ne__(a);
+			}
+		}
 		if(typeof(a)=='object'&&a.operatorNotEqual) return a.operatorNotEqual(b);
 		else if(typeof(a)=='object'&&a.operatorEqual) return !a.operatorEqual(b);
 		else if(typeof(b)=='object'&&b.operatorNotEqual) return b.operatorNotEqual(a);
