@@ -34,17 +34,27 @@ box.range=function(a,b,step=1,mapper){
   return [...box.rangen(a,b,step,mapper)];
 }
 /**
- * print output
+ * echo output
  * @param  {...any} o output 
  */
 box.echo=(...o)=>{
+  let str='';
+  for(i of o){
+    str+=String(i)+",&nbsp;";
+  }
+  vm.selected.result+=str+'<br/>\r\n';
+};
+/**
+ * print output
+ * @param  {...any} o output 
+ */
+ box.out=(...o)=>{
   let str='';
   for(i of o){
     str+=String(i);
   }
   vm.selected.result+=str+'<br/>\r\n';
 };
-
 /**
  * plotly plot (look at plotly for more infomation)
  * @param {*} data arrays
@@ -200,19 +210,38 @@ box.eval_expr=function(e,scope){
 box.deriv=math.derivative;
 box.symplify=math.symplify;
 
+box.latex_style=''
 /**
  * display a latex expressoin
  * @param {*} data the latex
  * @param {*} style extra style
  */
-box.latex=function(data, style=''){
-  let json=JSON.stringify(data);
+box.latex=function(...ex){
+  let result='';
+
+  for(let data of ex){
+    if(pyodide){
+      if(pyodide.isPyProxy(data)){
+        data=box.importpy('sympy').latex(data);
+      }
+    }
+    if(typeof(data)=='object' && data.toTex){
+      data=data.toTex({
+        parenthesis: 'auto',    // parenthesis option
+        //handler: someHandler,   // handler to change the output
+        implicit: 'hide'        // how to treat implicit multiplication
+      });
+    }
+    result+=data;
+  }
+
+  let style=box.latex_style;
   div='divplot'+new Date().getTime()+vm.plotdiv++;
   if(false){
  vm.selected.result+=
-    '<div class="latex" id="'+div+'" style="'+style+'">'+MathJax.tex2svg(data, {em: 16, ex: 6, display: false}).outerHTML+'</div>';
+    '<div class="latex" id="'+div+'" style="'+style+'">'+MathJax.tex2svg(result, {em: 16, ex: 6, display: false}).outerHTML+'</div>';
   }else{
-    let json=JSON.stringify(data); 
+    let json=JSON.stringify(result); 
     vm.selected.result+=
       '<div class="latex" id="'+div+'" style="'+style+'"></div>';
     let scr='document.getElementById("'+div+'").appendChild(MathJax.tex2svg('+json+', {em: 16, ex: 6, display: true}));'
@@ -357,3 +386,16 @@ box.importpy=function(name,asname=name){
   return ret;
 }
 
+box.sym=function(e,sub=null){
+  sympy=box.importpy('sympy');
+  let ret= sympy.sympify(e);
+  if(sub==null){
+    return ret;
+  }
+  sub=pyodide.toPy(sub);
+  if(ret.length){    
+    return ret.map(s=>s.subs(sub));
+  }else{
+    return ret.subs(sub);
+  }
+}
