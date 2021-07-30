@@ -40,7 +40,8 @@ box.range=function(a,b,step=1,mapper){
 box.echo=(...o)=>{
   let str='';
   for(i of o){
-    str+=String(i)+",&nbsp;";
+    if(str!='')str+=",&nbsp;";
+    str+=String(i)
   }
   vm.selected.result+=str+'<br/>\r\n';
 };
@@ -220,7 +221,7 @@ box.latex=function(...ex){
   let result='';
 
   for(let data of ex){
-    if(pyodide){
+    if(pyodide&&pyodide.isPyProxy){
       if(pyodide.isPyProxy(data)){
         data=box.importpy('sympy').latex(data);
       }
