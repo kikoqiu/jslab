@@ -23,7 +23,8 @@
     }
     if (!options.indent) // JSHint error.character actually is a column index, this fixes underlining on lines using tabs for indentation
       options.indent = 1; // JSHint default value is 4
-    JSHINT(text, options, options.globals);
+    text="async function dummy(){\r\n"+text+"\r\n}";
+    JSHINT(text, options, options.get_globals?options.get_globals():options.globals);
     var errors = JSHINT.data().errors, result = [];
     if (errors) parseErrors(errors, result);
     return result;
@@ -37,7 +38,7 @@
       if (error) {
         if (error.line <= 0) {
           if (window.console) {
-            window.console.warn("Cannot display JSHint error (invalid line " + error.line + ")", error);
+            //window.console.warn("Cannot display JSHint error (invalid line " + error.line + ")", error);
           }
           continue;
         }
@@ -54,8 +55,8 @@
         var hint = {
           message: error.reason,
           severity: error.code ? (error.code.startsWith('W') ? "warning" : "error") : "error",
-          from: CodeMirror.Pos(error.line - 1, start),
-          to: CodeMirror.Pos(error.line - 1, end)
+          from: CodeMirror.Pos(error.line - 2, start),
+          to: CodeMirror.Pos(error.line - 2, end)
         };
 
         output.push(hint);
