@@ -63,8 +63,17 @@
     <script src="codemirror/mode/javascript/javascript.js"></script>
     <script src="codemirror/mode/markdown/markdown.js"></script>    
     <script src="codemirror/addon/edit/closebrackets.js"></script>
+    <script src="codemirror/addon/edit/matchbrackets.js"></script>
 
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="codemirror/addon/lint/lint.css">
+    <script src="https://unpkg.com/jshint@2.13.0/dist/jshint.js"></script>
+    <script src="codemirror/addon/lint/lint.js"></script>
+    <script src="codemirror/addon/lint/javascript-lint.js?v=20210802"></script>
+
+
+    <!--script src="https://cdn.jsdelivr.net/pako/1.0.3/pako.min.js"></script-->
+
+    <!--script src="axios.min.js"></script-->
     <!--script src="https://unpkg.com/vue@next"></script-->
     <script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script>  
 
@@ -212,14 +221,33 @@
 
 
   </style>
-  <script>
 
-  </script>
+<style>
+  .dialogs{
+    position:fixed;
+    width: 1px;
+    height:1px;
+    left:0;
+    top:0;
+    z-index: 9999;
+  }
+  .dialog{
+    position:absolute;
+    width: 200px;
+    margin-left: calc( 50vw - 100px );
+    margin-top:100px;
+    padding:20px;
+    border-radius: 20px;
+    opacity: 0.9;
+    background-color: #eee;
+  }
+</style>
+
 </head>
 <body>
 <div id="app" style='width:100%;'>
-    <div class='toolbar-wrapper'>
-    <!--div class="pure-menu pure-menu-horizontal">
+    <!--<div class='toolbar-wrapper'>
+    div class="pure-menu pure-menu-horizontal">
       <ul class="pure-menu-list">
         <li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
           <a href="javascript:void()" class="pure-menu-link">File</a>
@@ -263,8 +291,8 @@
           <a href="javascript:void()" class="pure-menu-link" @click="this.loadHelp()">Help</a>
         </li>         
       </ul>
-    </div-->
-  </div>
+    </div
+  </div>-->
     <div class="toolbar">
       <button @click="this.newFile()"  title="New">New</button> 
       <button @click="this.openFile()" title="Open">Open</button>
@@ -273,11 +301,13 @@
       <button @click="this.exportBlock()" title="Export"><i class="bi-arrow-bar-right" role="img" aria-label="Export" ></i></button>
       <button @click="this.evalCode()" title="Run"><i class="bi-caret-right" role="img" aria-label="Run"></i></button>
       <button @click="this.runAll()" title="RunAll"><i class="bi-skip-forward" role="img" aria-label="RunAll"></i></button>
+      <button @click="this.evalCode(true)" title="F12 to open the debugger first!">Debug</button>
       <button @click="this.addblock()" title="Add &n">Add</button>
       <button @click="this.insertBlock()" title="Insert">Insert</button>
       <button @click="this.deleteBlock()" title="Delete"><i class="bi-eraser" role="img" aria-label="Delete"></i></button>
       <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()" title="UnDel"><i class="bi-arrow-bar-up" role="img" aria-label="UnDel"></i></button> 
-      <button @click="this.loadHelp()" title="Help">Help</button>      
+      <button @click="this.helpShow=true" title="Help">Help</button>    
+
     </div>
     <input type="file" ref="file" id="file" style="display: none">
     <div class="toolbarspace"></div>
@@ -295,6 +325,15 @@
       </div>
       <code-result :html="block.result" :script="block.resultScript"></code-result>
       <div class="clearfix"></div>
+    </div>
+    <div class='dialogs' v-show='helpShow'>
+      <div class='help-dialog dialog' v-show='helpShow'>
+        <ul>
+          <li><button @click="this.helpShow=false;this.loadHelp('help.json')" title="Help">Normal Help</button>   </li>
+          <li><button @click="this.helpShow=false;this.loadHelp('helpplot.json')" title="Plot">Plot Help</button></li>
+          <li><button @click="this.helpShow=false" title="Plot">Close</button></li>
+        </ul> 
+      </div>
     </div>
 </div>
   
@@ -315,7 +354,8 @@ const App = {
 
       updateInd:0,
       plotdiv:0,
-      uuid_pos:0,
+      uuid_pos:0,    
+      helpShow:false,  
     };
   },
   watch: {
@@ -352,7 +392,7 @@ const App = {
     updatecmeditor(){
       ++this.updateInd;
     },
-    serialize(cb){
+    serialize(cb,maxLimit=false){
       this.updatecmeditor();
       this.$nextTick(()=>
       { 
@@ -363,7 +403,14 @@ const App = {
           lastRun:this.$data.lastRun,
           version:0.2,
         };
-        let cnt=JSON.stringify(tosave);
+        let cnt=JSON.stringify(tosave, maxLimit?(function (k, v) {
+            if (typeof(v)=='string' && v.length>3*1024*1024){
+              console.log(`string too long to save ${v.length}`);
+              return "console.log('string too long to save');";
+            }
+            return v;
+          }):undefined
+        );
         cb(cnt);
       });
     },
@@ -401,8 +448,12 @@ const App = {
     saveBlock(){
       if(typeof(Storage)!=="undefined")        
       {
-        this.serialize(cnt=>localStorage['blocks_'+this.filename]=cnt);
-        localStorage['lastblocks']=this.filename;
+        try{
+          this.serialize(cnt=>localStorage['blocks_'+this.filename]=cnt,true);
+          localStorage['lastblocks']=this.filename;
+        }catch(e){
+          alert('failed to save');
+        }
       }
     },
     exportBlock(){
@@ -431,6 +482,14 @@ const App = {
         this.$data.blocks=data;
       }
     },
+    appendBlocks(data){
+      for(let b of data.blocks){
+        //if(!('uuid' in b)){//should always change uuid for VUE to work
+          b['uuid']=new Date().getTime()+'-'+this.uuid_pos++;
+        //}
+        this.$data.blocks.push(b);
+      }
+    },
     loadBlock(name){
       if(typeof(Storage)!=="undefined")        
       {       
@@ -449,21 +508,19 @@ const App = {
       }
       return false;
     },
-    loadHelp(){
+    loadHelp(url='help.json'){
       let that=this;
-      axios.get('help.json')
-      .then(function (response) {        
+      fetch(url).then(async function (response) {        
         console.log(response);
-        that.loadData('help.json',response.data);
+        let res=await response.json();
+        that.appendBlocks(res);
       })
       .catch(function (error) {
         alert('error!'+error);
         console.log(error);
-      })
-      .then(function () {        
       });
     },
-    evalCode(){      
+    evalCode(debug=false){      
       this.updatecmeditor();
       this.saveBlock();
       let cur=this.selected;
@@ -473,7 +530,11 @@ const App = {
         try{
           cur.result='';
           cur.resultScript='';
-          let evalresult=box.runcode(cur.code);
+          let tgtCode=cur.code;
+          if(debug){
+            tgtCode="debugger;"+tgtCode;
+          }
+          let evalresult=box.runcode(tgtCode);
           if(evalresult instanceof Promise){            
             evalresult=await evalresult;
           }
@@ -599,14 +660,39 @@ myapp.component('codemirror', {
     }
   },
   mounted(){
+    let portrait=window.orientation === 180 || window.orientation === 0;
     let that=this;
     this.editor = CodeMirror.fromTextArea(this.$refs.codeinput, {
       lineNumbers: true,
       extraKeys: {"": "autocomplete"},
+      hintOptions:{additionalContext:box},
       mode: {name: "javascript", globalVars: true},
       autoCloseTags: true,
       viewportMargin: Infinity, 
       autoCloseBrackets: true,
+      matchBrackets:true,
+      gutters: portrait?false:["CodeMirror-lint-markers"],
+      lint: {
+        "esversion": 9,
+        delay:(portrait?3000:500),
+        asi:true,
+        /*"undef": true,
+        "unused": true,
+        get_globals(){
+          let ret={};
+          for (var o = window; o; o = Object.getPrototypeOf(o)){
+            for(let key of Object.getOwnPropertyNames(o)){
+              ret[key]=true;
+            }
+          }
+          for (var o = box; o; o = Object.getPrototypeOf(o)){
+            for(let key of Object.getOwnPropertyNames(o)){
+              ret[key]=true;
+            }
+          }
+          return ret;
+        }*/
+      },
     });
 
     this.editor.on("focus",function(){
