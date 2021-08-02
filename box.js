@@ -70,6 +70,9 @@ box.plotly=function(data, layout, config, style){
   layout=JSON.stringify(layout);
   config=JSON.stringify(config);  
   let json=JSON.stringify(data); 
+  //let deed=window.pako.deflate(json,{level:9});
+  //console.log(json.length);
+  //console.log(deed.length);
   div='divplot'+new Date().getTime()+(vm.plotdiv++);
   vm.selected.result+=
     '<div class="plot" id="'+div+'" style="'+style+';"></div>';
@@ -273,7 +276,7 @@ box._Op=_Op;
 box.Math=Math;
 box.Date=Date;
   */
-box.proxy=new Proxy(window, {    
+box.global_proxy=new Proxy(window, {    
       get: function(target, prop, receiver) {  
         if(prop in box) return box[prop];        
         if(prop in target)return target[prop];        
@@ -316,7 +319,7 @@ box.runcode=function (code){
   console.log(currentCode);
   box.box=box;
   box.currentCode=currentCode;
-  with(box.proxy){
+  with(box.global_proxy){
     let ret= eval(currentCode);
     return ret;
   }  
