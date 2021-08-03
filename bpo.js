@@ -1,4 +1,4 @@
-window._Op = (function(){
+let _Op = (function(){
 	'bpo disable';
 	return {
 	add(a, b) {
@@ -260,10 +260,9 @@ window._Op = (function(){
 
 })();	
 	
+export {_Op};
 
-
-
-module.exports = function(babel) {
+export function visitor(babel) {
     var t = babel.types;
 
 	/*
@@ -279,7 +278,7 @@ module.exports = function(babel) {
     function initStatus(path) {
 	var firstBlockStatement = path.findParent(path => t.isBlockStatement(path.node) || t.isProgram(path.node));
 	if(firstBlockStatement) {
-	    for(directiveID in firstBlockStatement.node.directives) {
+	    for(let directiveID in firstBlockStatement.node.directives) {
 		let directive = firstBlockStatement.node.directives[directiveID];
 		if(directive.value.value == 'bpo disable'){
 		    path.node.BPO_HAVE_DEFAULT = true;
