@@ -1,7 +1,7 @@
 var box={};//window;
 
 /**
- * range generator
+ * Range generator
  * @param {*} a start
  * @param {*} b end
  * @param {*} step step
@@ -23,7 +23,7 @@ box.rangen=function *(a,b,step=1,mapper){
     }
 };
 /**
- * range array
+ * Range array
  * @param {*} a start
  * @param {*} b end
  * @param {*} step step
@@ -37,7 +37,7 @@ box.range=function(a,b,step=1,mapper){
  * echo output
  * @param  {...any} o output 
  */
-box.echo=(...o)=>{
+box.echo=function(...o){
   let str='';
   for(i of o){
     if(str!='')str+=",&nbsp;";
@@ -45,23 +45,13 @@ box.echo=(...o)=>{
   }
   vm.selected.result+=str+'<br/>\r\n';
 };
+
 /**
- * print output
- * @param  {...any} o output 
- */
- box.out=(...o)=>{
-  let str='';
-  for(i of o){
-    str+=String(i);
-  }
-  vm.selected.result+=str+'<br/>\r\n';
-};
-/**
- * plotly plot (look at plotly for more infomation)
- * @param {*} data arrays
+ * Plot with plotly
+ * @param {*} data data arrays
  * @param {*} layout 
  * @param {*} config 
- * @param {*} style extra plot div style
+ * @param {*} style Extra plot div style
  */
 box.plotly=function(data, layout, config, style){
   if(!style){
@@ -81,8 +71,8 @@ box.plotly=function(data, layout, config, style){
 };
 
 /**
- * plot a scatter figure
- * @param  {...any} args [X1s,Y1s,X2s,Y2s,...] 
+ * Plot a scatter figure
+ * @param  {...any} args x-points,y-points,x-point,y-point...,[{labels,style,layout,config}] 
  */
 box.plot=function(...args){
   let style=null;  
@@ -122,9 +112,9 @@ box.plot=function(...args){
 };
 
 /**
- * 
+ * Read a file
  * @param {String} type text bin binstr dataurl
- * @returns 
+ * @returns a promise
  */
 box.readFile=function(type='text'){
   return new Promise((resolve,rej) => {    
@@ -178,8 +168,9 @@ box.readFile=function(type='text'){
 };*/
 
 /**
- * compile a mathjs expression
- * return node with eval(scope) function
+ * Compile a mathjs expression
+ * @param {string} e The Expression
+ * @returns node with eval(scope) function
  */
 box.compile_expr=box.expr=function(e){
   let node=math.parse(e);
@@ -200,9 +191,9 @@ box.compile_expr=box.expr=function(e){
   return code;
 };
 /**
- * eval a mathjs expression
- * @param {*} e 
- * @param {*} scope 
+ * Evaluate a mathjs expression
+ * @param {string} e The Expression
+ * @param {Object} scope the evalutae scope
  * @returns 
  */
 box.eval_expr=function(e,scope){
@@ -216,8 +207,8 @@ box.symplify=math.symplify;
 
 box.latex_style=''
 /**
- * display a latex expressoin
- * @param {*} data the latex
+ * Display a latex expressoin
+ * @param {*} data the latex expression (string, mathjs expression or sympy sym)
  * @param {*} style extra style
  */
 box.latex=function(...ex){
@@ -254,7 +245,7 @@ box.latex=function(...ex){
 };
 /*
 //safe box
-box.proxy=new Proxy(box, {    
+box.global_proxy=new Proxy(box, {    
         get: function(target, prop, receiver) {          
           return prop in target ? target[prop] : undefined;
         },
@@ -295,9 +286,9 @@ box.global_proxy=new Proxy(window, {
   );
 
 /**
- * runs a piece of code
+ * Runs a piece of code async
  * @param {*} code 
- * @returns 
+ * @returns the promise
  */
 box.runcode=function (code){  
   var input = code;
@@ -326,9 +317,9 @@ box.runcode=function (code){
 }
 
 /**
- * runs a piece of code
+ * Runs a piece of code sync
  * @param {*} code 
- * @returns 
+ * @returns the result
  */
  box.runcodeSync_=function (code){  
   var input = code;
@@ -360,6 +351,11 @@ box._loadpy=async function(){
       indexURL : "https://cdn.jsdelivr.net/pyodide/v0.17.0/full/"
     });  
 }
+/**
+ * Runs a piece of python code
+ * @param {*} code 
+ * @returns the result
+ */
 box.runpy=function(code){
   let ret=pyodide.runPython(`
     ${code}
@@ -367,6 +363,11 @@ box.runpy=function(code){
   return ret;
 }
 box._loadedpypackages=new Set();
+
+/**
+ * Load and init python, relies on Pyodide
+ * @param  {...any} modules python modules to load (eg. sympy, numpy) 
+ */
 box.loadpy=async function(...modules){
   await box._loadpy();
   for(let m of modules){
@@ -378,6 +379,12 @@ box.loadpy=async function(...modules){
   }
 }
 box._pypackages={};
+/**
+ * Import a python module, run loadpy first
+ * @param {*} name module name
+ * @param {*} asname as name
+ * @returns 
+ */
 box.importpy=function(name,asname=name){
   let ret=box._pypackages[name];
   if(!ret){
@@ -389,7 +396,12 @@ box.importpy=function(name,asname=name){
   }
   return ret;
 }
-
+/**
+ * Get a sympy sym
+ * @param {*} e the expression (eg. 'x sin(x)')
+ * @param {*} sub substute dict (eg. {x:'tan(x)'})
+ * @returns the symbols
+ */
 box.sym=function(e,sub=null){
   sympy=box.importpy('sympy');
   let ret= sympy.sympify(e);
