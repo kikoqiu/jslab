@@ -1,6 +1,31 @@
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: https://codemirror.net/LICENSE
 
+let function_info=null;
+async function gendoc(){
+  let babeldoc =await import( "../../../babel-doc.js");
+  Babel.registerPlugin("babeldoc",babeldoc.default);
+  let boxjs=await fetch('./box.js');
+  boxjs=await boxjs.text();        
+  let bbl=Babel.transform("'babeldoc enable';\r\n"+boxjs, 
+  { 
+    presets: [
+      [
+        "env",
+        {
+          exclude:["@babel/plugin-transform-async-to-generator",'@babel/plugin-transform-regenerator'],
+          useBuiltIns:false
+        }
+      ],
+    ]
+    ,parserOpts: {strictMode: false } ,
+    plugins: ["babeldoc"],
+  } );
+  function_info=babeldoc.functions;
+};
+gendoc();
+
+
 (function(mod) {
   if (typeof exports == "object" && typeof module == "object") // CommonJS
     mod(require("../../lib/codemirror"));
@@ -16,6 +41,18 @@
   }
 
   function arrayContains(arr, item) {
+    var i = arr.length;
+    while (i--) {
+      if (arr[i].indexOf && arr[i].indexOf( item)==0) {
+        return true;
+      }
+      if (arr[i].text && arr[i].text.indexOf( item)==0) {
+        return true;
+      }
+    }
+    return false;
+
+/*
     if (!Array.prototype.indexOf) {
       var i = arr.length;
       while (i--) {
@@ -25,7 +62,7 @@
       }
       return false;
     }
-    return arr.indexOf(item) != -1;
+    return arr.indexOf(item) != -1;*/
   }
 
   function scriptHint(editor, keywords, getToken, options) {
@@ -113,6 +150,30 @@
     function maybeAdd(str) {
       if (str.lastIndexOf(start, 0) == 0 && !arrayContains(found, str)) found.push(str);
     }
+    function maybeAdd1(str) {
+      if (str.lastIndexOf(start, 0) == 0 && !arrayContains(found, str)) {
+        let info=str.split('\n',2);
+        let txt=info[0].trim();
+        //let ext=info[1].trim();
+        found.push(
+          {displayText:str,text:txt,className:'CodeMirror-hint-big'}
+        );
+      }
+    }    
+    for(let v of Object.values(function_info)){      
+      if (context && context.length){
+        let name=context[context.length-1].string;
+        if(name==v.substring(0,name.length)){
+          maybeAdd1(v.substr(name.length+1));
+        }           
+      }else{
+        maybeAdd1(v);
+        if(v.startsWith('box.')){
+          maybeAdd1(v.substr(4));
+        }
+      }
+    }
+    
     function gatherCompletions(obj) {
       if (typeof obj == "string") forEach(stringProps, maybeAdd);
       else if (obj instanceof Array) forEach(arrayProps, maybeAdd);

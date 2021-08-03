@@ -17,19 +17,21 @@
   font-size: 90%;
   font-family: monospace;
 
-  max-height: 20em;
+  max-height: 40em;
   overflow-y: auto;
 }
 
 .CodeMirror-hint {
   margin: 0;
   padding: 0 4px;
-  border-radius: 2px;
+  /*border-radius: 2px;*/
   white-space: pre;
   color: black;
   cursor: pointer;
 }
-
+.CodeMirror-hint-big{
+  border-bottom:1px solid gray;
+}
 li.CodeMirror-hint-active {
   background: #08f;
   color: white;
