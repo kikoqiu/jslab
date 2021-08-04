@@ -114,9 +114,9 @@ box.plot=function(...args){
 /**
  * Read a file
  * @param {String} type text bin binstr dataurl
- * @returns a promise
+ * @returns a promise with [content,filename,size]
  */
-box.readFile=function(type='text'){
+box.readfile=function(type='text'){
   return new Promise((resolve,rej) => {    
     let file=document.getElementById('file');
     let done=false;
@@ -148,11 +148,12 @@ box.readFile=function(type='text'){
         }        
         reader.onload = function() {
             //console.log(this.result);
-            resolve(this.result);
+            resolve([this.result,name,size]);
         }
         reader.onerror = function(event) {
           return rej(new Error('on error '+event));
         }
+        file.value='';
       }catch(e){
         return rej(e);
       }

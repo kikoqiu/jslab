@@ -218,6 +218,9 @@
     .coderesult{
       overflow: scroll;
     }
+    .hidemenu {
+      display: none;
+    }
    
   }
 
@@ -301,14 +304,16 @@
       <button @click="this.openFile()" title="Open">Open</button>
       <button @click="this.saveBlock()"  title="Save Ctrl+s">Save</button>      
       <button @click="this.loadBlock()" title="Load">Load</button>      
-      <button @click="this.exportBlock()" title="Export"><i class="bi-arrow-bar-right" role="img" aria-label="Export" ></i></button>
+      <button @click="this.exportBlock()" title="Export">Export</button>
+      <button @click="this.importBlock()" title="Import">Import</button>
+      <button @click="this.shareBlock()" title="Import">Share</button>
       <button @click="this.evalCode()" title="Run"><i class="bi-caret-right" role="img" aria-label="Run"></i></button>
       <button @click="this.runAll()" title="RunAll"><i class="bi-skip-forward" role="img" aria-label="RunAll"></i></button>
-      <button @click="this.evalCode(true)" title="F12 to open the debugger first!">Debug</button>
+      <button @click="this.evalCode(true)" title="F12 to open the debugger first!" class='hidemenu'>Debug</button>
       <button @click="this.addblock()" title="Add &n">Add</button>
       <button @click="this.insertBlock()" title="Insert">Insert</button>
-      <button @click="this.deleteBlock()" title="Delete"><i class="bi-eraser" role="img" aria-label="Delete"></i></button>
-      <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()" title="UnDel"><i class="bi-arrow-bar-up" role="img" aria-label="UnDel"></i></button> 
+      <button @click="this.deleteBlock()" title="Delete">Delete</button>
+      <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()" title="UnDel">Undo</button> 
       <button @click="this.helpShow=true" title="Help">Help</button>    
 
     </div>
@@ -375,9 +380,18 @@ const App = {
   created(){
   },
   mounted() {
-    if(!this.loadBlock()){
+    let qcode=this.getQueryString('code');
+    if(qcode!=null){
+      this.addblock(qcode);
+      this.filename='temp.json';
+      let that=this;
+      setTimeout(function(){
+        that.evalCode();
+      },2000);
+    }else if(!this.loadBlock()){
       this.addblock();
-    }    
+      this.filename='temp.json';
+    }
     document.addEventListener("keydown",keydown);
     let that=this;
     function keydown(event){
@@ -460,12 +474,44 @@ const App = {
         }
       }
     },
+    shareBlock(){
+      this.updatecmeditor();
+      this.$nextTick(()=>
+      { 
+        let url=window.location.host+window.location.pathname+"?code=";
+        let code=this.selected.code;
+        url+=encodeURIComponent(code);
+        this.copy(url);
+      });
+    },
+    copy(url){
+          var input = document.createElement('input');
+          input.setAttribute('readonly', 'readonly');
+          input.setAttribute('value', url);
+          document.body.appendChild(input);
+          input.select();
+          input.setSelectionRange(0, 9999);
+          document.execCommand('Copy');
+          if(!document.execCommand('Copy')) {
+            alert('failed!');
+          }else{
+            alert('copyed!');
+          }
+          document.body.removeChild(input);
+      },
     exportBlock(){
       this.serialize(cnt=>
       {
         var mimeType = 'text/plain';
 	      document.getElementById('createInvote').href= 'data:' + mimeType  +  ';charset=utf-8,' + encodeURIComponent(cnt);
 	      document.getElementById('createInvote').click();
+      });
+    },
+    importBlock(){
+      let that=this;
+      box.readfile().then(function([txt,filename,size]){
+        let data=JSON.parse(txt);
+        that.loadData(filename,data);
       });
     },
     loadData(filename,data){
@@ -631,6 +677,14 @@ const App = {
         this.lastDeleted=null;
       }
     },
+    getQueryString(name) {
+        let reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");
+        let r = window.location.search.substr(1).match(reg);
+        if (r != null) {
+            return decodeURIComponent(r[2]);
+        };
+        return null;
+    }
   }
 };
 const myapp=Vue.createApp(App);
