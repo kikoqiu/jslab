@@ -123,8 +123,8 @@
     .toolbar button{
       float:left;
       margin:2px 2px;
-      padding:3px 5px;
-      width:50px;
+      padding:3px 3px;
+      width:45px;
     }
     .CodeMirror {
       border: 1px solid #eee;
@@ -303,16 +303,17 @@
       <button @click="this.newFile()"  title="New">New</button> 
       <button @click="this.openFile()" title="Open">Open</button>
       <button @click="this.saveBlock()"  title="Save Ctrl+s">Save</button>      
-      <button @click="this.loadBlock()" title="Load">Load</button>      
-      <button @click="this.exportBlock()" title="Export">Export</button>
-      <button @click="this.importBlock()" title="Import">Import</button>
-      <button @click="this.shareBlock()" title="Import">Share</button>
+      <button @click="this.loadBlock()" title="Load">Load</button>    
+      <button @click="this.exportBlock()" title="Export">Expo</button>
+      <button @click="this.importBlock()" title="Import">Impo</button>
+      <button @click="this.shareBlock()" title="Share">Share</button>
+      <!--button @click="this.blockCopy()" title="Select block content">Sele</button-->
       <button @click="this.evalCode()" title="Run"><i class="bi-caret-right" role="img" aria-label="Run"></i></button>
       <button @click="this.runAll()" title="RunAll"><i class="bi-skip-forward" role="img" aria-label="RunAll"></i></button>
-      <button @click="this.evalCode(true)" title="F12 to open the debugger first!" class='hidemenu'>Debug</button>
+      <button @click="this.evalCode(true)" title="F12 to open the debugger first!" class='hidemenu'><i class="bi-bug" role="img" aria-label="debug"></i></button>
       <button @click="this.addblock()" title="Add &n">Add</button>
-      <button @click="this.insertBlock()" title="Insert">Insert</button>
-      <button @click="this.deleteBlock()" title="Delete">Delete</button>
+      <button @click="this.insertBlock()" title="Insert">Ins</button>
+      <button @click="this.deleteBlock()" title="Delete">Del</button>
       <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()" title="UnDel">Undo</button> 
       <button @click="this.helpShow=true" title="Help">Help</button>    
 
@@ -327,7 +328,7 @@
         In[{{block.eindex==-1?'&nbsp;':block.eindex}}]:
       </div>
       <div class="codecontent">
-        <codemirror v-model:code="block.code" @focus="selectedIndex=index" :update-ind="updateInd"  ></codemirror>
+        <codemirror v-model:code="block.code" @focus="selectedIndex=index" :update-trigger="updateTrigger"></codemirror>
       </div>
       <div class="codeinfo">
       </div>
@@ -360,10 +361,10 @@ const App = {
       filename:'',
       lastRun:null,
 
-      updateInd:0,
+      updateTrigger:0,
       plotdiv:0,
       uuid_pos:0,    
-      helpShow:false,  
+      helpShow:false,
     };
   },
   watch: {
@@ -407,9 +408,9 @@ const App = {
   },
   methods:{    
     updatecmeditor(){
-      ++this.updateInd;
+      ++this.updateTrigger;
     },
-    serialize(cb,maxLimit=false){
+    serialize(cb,limitSize=false,withResult=true){
       this.updatecmeditor();
       this.$nextTick(()=>
       { 
@@ -420,7 +421,12 @@ const App = {
           lastRun:this.$data.lastRun,
           version:0.2,
         };
-        let cnt=JSON.stringify(tosave, maxLimit?(function (k, v) {
+        let cnt=JSON.stringify(tosave, limitSize?(function (k, v) {
+            if(!withResult){
+              if(k=='resultScript'){
+                return '';
+              }
+            }
             if (typeof(v)=='string' && v.length>3*1024*1024){
               console.log(`string too long to save ${v.length}`);
               return "console.log('string too long to save');";
@@ -463,11 +469,11 @@ const App = {
         this.loadBlock(files[index]);
       }
     },
-    saveBlock(){
+    saveBlock(saveResult=true){
       if(typeof(Storage)!=="undefined")        
       {
         try{
-          this.serialize(cnt=>localStorage['blocks_'+this.filename]=cnt,true);
+          this.serialize(cnt=>localStorage['blocks_'+this.filename]=cnt,true,saveResult);
           localStorage['lastblocks']=this.filename;
         }catch(e){
           alert('failed to save');
@@ -484,13 +490,20 @@ const App = {
         this.copy(url);
       });
     },
+    blockCopy(){
+      this.updatecmeditor();
+      this.$nextTick(()=>
+      {
+        this.copy(code);
+      });
+    },
     copy(url){
           var input = document.createElement('input');
           input.setAttribute('readonly', 'readonly');
           input.setAttribute('value', url);
           document.body.appendChild(input);
           input.select();
-          input.setSelectionRange(0, 9999);
+          input.setSelectionRange(0, 99999);
           document.execCommand('Copy');
           if(!document.execCommand('Copy')) {
             alert('failed!');
@@ -572,7 +585,7 @@ const App = {
     },
     evalCode(debug=false){      
       this.updatecmeditor();
-      this.saveBlock();
+      this.saveBlock(false);
       let cur=this.selected;
       let that=this;
       cur.eindex='*';
@@ -596,13 +609,12 @@ const App = {
           //throw e;
         }
         cur.eindex=this.maxeIndex++;
-        this.saveBlock();
-        
+        //this.saveBlock();        
       },1);
     },
     runAll(){      
       this.updatecmeditor();
-      this.saveBlock();
+      this.saveBlock(false);
       this.maxeIndex=0;      
       let that=this;
       let i=0;
@@ -630,7 +642,7 @@ const App = {
           if(i<this.blocks.length){            
             setTimeout(next,0);
           }else{
-            this.saveBlock();
+            this.saveBlock(true);
           }
         },1);
       }
@@ -691,7 +703,7 @@ const myapp=Vue.createApp(App);
 
 
 myapp.component('codemirror', {
-  props: ['code','updateInd'],
+  props: ['code','updateTrigger'],
   data: function () {
     return {
      
@@ -713,7 +725,7 @@ myapp.component('codemirror', {
     }
   },
   watch:{
-    updateInd(){
+    updateTrigger(){
       this.updateValue();
     }
   },
@@ -837,6 +849,12 @@ myapp.component('codeResult', {
 
 vm=myapp.mount("#app");
 
+
+
+function CloseEvent() { 
+    return 'Are you sure?';
+}
+window.onbeforeunload = CloseEvent;
 </script>
 
 
