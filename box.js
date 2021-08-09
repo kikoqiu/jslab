@@ -71,6 +71,21 @@ box.plotly=function(data, layout, config, style){
 };
 
 /**
+ * Unpace array of objects to get array of properties
+ * @param {Array} data 
+ */
+box.unpack=function(data,...props){
+  if(props.length==1)return data.map(o=>o[prop]);
+  let ret=[];
+  for(let i=0;i<props.length;++i){
+    let p=prop[i];
+    ret.push(data.map(o=>o[p]));
+  }
+  return ret;
+};
+
+
+/**
  * Plot a scatter figure
  * @param  {...any} args x-points,y-points,x-point,y-point...,[{labels,style,layout,config}] 
  */
