@@ -75,10 +75,10 @@ box.plotly=function(data, layout, config, style){
  * @param {Array} data 
  */
 box.unpack=function(data,...props){
-  if(props.length==1)return data.map(o=>o[prop]);
+  if(props.length==1)return data.map(o=>o[props]);
   let ret=[];
   for(let i=0;i<props.length;++i){
-    let p=prop[i];
+    let p=props[i];
     ret.push(data.map(o=>o[p]));
   }
   return ret;
@@ -86,7 +86,7 @@ box.unpack=function(data,...props){
 
 
 /**
- * Plot a scatter figure
+ * Plot a line figure
  * @param  {...any} args x-points,y-points,x-point,y-point...,[{labels,style,layout,config}] 
  */
 box.plot=function(...args){
@@ -125,6 +125,45 @@ box.plot=function(...args){
   }
   box.plotly(data,layout,config,style);
 };
+
+/**
+ * Plot a 3d line figure
+ * @param  {...any} args x-points,y-points,z-points,x-point,y-point,z-points...,[{labels,style,layout,config}] 
+ */
+box.plot3d=function(...args){
+  let style=null;  
+  let data=[];
+  let layout=null;
+  let config=null;
+  
+  for(var pos=0;pos<args.length;pos+=3){
+    let x=args[pos];
+    let y=args[pos+1];
+    let z=args[pos+2];
+    data.push({x,y,z,type: 'scatter3d',mode:'lines'});
+  }
+  pos-=3;
+  if(pos==args.length-1){
+    if(typeof(args[pos])=='string'){
+      style=args[pos];
+    }else if(typeof(args[pos])=='object'){
+      let dic=args[pos];
+      style=dic['style'];
+      let lbls=dic['labels']?dic['labels']:dic['names'];
+      if(lbls){
+        for(let i =0;i<data.length;++i){
+          data[i].name=lbls[i];
+        }
+      }
+      layout=dic['layout'];
+      config=dic['config'];
+    }    
+  }
+  box.plotly(data,layout,config,style || 'height:600px;');
+};
+
+
+
 
 /**
  * Read a file
@@ -314,7 +353,11 @@ box.runcode=function (code){
         [
           "env",
           {
-            exclude:["@babel/plugin-transform-async-to-generator",'@babel/plugin-transform-regenerator'],
+            exclude:[
+              "@babel/plugin-transform-async-to-generator",
+              '@babel/plugin-transform-regenerator',
+              '@babel/plugin-transform-destructuring',              
+            ],
             useBuiltIns:false
           }
         ],
