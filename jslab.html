@@ -44,7 +44,7 @@
     </script>
 
 
-    <script src="box.js?t=20210730"></script>
+    <script src="box.js?t=20210809"></script>
 
     
     <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" crossorigin="anonymous"-->
@@ -380,7 +380,10 @@ const App = {
     selected(){
       if(this.selectedIndex<this.blocks.length)return this.blocks[this.selectedIndex];      
       return null;     
-    }   
+    },
+    portrait(){
+     return window.orientation === 180 || window.orientation === 0;
+    }
   },
   created(){
   },
@@ -613,7 +616,7 @@ const App = {
           //throw e;
         }
         cur.eindex=this.maxeIndex++;
-        //this.saveBlock();        
+        if(!this.portrait)this.saveBlock(true);        
       },1);
     },
     runAll(){      
@@ -833,9 +836,7 @@ myapp.component('codeResult', {
         //that.key=(new Date().getTime() + (Math.random() * 10000)).toFixed(0);
         setTimeout(()=>eval(that.script),0);
       }
-
-      this.timer=setTimeout(doUpdate,1);
-      
+      this.timer=setTimeout(doUpdate,1);      
     }
   },
   watch:{
@@ -850,15 +851,18 @@ myapp.component('codeResult', {
   }
 });
 
-
 vm=myapp.mount("#app");
 
 
 
-function CloseEvent() { 
+
+let portrait=window.orientation === 180 || window.orientation === 0;
+if(portrait){
+  function CloseEvent() { 
     return 'Are you sure?';
+  }
+  window.onbeforeunload = CloseEvent;
 }
-window.onbeforeunload = CloseEvent;
 </script>
 
 
