@@ -10,13 +10,13 @@ async function gendoc(){
   let bbl=Babel.transform("'babeldoc enable';\r\n"+boxjs, 
   { 
     presets: [
-      [
+      /*[
         "env",
         {
           exclude:["@babel/plugin-transform-async-to-generator",'@babel/plugin-transform-regenerator'],
           useBuiltIns:false
         }
-      ],
+      ],*/
     ]
     ,parserOpts: {strictMode: false } ,
     plugins: ["babeldoc"],
@@ -147,11 +147,12 @@ gendoc();
 
   function getCompletions(token, context, keywords, options) {
     var found = [], start = token.string, global = options && options.globalScope || window;
+    start=start.toLowerCase();//*****/
     function maybeAdd(str) {
-      if (str.lastIndexOf(start, 0) == 0 && !arrayContains(found, str)) found.push(str);
+      if (str.toLowerCase().lastIndexOf(start, 0) == 0 && !arrayContains(found, str)) found.push(str);
     }
     function maybeAdd1(str) {
-      if (str.lastIndexOf(start, 0) == 0 && !arrayContains(found, str)) {
+      if (str.toLowerCase().lastIndexOf(start, 0) == 0 && !arrayContains(found, str)) {
         let info=str.split('\n',2);
         let txt=info[0].trim();
         //let ext=info[1].trim();
