@@ -13,7 +13,7 @@
 
     <script src="https://unpkg.com/mathjs@9.4.3/lib/browser/math.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.16.0/dist/numjs.min.js" defer="defer"></script>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.17.0/full/pyodide.js" defer="defer"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.18.0/full/pyodide.js" defer="defer"></script>
 
 
     <!--script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script-->
@@ -597,6 +597,7 @@ const App = {
       let that=this;
       cur.eindex='*';
       setTimeout(async()=>{
+        let info={};
         try{
           cur.result='';
           cur.resultScript='';
@@ -604,7 +605,7 @@ const App = {
           if(debug){
             tgtCode="debugger;"+tgtCode;
           }
-          let evalresult=box.runcode(tgtCode);
+          let evalresult=box.runcode(tgtCode,info);
           if(evalresult instanceof Promise){            
             evalresult=await evalresult;
           }
@@ -612,12 +613,51 @@ const App = {
             cur.result+=String(evalresult);
           }
         }catch(e){
-          cur.result+='<pre>'+"name: " + e.name + "\nmessage: " + e.message + "\nstack: " + e.stack+'</pre>';
-          //throw e;
+          cur.result+=this.formatError(info.compiled_code,e);
+          setTimeout(function(){throw e},1);
         }
         cur.eindex=this.maxeIndex++;
         if(!this.portrait)this.saveBlock(true);        
       },1);
+    },
+    formatError(source,e){
+      let pos=-1,match=null;
+      let sk= e.stack.split('\n');
+      let reg=/at eval \(eval at box.runcode \([^\)]*\), <anonymous>:([0-9]+):([0-9]+)\)/;
+      for(let i=sk.length-1;i>=0;--i){
+          if(pos==-1){
+            match=sk[i].match(reg);
+            if(match){
+              pos=i;
+              break;
+            }            
+          }
+      }
+      if(pos==-1){
+        console.error('formatError pos==-1');
+        pos=sk.length;
+      }else{
+        ++pos;
+      }
+      let stack='';
+      for(let i=0;i<pos;++i){
+        stack+=sk[i].replace(/</g,'&lt;').replace(/>/g,'&gt;')+"\n";                
+      }
+      let errorinfo='';
+      if(match){
+        try{
+          let line=parseInt(match[1])-1;
+          let col=parseInt(match[2])-1;
+          source=source.split('\n');
+          let sourceline=source[line];
+          errorinfo=`<span style='color:red;'>Error At</span>[${line+1-2},${col+1-2}]: `+sourceline.substr(0,col);
+          errorinfo+="<span style='color:red;'>&lt---error here---&gt</span>"+sourceline.substr(col)+'\n';
+          }catch(err){
+
+          }
+      }   
+      return '<pre>'+errorinfo+"<span style='color:red;'>Error Name</span>: " + e.name + "\n<span style='color:red;'>Message</span>: " + e.message + "\n<span style='color:red;'>Stack</span>: " + stack+'</pre>';
+
     },
     runAll(){      
       this.updatecmeditor();
@@ -630,10 +670,11 @@ const App = {
         this.selectedIndex=i;
         cur.eindex='*';
         setTimeout(async ()=>{
+          let info={};
           try{
             cur.result='';
             cur.resultScript='';
-            let evalresult=box.runcode(cur.code);
+            let evalresult=box.runcode(cur.code,info);
             if(evalresult instanceof Promise){            
               evalresult=await evalresult;
             }
@@ -641,8 +682,8 @@ const App = {
               cur.result+=String(evalresult);
             }
           }catch(e){
-            cur.result+='<pre>'+"name: " + e.name + "\nmessage: " + e.message + "\nstack: " + e.stack+'</pre>';
-            //throw e;
+            cur.result+=this.formatError(info.compiled_code,e);
+            setTimeout(function(){throw e},1);
           }
           cur.eindex=this.maxeIndex++;
           ++i;
