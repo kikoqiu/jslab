@@ -260,17 +260,15 @@ box.eval_expr=function(e,scope){
 box.deriv=math.derivative;
 box.symplify=math.symplify;
 
-box.latex_style=''
 /**
- * Display a latex expressoin
- * @param {*} data the latex expression (string, mathjs expression or sympy sym)
- * @param {*} style extra style
+ * Get latex string
+ * @param  {...any} ex 
  */
-box.latex=function(...ex){
+box.latexstr=function(...ex){
   let result='';
 
   for(let data of ex){
-    if(pyodide&&pyodide.isPyProxy){
+    if(!!window.pyodide&&pyodide.isPyProxy){
       if(pyodide.isPyProxy(data)){
         data=box.importpy('sympy').latex(data);
       }
@@ -281,9 +279,25 @@ box.latex=function(...ex){
         //handler: someHandler,   // handler to change the output
         implicit: 'hide'        // how to treat implicit multiplication
       });
+    }else if(Array.isArray(data)){
+      data=data.map(d=>box.latexstr(d));
+      data.join(',');
+      data='['+data+']';
     }
+      
     result+=data;
   }
+  return result;
+}
+
+box.latex_style=''
+/**
+ * Display a latex expressoin
+ * @param {*} data the latex expression (string, mathjs expression or sympy sym)
+ * @param {*} style extra style
+ */
+box.latex=function(...ex){
+  let result=box.latexstr(...ex);
 
   let style=box.latex_style;
   div='divplot'+new Date().getTime()+vm.plotdiv++;
@@ -345,12 +359,12 @@ box.global_proxy=new Proxy(window, {
  * @param {*} code 
  * @returns the promise
  */
-box.runcode=function (code){  
+box.runcode=function (code,info){  
   var input = code;
   var currentCode = Babel.transform("(async function(){'bpo enable';\r\n"+input+"\r\n})();", 
     { 
       presets: [
-        [
+        /*[
           "env",
           {
             exclude:[
@@ -360,13 +374,14 @@ box.runcode=function (code){
             ],
             useBuiltIns:false
           }
-        ],
+        ],*/
       ] ,//env Babel.availablePresets//"es2017"
       plugins: ["bpo"],
       sourceType: "script",
       sourceMaps:"inline",
     }  ).code;
   console.log(currentCode);
+  if(info)info.compiled_code=currentCode;
   box.box=box;
   box.currentCode=currentCode;
   with(box.global_proxy){
@@ -380,13 +395,14 @@ box.runcode=function (code){
  * @param {*} code 
  * @returns the result
  */
- box.runcodeSync_=function (code){  
+ box.runcodeSync_=function (code,info){  
   var input = code;
   var currentCode = Babel.transform("'bpo enable';\r\n"+input, 
   { 
-    presets: ["es2017"] ,//env Babel.availablePresets
+    presets: [/*"es2017"*/] ,//env Babel.availablePresets
     plugins: ["bpo"]}
   ).code;
+  if(info)info.compiled_code=currentCode;
   console.log(currentCode);
   box.box=box;
   box.currentCode=currentCode;
@@ -405,9 +421,10 @@ box.runcode=function (code){
 box._pyloaded=false;
 box._loadpy=async function(){
   if(box._pyloaded)return;
+
   box._pyloaded=true;
-  await loadPyodide({
-      indexURL : "https://cdn.jsdelivr.net/pyodide/v0.17.0/full/"
+  window.pyodide=box.pyodide = await loadPyodide({
+      indexURL : "https://cdn.jsdelivr.net/pyodide/v0.18.0/full/"
     });  
 }
 /**
@@ -473,4 +490,53 @@ box.sym=function(e,sub=null){
   }else{
     return ret.subs(sub);
   }
+}
+
+/**
+ * javascript object to python 
+ * @param {*} jso 
+ * @returns 
+ */
+box.toPy=function(jso){
+  return pyodide.toPy(jso);
+}
+
+/**
+ * get extremum of a func
+ * @param {*} sym 'a**2+1/b/(a-b),a,b'
+ * @param {*} domain 
+ * @returns 
+ */
+box.extremum= function (sym,domain=sympy.S.Reals){
+  let syms=[...sympy.sympify(sym)];
+  let func=syms[0];
+  let xs=syms.slice(1);
+  let diffs=xs.map(x=>func.diff(x));    
+  solu=sympy.nonlinsolve(diffs,xs);
+  //latex(solu);
+  let res=[...solu];
+  if(domain){
+    res=res.filter(
+      (so)=>
+      ![...so].some(
+        k=>!domain.has(k)
+      )
+    );
+  }
+  res=res.map(x=>{
+    let s=[...x];
+    let scope={};
+    for(let i=0;i<s.length;++i){
+      scope[xs[i]]=s[i];
+    }    
+    let y=null;
+    try{
+      y=func.subs(box.toPy(scope));
+    }catch(e){
+      console.log('failed to get y');
+    }
+    return [...x,y];
+  });
+
+  return res;
 }
