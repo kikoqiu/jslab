@@ -1,4 +1,6 @@
-var box={};//window;
+var wrap_with_box=false;
+
+var box=wrap_with_box?{}:globalThis;
 
 /**
  * Range generator
@@ -384,10 +386,16 @@ box.runcode=function (code,info){
   if(info)info.compiled_code=currentCode;
   box.box=box;
   box.currentCode=currentCode;
-  with(box.global_proxy){
+
+  if(wrap_with_box){
+    with(box.global_proxy){
+      let ret= eval(currentCode);
+      return ret;
+    }  
+  }else{
     let ret= eval(currentCode);
     return ret;
-  }  
+  }
 }
 
 /**
@@ -407,7 +415,12 @@ box.runcode=function (code,info){
   box.box=box;
   box.currentCode=currentCode;
 
-  with(box.proxy){
+  if(wrap_with_box){
+    with(box.global_proxy){
+      let ret= eval(currentCode);
+      return ret;
+    }  
+  }else{
     let ret= eval(currentCode);
     return ret;
   }

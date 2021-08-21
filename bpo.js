@@ -2,6 +2,7 @@ let _Op = (function(){
 	'bpo disable';
 	return {
 	add(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint')) return a+b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__add__(b);
@@ -19,6 +20,7 @@ let _Op = (function(){
 	},
 
 	sub(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a-b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__sub__(b);
@@ -36,6 +38,7 @@ let _Op = (function(){
 	},
 
 	mul(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a*b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__mul__(b);
@@ -53,6 +56,7 @@ let _Op = (function(){
 	},
 
 	div(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a/b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__truediv__(b);
@@ -70,6 +74,7 @@ let _Op = (function(){
 	},
 
 	pow(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a**b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__pow__(b);
@@ -87,6 +92,7 @@ let _Op = (function(){
 	},
 
 	binaryAnd(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a&b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__and__(b);
@@ -104,6 +110,7 @@ let _Op = (function(){
 	},
 
 	binaryOr(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a|b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__or__(b);
@@ -121,6 +128,7 @@ let _Op = (function(){
 	},
 
 	binaryXor(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a^b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__xor_(b);
@@ -138,6 +146,7 @@ let _Op = (function(){
 	},
 
 	binaryLShift(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a<<b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__lshift__(b);
@@ -155,6 +164,7 @@ let _Op = (function(){
 	},
 
 	binaryRShift(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a>>b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__rshift__(b);
@@ -172,6 +182,7 @@ let _Op = (function(){
 	},
 
 	less(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a<b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__lt__(b);
@@ -186,6 +197,7 @@ let _Op = (function(){
 	},
 
 	greater(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a>b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__gt__(b);
@@ -200,6 +212,7 @@ let _Op = (function(){
 	},
 
 	lessEqual(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a<=b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__le__(b);
@@ -214,6 +227,7 @@ let _Op = (function(){
 	},
 
 	greaterEqual(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a>=b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__ge__(b);
@@ -228,6 +242,7 @@ let _Op = (function(){
 	},
 
 	equal(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a==b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__eq__(b);
@@ -243,6 +258,7 @@ let _Op = (function(){
 	},
 
 	notEqual(a, b) {
+		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a!=b;
 		if(globalThis.pyodide?.isPyProxy){
 			if(pyodide.isPyProxy(a)){
 				return a.__ne__(b);
