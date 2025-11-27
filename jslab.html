@@ -173,6 +173,7 @@
               <a href="#" @click.prevent="newFile()">New</a>
               <a href="#" @click.prevent="openFile()">Open</a>
               <a href="#" @click.prevent="saveBlock()">Save</a>
+              <a href="#" @click.prevent="saveAsBlock()">Save As</a>
               <a href="#" @click.prevent="exportBlock()">Export to File</a>
               <a href="#" @click.prevent="importBlock()">Import from File</a>
               <a href="#" @click.prevent="shareBlock()">Share Link</a>
@@ -206,7 +207,7 @@
           </div>
         </nav>
         <div class="toolbar">
-          <button @click="saveBlock()" title="Save (Ctrl+S)"><i class="bi-save"></i></button>
+          <button @click="saveBlock()" title="Save(Ctrl+S)"><i class="bi-save"></i></button>
           <button @click="addblock()" title="Insert Cell Below"><i class="bi-plus-lg"></i></button>
           <button @click="cutBlock()" title="Cut"><i class="bi-scissors"></i></button>
           <button @click="copyBlock()" title="Copy"><i class="bi-clipboard"></i></button>
@@ -282,7 +283,7 @@ const App = {
     const loaded = await this.loadBlock();
     if (!loaded) {
       this.addblock("echo('Welcome to JSLab!');");
-      this.filename = '/untitled.json';
+      this.filename = '';
     }
     document.addEventListener("keydown", (event) => {
       if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.evalCode(); }
@@ -296,7 +297,7 @@ const App = {
     clearAll() {
       Object.assign(this.$data, this.$options.data({vfs: this.vfs, showFileDialog: false, fileDialogMode: 'open'}));
       this.addblock();
-      this.filename = '/untitled.json';
+      this.filename = '';
     },
     newFile() {
       if (confirm('Are you sure? Unsaved changes will be lost.')) {
@@ -307,20 +308,36 @@ const App = {
       this.fileDialogMode = 'open';
       this.showFileDialog = true;
     },
-    saveBlock() {
+    saveAsBlock() {
       this.fileDialogMode = 'save';
       this.showFileDialog = true;
+    },
+    dosave(){
+      this.serialize(async (cnt) => {
+          await this.vfs.saveFile(this.filename, cnt);
+          await this.vfs.setLastFile(this.filename);
+          alert(`Notebook "${this.filename}" saved.`);
+      });
+    },
+    saveBlock() {
+      if(this.filename == '') {
+        this.saveAsBlock();
+      }else{
+        this.dosave();
+      }
     },
     async handleFileOpen(path) {
         await this.loadBlock(path);
     },
     handleFileSave(path) {
-        this.filename = path;
-        this.serialize(async (cnt) => {
-            await this.vfs.saveFile(this.filename, cnt);
-            await this.vfs.setLastFile(this.filename);
-            alert(`Notebook "${this.filename}" saved.`);
-        });
+      if(path.length<=0){
+        return;
+      }
+      if(!path.endsWith(".json")){
+        path+=".json";
+      }
+      this.filename = path;
+      this.dosave();
     },
     loadData(filename, data) {
       this.clearAll();
