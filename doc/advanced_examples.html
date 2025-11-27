@@ -1,0 +1,80 @@
+<h2>Advanced JSLab Examples</h2>
+<p>This document provides more detailed examples of advanced functionalities available in JSLab, building upon the basic concepts introduced in the "Getting Started" guide. Many of these examples demonstrate JSLab's capabilities for high-precision numerical computing and dynamic data visualization.</p>
+<p>Remember that all these examples, and more, can be loaded and run interactively within the JSLab application via the "Help" menu.</p>
+
+<h3>Working with Large Numbers</h3>
+
+<h4>BigInt Operations</h4>
+<p>JSLab fully supports JavaScript's native <code>BigInt</code> type, allowing you to perform calculations with arbitrary-precision integers, exceeding the limits of standard JavaScript numbers. This is particularly useful for cryptographic operations, scientific computing, or any scenario requiring extremely large integer values.</p>
+<pre><code>echo('Js buildin bigint<hr/>');
+let res=1n;
+for(let i=2n;i<=50n;++i){
+  res*=i;
+}
+latex(math.parse('50!'),'=',res); // Calculates 50 factorial and displays it using LaTeX.</code></pre>
+
+<h4>High-Precision Floating-Point with bfjs</h4>
+<p>For scenarios demanding higher precision than standard JavaScript <code>Number</code> types, JSLab integrates <code>libbf.js</code>, accessible via the global <code>bfjs</code> object. This library provides arbitrary-precision floating-point arithmetic, essential for sensitive scientific and engineering computations.</p>
+<ul>
+    <li><code>bfjs.sin(x)</code>: Calculates the sine of <code>x</code>.</li>
+    <li><code>bfjs.PI()</code>: Returns the value of Pi to high precision.</li>
+    <li><code>bfjs.sqrt(x)</code>: Calculates the square root of <code>x</code>.</li>
+    <li><code>bfjs.acos(x)</code>: Calculates the arc cosine of <code>x</code>.</li>
+    <li><code>value.toFixed(precision, roundingMode)</code>: Formats a <code>bfjs</code> number to a specified precision.</li>
+</ul>
+<pre><code>// Demonstrate high-precision sine and PI
+let value1=bfjs.sin(2 * bfjs.PI());
+latex(math.parse('sin(2\pi)'),'=',value1.toFixed(10,150));
+echo('Expected result for sin(2π) is 0.');
+echo();
+
+// Verify a trigonometric identity with high precision
+let value2=(bfjs.sin(bfjs.PI().div(3)).minus(bfjs.sqrt(3).div(2)));
+latex(math.parse('sin(\pi/3)-\sqrt{3}/2'),'=',value2.toFixed(10,150));
+echo('Expected result for sin(π/3) - sqrt(3)/2 is 0.');
+echo();
+
+// Calculate 2 * arccos(0) to high precision (should be PI)
+let value3=bfjs.acos(0).times(2);
+latex(math.parse('2 \arccos(0)'),'=',value3.toFixed(10,150));
+echo('Expected result for 2 * arccos(0) is PI.');</code></pre>
+
+<pre><code>//big float constants
+//set decimal precision to 2000 digits
+bfjs.push_decimal_precision(2000);
+echo(bfjs.PI().toFixed(10,1999))
+bfjs.pop_precision();</code></pre>
+
+<pre><code>//calc definite integration with romberg's method
+info={}
+bfjs.helper.romberg(x=>4/(1+x*x),0,1,1e-30,1e-30,info);
+echo(info);</code></pre>
+
+<h3>Dynamic and Advanced Plotting</h3>
+
+<h4>Plotly Integration</h4>
+<p>JSLab leverages the powerful Plotly.js library for creating interactive, publication-quality graphs. While the <code>plot()</code> function provides a simplified interface for common 2D plots, you can utilize the full power of Plotly.js for highly customized visualizations. Refer to the <a href='https://plotly.com/javascript/reference/' target='_blank'>Plotly.js JavaScript Reference</a> for extensive options.</p>
+
+<h4>Generating Multi-Series Plots Dynamically</h4>
+<p>You can programmatically generate complex plots with multiple data series. The example below shows how to plot several curves derived from a mathematical function over a range of parameters.</p>
+<pre><code>let res=[];
+for(let a=1.5;a<4;a+=0.5){
+  // Generate x values using range()
+  x=range(0,10,0.1);
+  // Calculate y values based on 'a' and 'x'
+  y=x.map(x_val=>x_val**a/a**x_val);
+  // Push both x and y arrays for plotting
+  res.push(x);
+  res.push(y);
+}
+// Plot all generated series
+plot(...res); // Uses the spread operator to pass multiple x,y pairs to plot()</code></pre>
+
+<h3>Exploring More Interactive Examples</h3>
+<p>For more advanced features, including precise numerical calculations with BigInt and Big Float (<code>bfjs</code>), 3D plotting, and advanced mathematical operations, explore the interactive examples directly within the JSLab application:</p>
+<ul>
+    <li>Go to the <strong>"Help"</strong> menu in the JSLab application.</li>
+    <li>Select <strong>"Load General Usage"</strong> to load examples from <code>help.json</code>.</li>
+    <li>Select <strong>"Load Plotting Usage"</strong> to load examples from <code>helpplot.json</code>.</li>
+</ul>
+<p>These will load cells directly into your JSLab environment, allowing you to experiment and learn interactively.</p>

@@ -1,0 +1,58 @@
+<h2>Getting Started with JSLab</h2>
+<p>Welcome to JSLab! This is an interactive JavaScript environment designed for numerical computing, data exploration, and powerful visualizations directly in your browser. With JSLab, you can easily perform complex calculations, generate data, and create dynamic plots.</p>
+<p>Here's a quick guide to some fundamental functionalities:</p>
+
+<h3>Printing Output: <code>echo()</code></h3>
+<p>The <code>echo()</code> function is your primary tool for displaying text and variable values in the output area of a cell. It accepts multiple arguments, which it prints formatted with HTML line breaks.</p>
+<pre><code>echo('Hello JSLab!');
+let myNumber = 42;
+echo('The answer is', myNumber);
+echo(`Current date: ${new Date().toLocaleDateString()}`);</code></pre>
+
+<h3>Working with Math: <code>latex()</code></h3>
+<p>JSLab integrates powerful mathematical capabilities through <code>math.js</code> and can render expressions beautifully using LaTeX. Use the <code>latex()</code> function to display mathematical formulas.</p>
+<pre><code>// Display a simple equation
+latex('E = mc^2');
+
+// Display an expression parsed by math.js
+latex(math.parse('f(x) = sin(x) + x^2'));
+
+// Display the result of a derivative (requires 'math' object)
+// For this to work, ensure 'math' object is available in your scope (it usually is).
+// latex(math.derivative('x^2', 'x')); // This would typically be how you'd use it if math.js was fully exposed for symbolic.
+// Let's use a simple string example for getting started.
+latex('\int_0^1 x^2 dx = \frac{1}{3}');</code></pre>
+
+<h3>Generating Sequences: <code>range()</code></h3>
+<p>The <code>range()</code> function allows you to quickly generate arrays of numbers, which is incredibly useful for data manipulation and plotting.</p>
+<ul>
+    <li><code>a</code>: start value (inclusive).</li>
+    <li><code>b</code>: end value (exclusive).</li>
+    <li><code>step</code>: (Optional) increment value. Defaults to 1.</li>
+    <li><code>mapper</code>: (Optional) a function to transform each generated value.</li>
+</ul>
+<pre><code>// Generate numbers from 0 to 4
+let numbers = range(0, 5); // Result: [0, 1, 2, 3, 4]
+echo('Generated numbers:', numbers);
+
+// Generate even numbers from 0 to 8
+let evenNumbers = range(0, 10, 2); // Result: [0, 2, 4, 6, 8]
+echo('Even numbers:', evenNumbers);
+
+// Generate squares of numbers from 0 to 3
+let squares = range(0, 4, i => i * i); // Result: [0, 1, 4, 9]
+echo('Squares:', squares);</code></pre>
+
+<h3>Visualizing Data: <code>plot()</code></h3>
+<p>JSLab provides the <code>plot()</code> function as a simplified interface to the powerful Plotly.js library, enabling you to create interactive 2D line charts and scatter plots effortlessly.</p>
+<pre><code>// Plot a simple sine wave
+let x_values = range(0, 10, 0.1);
+let y_values = x_values.map(x => Math.sin(x));
+plot(x_values, y_values, { labels: ['Sine Wave'], layout: { title: 'Basic Sine Wave' } });
+
+// Plot multiple lines
+let x_data = range(0, 10);
+let y1_data = x_data.map(val => val);
+let y2_data = x_data.map(val => val * 2);
+plot(x_data, y1_data, x_data, y2_data, { labels: ['Line y=x', 'Line y=2x'], layout: { title: 'Two Lines' } });</code></pre>
+

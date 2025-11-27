@@ -201,8 +201,10 @@
           </div>
            <div class="menu-item"> Help
             <div class="dropdown-content">
-              <a href="#" @click.prevent="loadHelp('help.json')">General Usage</a>
-              <a href="#" @click.prevent="loadHelp('helpplot.json')">Plotting Help</a>
+              <a href="doc/help.html" target="_blank">Documentation</a>
+              <a href="#" @click.prevent="loadHelp('help.json')">Load General Usage</a>
+              <a href="#" @click.prevent="loadHelp('helpplot.json')">Load Plotting Usage</a>
+              <a href="#" @click.prevent="toggleAboutModal()">About</a>
             </div>
           </div>
         </nav>
@@ -250,8 +252,28 @@
       :vfs="vfs"
       @close="showFileDialog = false"
       @open="handleFileOpen"
-      @save="handleFileSave"
-    ></file-dialog>
+      @save="handleFileSave">
+    </file-dialog>
+
+    <!-- About Modal -->
+    <div v-if="showAboutModal" class="file-dialog-overlay" @click.self="toggleAboutModal">
+      <div class="file-dialog" style="height: auto; max-height: 80%; width: 500px;">
+        <div class="file-dialog-header">
+          <span>About JSLab</span>
+          <button class="close-btn" @click="toggleAboutModal"><i class="bi-x-lg"></i></button>
+        </div>
+        <div class="file-dialog-body" style="padding: 20px;">
+          <p><strong>JSLab</strong> is an interactive JavaScript environment for rapid prototyping, data exploration, and scientific computing in the browser.</p>
+          <p>Version: 1.0.0</p>
+          <p>Built with Vue.js, CodeMirror, Math.js, Plotly.js, and other open-source libraries.</p>
+          <p>License: MIT</p>
+          <p>Special thanks to the open-source community!</p>
+        </div>
+        <div class="file-dialog-footer">
+          <button @click="toggleAboutModal">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -267,6 +289,7 @@ const App = {
     showFileDialog: false,
     fileDialogMode: 'open',
     vfs: new VFS(),
+    showAboutModal: false,
   }),
   watch: {
     filename(newvalue) {
@@ -291,6 +314,9 @@ const App = {
     });
   },
   methods: {
+    toggleAboutModal() {
+      this.showAboutModal = !this.showAboutModal;
+    },
     serialize(cb) {
       this.$nextTick(() => { cb(JSON.stringify({ blocks: this.blocks, maxeIndex: this.maxeIndex, version: 0.8 })); });
     },
