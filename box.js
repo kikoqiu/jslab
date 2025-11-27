@@ -170,9 +170,10 @@ box.plot3d=function(...args){
 /**
  * Read a file
  * @param {String} type text bin binstr dataurl
+ * @param {String} encoding encoding for reading text file
  * @returns a promise with [content,filename,size]
  */
-box.readfile=function(type='text'){
+box.readfile=function(type='text',encoding="utf-8"){
   return new Promise((resolve,rej) => {    
     let file=document.getElementById('file');
     let done=false;
@@ -188,7 +189,7 @@ box.readfile=function(type='text'){
         var reader = new FileReader(); 
         switch(type){
           case 'text':
-            reader.readAsText(selectedFile); 
+            reader.readAsText(selectedFile,encoding); 
             break;
           case 'bin':
             reader.readAsArrayBuffer(selectedFile); 
