@@ -45,7 +45,7 @@ box.echo=function(...o){
     if(str!='')str+=",&nbsp;";
     str+=String(i)
   }
-  vm.selected.result+=str+'<br/>\r\n';
+  vm.selected.result+=str.replace(/\n/ig,'<br/>')+'<br/>';
 };
 
 /**
