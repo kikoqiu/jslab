@@ -15,14 +15,14 @@
   <!--script src="numjs.0.16.1.min.js" defer="defer"></script-->
 
   <script src="tex-svg.js"></script>
-  <script src="plotly-2.2.0.min.js"></script>
+  <script src="plotly-3.3.0.min.js"></script>
   <script src="babel.min.js"></script>
   <script type="module">
     import { _Op, visitor } from "./bpo.js";
     window._Op = _Op;
     Babel.registerPlugin("bpo", visitor);
   </script>
-  <script src="box.js?t=20210809"></script>
+  <script src="box.js"></script>
   <!--script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script-->
   <script src="vue.global.3.1.1.prod.js"></script>
   <link rel="stylesheet" href="codemirror/lib/codemirror.css">
@@ -290,6 +290,7 @@ const App = {
     fileDialogMode: 'open',
     vfs: new VFS(),
     showAboutModal: false,
+    plotdiv:0,
   }),
   watch: {
     filename(newvalue) {
