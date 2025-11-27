@@ -9,8 +9,10 @@
   <script src="libbf.js/libbf.js"></script>
   <script src="libbf.js/bf.js"></script>
   <script>bfjs.gc_ele_limit = 100;</script>
+  
   <!--script src="https://unpkg.com/mathjs@15.1.0/lib/browser/math.js"></script-->
   <script src="math.15.1.0.js"></script>
+  <script src="d3@7.js"></script>
   <!--script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.16.0/dist/numjs.min.js" defer="defer"></script-->
   <!--script src="numjs.0.16.1.min.js" defer="defer"></script-->
 
@@ -106,7 +108,7 @@
     .cell {
       border: 1px solid transparent;
       position: relative;
-      cursor: pointer;
+      /*cursor: pointer;*/
       background-color: var(--cell-bg-color);
     }
 
@@ -242,7 +244,7 @@
       </div>
     </div>
     
-    <input type="file" ref="file" @change="handleFileImport" style="display: none">
+    <input type="file" ref="file" id="file" @change="handleFileImport" style="display: none">
     <a id="createInvote" style="display:none;"></a>
 
     <file-dialog 

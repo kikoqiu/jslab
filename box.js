@@ -45,8 +45,21 @@ box.echo=function(...o){
     if(str!='')str+=",&nbsp;";
     str+=String(i)
   }
-  vm.selected.result+=str.replace(/\n/ig,'<br/>')+'<br/>';
+  vm.selected.result+=str.replace(/\n/ig,'<br/>').replace(/</ig,'&lt;').replace(/>/ig,'&gt;')+'<br/>';
 };
+
+/**
+ * echo HTML to output
+ * @param  {...any} o output 
+ */
+box.echoHTML=function(...o){
+  let str='';
+  for(i of o){
+    str+=String(i)
+  }
+  vm.selected.result += str;
+};
+
 
 /**
  * Plot with plotly
@@ -174,52 +187,63 @@ box.plot3d=function(...args){
  * @returns a promise with [content,filename,size]
  */
 box.readfile=function(type='text',encoding="utf-8"){
-  return new Promise((resolve,rej) => {    
-    let file=document.getElementById('file');
-    let done=false;
-    let doit=function() {
-      if(done)return;
-      done=true;
-      try{
-        var selectedFile = file.files[0];
-        if(!selectedFile)return rej(new Error('file not selected'));
-        var name = selectedFile.name; 
-        var size = selectedFile.size; 
-        console.log("filename:" + name + "size:" + size);
-        var reader = new FileReader(); 
-        switch(type){
-          case 'text':
-            reader.readAsText(selectedFile,encoding); 
-            break;
-          case 'bin':
-            reader.readAsArrayBuffer(selectedFile); 
-            break;
+  return new Promise(async (resolve,rej) => {    
+    try {
+      // Use window.showOpenFilePicker for modern file selection
+      const [fileHandle] = await window.showOpenFilePicker();
+      const selectedFile = await fileHandle.getFile();
+
+      if (!selectedFile) {
+        return rej(new Error('No file selected.'));
+      }
+
+      const name = selectedFile.name;
+      const size = selectedFile.size;
+      console.log("filename:" + name + ", size:" + size);
+
+      const reader = new FileReader();
+
+      reader.onload = function() {
+        resolve([this.result, name, size]);
+      };
+
+      reader.onerror = function(event) {
+        rej(new Error('File reading error: ' + event.target.error.message));
+      };
+
+      // Read file based on the specified type
+      switch (type) {
+        case 'text':
+          reader.readAsText(selectedFile, encoding);
+          break;
+        case 'bin':
+          reader.readAsArrayBuffer(selectedFile);
+          break;
         case 'binstr':
-            reader.readAsBinaryString(selectedFile); 
-            break;
+          reader.readAsBinaryString(selectedFile);
+          break;
         case 'dataurl':
-            reader.readAsDataURL(selectedFile); 
-            break;
-          default:
-            return rej(new Error('unknown type '+type));
-        }        
-        reader.onload = function() {
-            //console.log(this.result);
-            resolve([this.result,name,size]);
-        }
-        reader.onerror = function(event) {
-          return rej(new Error('on error '+event));
-        }
-        file.value='';
-      }catch(e){
-        return rej(e);
+          reader.readAsDataURL(selectedFile);
+          break;
+        default:
+          rej(new Error('Unknown file type: ' + type));
+          break;
+      }
+    } catch (e) {
+      // Handle cases where the user cancels the file picker or other errors
+      if (e.name === 'AbortError') {
+        rej(new Error('File selection cancelled by user.'));
+      } else {
+        rej(e);
       }
     }
-    file.onchange=doit;
-    setTimeout(doit,60000);
-    file.click(); 
   });  
 }
+
+box.readCsv=async function(encoding="utf-8"){
+  let filecnt=await box.readfile(type='text',encoding)
+  return d3.csvParse(filecnt[0])
+};
 
 /*box.fplot=function(func,rng,  style='width:600px;height:300px;'){
   box.plot(rng,rng.map(x=>func(x)))
