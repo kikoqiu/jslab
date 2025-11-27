@@ -1,917 +1,580 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no"> 
-    <title>js lab</title>
 
-    <script src="libbf.js/libbf.js"></script>
-    <script src="libbf.js/bf.js"></script>
-    <script>
-      bfjs.gc_ele_limit=100;  
-    </script>    
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSLab</title>
 
-    <script src="https://unpkg.com/mathjs@9.4.3/lib/browser/math.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.16.0/dist/numjs.min.js" defer="defer"></script>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.18.0/full/pyodide.js" defer="defer"></script>
+  <script src="libbf.js/libbf.js"></script>
+  <script src="libbf.js/bf.js"></script>
+  <script>bfjs.gc_ele_limit = 100;</script>
+  
+  <!--script src="https://unpkg.com/mathjs@15.1.0/lib/browser/math.js"></script-->
+  <script src="math.15.1.0.js"></script>
+  <script src="d3@7.js"></script>
+  <!--script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.16.0/dist/numjs.min.js" defer="defer"></script-->
+  <!--script src="numjs.0.16.1.min.js" defer="defer"></script-->
 
-
-    <!--script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script-->
-    <!--script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"  defer="defer"></script-->
-    <script>
-      MathJax = {
-        tex: {
-          inlineMath: []
-        },
-        svg: {
-          fontCache: 'global'
-        }
-      };
-    </script>
-    <script src="tex-svg.js" ></script>
-
-    <!--script src="https://cdn.plot.ly/plotly-2.2.0.min.js"></script-->
-    <script src="plotly-2.2.0.min.js"></script>
-    
-
-    <!-- v6 <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script> -->
-    <script src="babel.min.js"></script>
-    <script type="module" >      
-      import {_Op,visitor } from "./bpo.js";
-      window._Op=_Op;
-      Babel.registerPlugin("bpo",visitor);            
-    </script>
-
-
-    <script src="box.js?t=20210809"></script>
-
-    
-    <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" crossorigin="anonymous"-->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
-    <!--script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script-->
-
-    <!--link rel="stylesheet" href="https://unpkg.com/purecss@2.0.6/build/pure-min.css" crossorigin="anonymous"-->
-
-    <!--link rel="stylesheet" href="https://unpkg.com/element-plus/lib/theme-chalk/index.css">
-    <script src="https://unpkg.com/element-plus/lib/index.full.js"></script-->
-
-      
-    <link rel="stylesheet" href="codemirror/lib/codemirror.css">
-    <link rel="stylesheet" href="codemirror/addon/hint/show-hint.css">
-    <script src="codemirror/lib/codemirror.js"></script>
-    <script src="codemirror/addon/hint/show-hint.js"></script>
-    <script src="codemirror/addon/hint/javascript-hint.js"></script>
-    <script src="codemirror/mode/javascript/javascript.js"></script>
-    <script src="codemirror/mode/markdown/markdown.js"></script>    
-    <script src="codemirror/addon/edit/closebrackets.js"></script>
-    <script src="codemirror/addon/edit/matchbrackets.js"></script>
-
-    <link rel="stylesheet" href="codemirror/addon/lint/lint.css">
-    <script src="https://unpkg.com/jshint@2.13.0/dist/jshint.js"></script>
-    <script src="codemirror/addon/lint/lint.js"></script>
-    <script src="codemirror/addon/lint/javascript-lint.js?v=20210802"></script>
-
-
-    <!--script src="https://cdn.jsdelivr.net/pako/1.0.3/pako.min.js"></script-->
-
-    <!--script src="axios.min.js"></script-->
-    <!--script src="https://unpkg.com/vue@next"></script-->
-    <script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script>  
-
-
-
+  <script src="tex-svg.js"></script>
+  <script src="plotly-3.3.0.min.js"></script>
+  <script src="babel.min.js"></script>
+  <script type="module">
+    import { _Op, visitor } from "./bpo.js";
+    window._Op = _Op;
+    Babel.registerPlugin("bpo", visitor);
+  </script>
+  <script src="box.js"></script>
+  <!--script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script-->
+  <script src="vue.global.3.1.1.prod.js"></script>
+  <link rel="stylesheet" href="codemirror/lib/codemirror.css">
+  <link rel="stylesheet" href="codemirror/addon/hint/show-hint.css">
+  <link rel="stylesheet" href="codemirror/addon/lint/lint.css">
+  <script src="codemirror/lib/codemirror.js"></script>
+  <script src="codemirror/mode/javascript/javascript.js"></script>
+  <script src="codemirror/addon/hint/show-hint.js"></script>
+  <script src="codemirror/addon/hint/javascript-hint.js"></script>
+  <script src="codemirror/addon/edit/closebrackets.js"></script>
+  <script src="codemirror/addon/edit/matchbrackets.js"></script>
+  <!--script src="https://unpkg.com/jshint@2.13.0/dist/jshint.js"></script-->
+  <script src="jshint.2.13.0.js"></script>
+  <script src="codemirror/addon/lint/lint.js"></script>
+  <script src="codemirror/addon/lint/javascript-lint.js?v=20210802"></script>
+  <script src="storage.js"></script>
+  <script src="file-dialog.js"></script>
+  <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css"-->
+  <link rel="stylesheet" href="bootstrap-icons.css">
 
   <style>
-    body{
-      margin:0;
-    }
-    .clearfix:after {
-      visibility: hidden;
-      display: block;
-      font-size: 0;
-      content: " ";
-      clear: both;
-      height: 0;
-    }
-
-    .toolbar{
-      position:fixed;
-      width:100vw;
-      overflow:auto;
-      /*height:30px;*/
-      z-index: 99999;
-      background-color:aliceblue;
-      opacity: 0.8;
-    }
-    /*not used*/
-    .toolbar-wrapper{
-      position:fixed;
-      width:100vw;
-      z-index: 99999;
-    }
-    @media print { 
-      .toolbar{
-        display: none;
-      }
-    }
-    .toolbarspace{
-      width:100%;
-      height:40px;
-    }
-    .toolbar button{
-      float:left;
-      margin:2px 2px;
-      padding:3px 3px;
-      width:45px;
-    }
-    .CodeMirror {
-      border: 1px solid #eee;
-      height: auto;
-    }
-    .codeblock{
-      margin-top: 20px;     
-      position:relative; 
-    }
-    .codeinfo{
-      width:60px;
-      float:left;
-      text-align: right;
-      min-height: 1px;
-    }
-    .codeinfo .selected{
-      font-weight: bold;
-    }
-    .codecontent{
-      width:calc( 100% - 80px );
-      float:left;
-      position: relative;
-    }
-    .coderesult{
-      width:calc( 100% - 80px );
-      float:left;
-      position: relative;
-      word-wrap:break-word;
-    }
-   
-    control {
-      position: absolute;
-      right: 5px;
-      top: 5px;
-      z-index: 25;
+    /* General Styles from before */
+    :root {
+      --main-bg-color: #f7f7f7;
+      --cell-bg-color: #ffffff;
+      --border-color: #e7e7e7;
+      --menu-bg-color: #ffffff;
+      --menu-border-color: #d1d1d1;
+      --accent-color: #2196F3;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
 
-    .selected-ind{
-      width:5px !important;
-      float:left;
-      background-color: #aaf;
-      border-radius: 3cm;
-      position: absolute;
+    body {
+      margin: 0;
+      font-family: var(--font-family);
+      background-color: var(--main-bg-color);
+    }
+    
+    .header-content, .main-content-area {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    .notebook-header {
+      background-color: var(--menu-bg-color);
+      border-bottom: 1px solid var(--menu-border-color);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      padding: 0 20px;
+      position: sticky;
       top: 0;
-      left: 0;
-      bottom: 0;
-      visibility :hidden;
-    }
-    .selected-ind.selected{
-      visibility:visible;
+      z-index: 1000;
     }
 
+    .menu-bar { display: flex; padding: 2px 0; }
+    .menu-item { position: relative; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+    .menu-item:hover .dropdown-content { display: block; }
+    .dropdown-content {
+      display: none; position: absolute; background-color: white;
+      min-width: 180px; box-shadow: 0px 5px 15px 0px rgba(0,0,0,0.15);
+      z-index: 1001; border: 1px solid #ddd; border-radius: 4px; padding: 5px 0;
+    }
+    .dropdown-content a { color: black; padding: 7px 15px; text-decoration: none; display: block; font-size: 13px; }
+    .dropdown-content a:hover { background-color: #f1f1f1; }
+    .dropdown-content a.disabled { color: #aaa; cursor: not-allowed; }
+    .dropdown-content a.disabled:hover { background-color: transparent; }
+
+    .toolbar { display: flex; align-items: center; gap: 4px; padding: 4px 0; border-top: 1px solid var(--border-color); }
+    .toolbar button {
+      background: none; border: 1px solid transparent; border-radius: 3px;
+      padding: 1px 5px; cursor: pointer; font-size: 16px; color: #333;
+    }
+    .toolbar button:hover { background-color: #eee; }
+    .toolbar button:disabled { color: #ccc; cursor: not-allowed; background-color: transparent; }
+
+    .main-content-area { padding: 20px; }
+    .cells-container { 
+      display: flex; flex-direction: column; gap: 5px; 
+      box-shadow: 0 0 5px 1px rgba(0,0,0,0.3);
+    }
+    
+    .cell {
+      border: 1px solid transparent;
+      position: relative;
+      /*cursor: pointer;*/
+      background-color: var(--cell-bg-color);
+    }
+
+    .selection-indicator {
+        position: absolute; top: 0; bottom: 0; left: 0; width: 4px;
+        background-color: var(--accent-color); visibility: hidden;
+    }
+    .cell.selected > .cell-part > .selection-indicator { visibility: visible; }
+    
+    .cell-part { position: relative; }
+    .cell-input, .cell-output-wrapper { display: flex; }
+    
+    .cell-output-wrapper { margin-top: 5px; }
+
+    .prompt {
+      flex: 0 0 80px; padding: 10px 0; font-family: monospace;
+      font-size: 12px; text-align: center; color: #3D85C6;
+    }
+    .prompt.out { color: #990000; }
+
+    .editor-container { flex-grow: 1; }
+    .CodeMirror { height: auto; border: none !important; }
+    
+    .output-container { flex-grow: 1; padding: 10px; overflow-x: auto; }
+    .output-container pre { margin: 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
+
+    /* File Dialog Styles */
+    .file-dialog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; }
+    .file-dialog { background: #fff; border-radius: 6px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: 700px; max-width: 90%; display: flex; flex-direction: column; height: 500px; }
+    .file-dialog-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px solid #ddd; font-weight: bold; }
+    .file-dialog-header .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
+    .file-dialog-nav { display: flex; align-items: center; padding: 5px 10px; border-bottom: 1px solid #ddd; background: #f7f7f7; }
+    .file-dialog-nav button { margin-right: 10px; }
+    .file-dialog-body { flex-grow: 1; overflow-y: auto; }
+    .file-list { padding: 5px; }
+    .file-list-item { display: flex; align-items: center; padding: 4px 8px; cursor: pointer; border-radius: 3px; }
+    .file-list-item:hover { background: #f0f0f0; }
+    .file-list-item.selected { background: #0078d7; color: white; }
+    .file-list-item i { margin-right: 8px; font-size: 16px; }
+    .file-dialog-footer { padding: 10px 15px; border-top: 1px solid #ddd; background: #f7f7f7; }
+    .file-name-input { display: flex; align-items: center; margin-bottom: 10px; }
+    .file-name-input label { margin-right: 10px; }
+    .file-name-input input { flex-grow: 1; }
+    .footer-buttons { display: flex; align-items: center; justify-content: flex-start; }
+    .footer-buttons .spacer { flex-grow: 1; }
+    .footer-buttons button { margin-left: 8px; }
 
 
-  @media screen and (orientation : landscape){
-    .plot{
-      width:45%;
-      margin-right: 3%;
-      min-height:300px;       
-      display: inline-block;
-    }
-    .latex{
-      margin-right: 3%;
-      display: inline-block;
-    }
-  }
-
-
-  @media screen and (orientation : portrait){
-    .CodeMirror {
-      font-size:small;
-    }
-
-    .codeinfo{
-      text-align: left;
-      padding-left:20px;
-    }
-    .plot{
-      width:100%;
-      min-height:450px; 
-      display: inline-block;
-    }
-    .latex{
-      width:100%;
-      display: inline-block;
-    }
-    .codecontent{
-      width:calc( 100% - 10px );
-      float:right;
-    }
-    .coderesult{
-      width:calc( 100% - 10px );
-      float:right;
-    }
-    .coderesult{
-      overflow: scroll;
-    }
-    .hidemenu {
-      display: none;
-    }
-   
-  }
-
-
-
+    button { padding: 6px 12px; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: #fff; }
+    button.primary { background: #0078d7; color: white; border-color: #0078d7; }
+    button.secondary { background: #6c757d; color: white; border-color: #6c757d; }
+    button.danger { background: #d9534f; color: white; border-color: #d9534f; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
-
-<style>
-  .dialogs{
-    position:fixed;
-    width: 1px;
-    height:1px;
-    left:0;
-    top:0;
-    z-index: 9999;
-  }
-  .dialog{
-    position:absolute;
-    width: 200px;
-    margin-left: calc( 50vw - 100px );
-    margin-top:100px;
-    padding:20px;
-    border-radius: 20px;
-    opacity: 0.9;
-    background-color: #eee;
-  }
-</style>
-
 </head>
+
 <body>
-<div id="app" style='width:100%;'>
-    <!--<div class='toolbar-wrapper'>
-    div class="pure-menu pure-menu-horizontal">
-      <ul class="pure-menu-list">
-        <li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
-          <a href="javascript:void()" class="pure-menu-link">File</a>
-          <button class="pure-menu-link">File</button>
-          <ul class="pure-menu-children">
-            <li class="pure-menu-item">
-              <a href="javascript:void()" class="pure-menu-link" @click="this.saveBlock()">Save&s</a>
-            </li>
-            <li class="pure-menu-item">
-              <a href="javascript:void()" class="pure-menu-link" @click="this.loadBlock()">Load</a>
-            </li>
-            <li class="pure-menu-item">
-              <a href="javascript:void()" class="pure-menu-link" @click="this.exportBlock()">Export</a>
-            </li>
-          </ul>
-        </li>
-        <li class="pure-menu-item">
-          <a href="javascript:void()" class="pure-menu-link" @click="this.evalCode()">Run&r</a>
-        </li>
-        <li class="pure-menu-item pure-menu-has-children pure-menu-allow-hover">
-          <a href="javascript:void()" class="pure-menu-link">Edit</a>
-          <ul class="pure-menu-children">
-            <li class="pure-menu-item">
-              <a href="javascript:void()" class="pure-menu-link" @click="this.runAll()">Run All</a>
-            </li>
-            <li class="pure-menu-item">
-              <a href="javascript:void()" class="pure-menu-link" @click="this.addblock()">Add&n</a>
-            </li>
-            <li class="pure-menu-item">
-              <a href="javascript:void()" class="pure-menu-link" @click="this.insertBlock()">Insert</a>
-            </li>
-            <li class="pure-menu-item">
-              <a href="javascript:void()" class="pure-menu-link" @click="this.deleteBlock()">Delete</a>
-            </li>
-            <li class="pure-menu-item">
-              <a href="javascript:void()" class="pure-menu-link" :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()">Undo Delete</a>
-            </li>
-          </ul>
-        </li>
-        <li class="pure-menu-item">
-          <a href="javascript:void()" class="pure-menu-link" @click="this.loadHelp()">Help</a>
-        </li>         
-      </ul>
-    </div
-  </div>-->
-    <div class="toolbar">
-      <button @click="this.newFile()"  title="New">New</button> 
-      <button @click="this.openFile()" title="Open">Open</button>
-      <button @click="this.saveBlock()"  title="Save Ctrl+s">Save</button>      
-      <button @click="this.loadBlock()" title="Load">Load</button>    
-      <button @click="this.exportBlock()" title="Export">Expo</button>
-      <button @click="this.importBlock()" title="Import">Impo</button>
-      <button @click="this.shareBlock()" title="Share">Share</button>
-      <!--button @click="this.blockCopy()" title="Select block content">Sele</button-->
-      <button @click="this.evalCode()" title="Run"><i class="bi-caret-right" role="img" aria-label="Run"></i></button>
-      <button @click="this.runAll()" title="RunAll"><i class="bi-skip-forward" role="img" aria-label="RunAll"></i></button>
-      <button @click="this.evalCode(true)" title="F12 to open the debugger first!" class='hidemenu'><i class="bi-bug" role="img" aria-label="debug"></i></button>
-      <button @click="this.addblock()" title="Add &n">Add</button>
-      <button @click="this.insertBlock()" title="Insert">Ins</button>
-      <button @click="this.deleteBlock()" title="Delete">Del</button>
-      <button :disabled="this.lastDeleted==null" @click="this.unDeleteBlock()" title="UnDel">Undo</button> 
-      <button @click="this.helpShow=true" title="Help">Help</button>    
+  <div id="app">
+    <header class="notebook-header">
+       <div class="header-content">
+         <nav class="menu-bar">
+          <div class="menu-item"> File
+            <div class="dropdown-content">
+              <a href="#" @click.prevent="newFile()">New</a>
+              <a href="#" @click.prevent="openFile()">Open</a>
+              <a href="#" @click.prevent="saveBlock()">Save</a>
+              <a href="#" @click.prevent="saveAsBlock()">Save As</a>
+              <a href="#" @click.prevent="exportBlock()">Export to File</a>
+              <a href="#" @click.prevent="importBlock()">Import from File</a>
+              <a href="#" @click.prevent="shareBlock()">Share Link</a>
+            </div>
+          </div>
+          <div class="menu-item"> Edit
+            <div class="dropdown-content">
+              <a href="#" @click.prevent="insertBlock()">Insert Cell Above</a>
+              <a href="#" @click.prevent="addblock()">Insert Cell Below</a>
+              <a href="#" @click.prevent="moveCellUp()" :class="{disabled: selectedIndex === 0}">Move Cell Up</a>
+              <a href="#" @click.prevent="moveCellDown()" :class="{disabled: selectedIndex === blocks.length - 1}">Move Cell Down</a>
+              <a href="#" @click.prevent="cutBlock()">Cut Cell</a>
+              <a href="#" @click.prevent="copyBlock()">Copy Cell</a>
+              <a href="#" @click.prevent="pasteBlock()" :class="{disabled: cellClipboard == null}">Paste Cell</a>
+              <a href="#" @click.prevent="deleteBlock()">Delete Cell</a>
+              <a href="#" @click.prevent="unDeleteBlock()" :class="{disabled: lastDeleted == null}">Undo Delete</a>
+            </div>
+          </div>
+          <div class="menu-item"> Run
+            <div class="dropdown-content">
+              <a href="#" @click.prevent="evalCode()">Run Selected</a>
+              <a href="#" @click.prevent="runAll()">Run All</a>
+              <a href="#" @click.prevent="evalCode(true)">Debug Cell</a>
+            </div>
+          </div>
+           <div class="menu-item"> Help
+            <div class="dropdown-content">
+              <a href="doc/help.html" target="_blank">Documentation</a>
+              <a href="#" @click.prevent="loadHelp('help.json')">Load General Usage</a>
+              <a href="#" @click.prevent="loadHelp('helpplot.json')">Load Plotting Usage</a>
+              <a href="#" @click.prevent="toggleAboutModal()">About</a>
+            </div>
+          </div>
+        </nav>
+        <div class="toolbar">
+          <button @click="saveBlock()" title="Save(Ctrl+S)"><i class="bi-save"></i></button>
+          <button @click="addblock()" title="Insert Cell Below"><i class="bi-plus-lg"></i></button>
+          <button @click="cutBlock()" title="Cut"><i class="bi-scissors"></i></button>
+          <button @click="copyBlock()" title="Copy"><i class="bi-clipboard"></i></button>
+          <button @click="pasteBlock()" title="Paste" :disabled="cellClipboard == null"><i class="bi-clipboard-plus"></i></button>
+          <button @click="moveCellUp()" title="Move Cell Up" :disabled="selectedIndex === 0"><i class="bi bi-arrow-up-square"></i></button>
+          <button @click="moveCellDown()" title="Move Cell Down" :disabled="selectedIndex === blocks.length - 1"><i class="bi bi-arrow-down-square"></i></button>
+          <button @click="evalCode()" title="Run (Ctrl+Enter)"><i class="bi-play-fill"></i></button>
+        </div>
+       </div>
+    </header>
 
+    <div class="main-content-area">
+      <div class="cells-container">
+        <div v-for="(block,index) in blocks" :key="block.uuid" class="cell" :class="{selected: index === selectedIndex}" @click.self="selectedIndex = index">
+          <div class="cell-part cell-input" @click="selectedIndex = index">
+              <div class="selection-indicator"></div>
+              <div class="prompt">In [{{ block.eindex === -1 ? '&nbsp;' : block.eindex }}]:</div>
+              <div class="editor-container">
+                  <codemirror v-model="block.code" @focus="selectedIndex = index"></codemirror>
+              </div>
+          </div>
+          <div v-if="block.result" class="cell-part cell-output-wrapper" @click="selectedIndex = index">
+              <div class="selection-indicator"></div>
+              <div class="prompt out">Out[{{ block.eindex === -1 ? '&nbsp;' : block.eindex }}]:</div>
+              <div class="output-container">
+                  <code-result :html="block.result" :script="block.resultScript"></code-result>
+              </div>
+          </div>
+        </div>
+      </div>
     </div>
-    <input type="file" ref="file" id="file" style="display: none">
-    <div class="toolbarspace"></div>
-    <div class="clearfix"></div>
+    
+    <input type="file" ref="file" id="file" @change="handleFileImport" style="display: none">
+    <a id="createInvote" style="display:none;"></a>
 
-    <div v-for="(block,index) in blocks" class="codeblock" :key="block.uuid">
-      <div class="selected-ind"  :class="{selected:index==selectedIndex}">&nbsp;</div>
-      <div class="codeinfo">
-        In[{{block.eindex==-1?'&nbsp;':block.eindex}}]:
+    <file-dialog 
+      :visible="showFileDialog" 
+      :mode="fileDialogMode"
+      :default-name="filename"
+      :vfs="vfs"
+      @close="showFileDialog = false"
+      @open="handleFileOpen"
+      @save="handleFileSave">
+    </file-dialog>
+
+    <!-- About Modal -->
+    <div v-if="showAboutModal" class="file-dialog-overlay" @click.self="toggleAboutModal">
+      <div class="file-dialog" style="height: auto; max-height: 80%; width: 500px;">
+        <div class="file-dialog-header">
+          <span>About JSLab</span>
+          <button class="close-btn" @click="toggleAboutModal"><i class="bi-x-lg"></i></button>
+        </div>
+        <div class="file-dialog-body" style="padding: 20px;">
+          <p><strong>JSLab</strong> is an interactive JavaScript environment for rapid prototyping, data exploration, and scientific computing in the browser.</p>
+          <p>Version: 1.0.0</p>
+          <p>Built with Vue.js, CodeMirror, Math.js, Plotly.js, and other open-source libraries.</p>
+          <p>License: MIT</p>
+          <p>Special thanks to the open-source community!</p>
+        </div>
+        <div class="file-dialog-footer">
+          <button @click="toggleAboutModal">Close</button>
+        </div>
       </div>
-      <div class="codecontent">
-        <codemirror v-model:code="block.code" @focus="selectedIndex=index" :update-trigger="updateTrigger"></codemirror>
-      </div>
-      <div class="codeinfo">
-      </div>
-      <code-result :html="block.result" :script="block.resultScript"></code-result>
-      <div class="clearfix"></div>
     </div>
-    <div class='dialogs' v-show='helpShow'>
-      <div class='help-dialog dialog' v-show='helpShow'>
-        <ul>
-          <li><button @click="this.helpShow=false;this.loadHelp('help.json')" title="Help">General Usage</button>   </li>
-          <li><button @click="this.helpShow=false;this.loadHelp('helpplot.json')" title="Plot">How to Plot a figure</button></li>
-          <li><button @click="this.helpShow=false" title="Plot">Close Dialog</button></li>
-        </ul> 
-      </div>
-    </div>
-</div>
-  
+  </div>
+
 <script>
 const App = {
-  components: {
-  },
-  data(){
-    let blocks=[];
-    return {
-      blocks,      
-      lastDeleted:null,      
-      selectedIndex:0,
-      maxIndex:0,
-      maxeIndex:0,
-      filename:'',
-      lastRun:null,
-
-      updateTrigger:0,
-      plotdiv:0,
-      uuid_pos:0,    
-      helpShow:false,
-    };
-  },
+  data: () => ({
+    blocks: [],
+    lastDeleted: null,
+    selectedIndex: 0,
+    maxeIndex: 0,
+    filename: '', // This now holds the full path
+    uuid_pos: 0,
+    cellClipboard: null,
+    showFileDialog: false,
+    fileDialogMode: 'open',
+    vfs: new VFS(),
+    showAboutModal: false,
+    plotdiv:0,
+  }),
   watch: {
-    filename(newvalue){
-      document.title=`js lab [${newvalue}]`;
+    filename(newvalue) {
+      const display = newvalue.split('/').pop();
+      document.title = `JSLab - ${display}`;
     }
   },
   computed: {
-    selected(){
-      if(this.selectedIndex<this.blocks.length)return this.blocks[this.selectedIndex];      
-      return null;     
-    },
-    portrait(){
-     return window.orientation === 180 || window.orientation === 0;
+    selected() {
+      return this.blocks.length > this.selectedIndex ? this.blocks[this.selectedIndex] : null;
     }
   },
-  created(){
+  async mounted() {
+    const loaded = await this.loadBlock();
+    if (!loaded) {
+      this.addblock("echo('Welcome to JSLab!');");
+      this.filename = '';
+    }
+    document.addEventListener("keydown", (event) => {
+      if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.evalCode(); }
+      if (event.ctrlKey && event.key === 's') { event.preventDefault(); this.saveBlock(); }
+    });
   },
-  mounted() {
-    let qcode=this.getQueryString('code');
-    if(qcode!=null){
-      this.addblock(qcode);
-      this.filename='temp.json';
-      let that=this;
-      setTimeout(function(){
-        that.evalCode();
-      },2000);
-    }else if(!this.loadBlock()){
+  methods: {
+    toggleAboutModal() {
+      this.showAboutModal = !this.showAboutModal;
+    },
+    serialize(cb) {
+      this.$nextTick(() => { cb(JSON.stringify({ blocks: this.blocks, maxeIndex: this.maxeIndex, version: 0.8 })); });
+    },
+    clearAll() {
+      Object.assign(this.$data, this.$options.data({vfs: this.vfs, showFileDialog: false, fileDialogMode: 'open'}));
       this.addblock();
-      this.filename='temp.json';
-    }
-    document.addEventListener("keydown",keydown);
-    let that=this;
-    function keydown(event){
-        if(event.keyCode== 'R'.charCodeAt(0) && event.ctrlKey/*121f10+ctrl*/){//
-            event.preventDefault();  
-            that.evalCode();
-        }
-        if(event.keyCode==83 && event.ctrlKey/*S+ctrl*/){
-            event.preventDefault();   
-            that.saveBlock();
-        }
-    }
-  },
-  methods:{    
-    updatecmeditor(){
-      ++this.updateTrigger;
+      this.filename = '';
     },
-    serialize(cb,limitSize=false,withResult=true){
-      this.updatecmeditor();
-      this.$nextTick(()=>
-      { 
-        let tosave={
-          blocks:this.$data.blocks, 
-          maxIndex:this.$data.maxIndex,
-          maxeIndex:this.$data.maxeIndex,
-          lastRun:this.$data.lastRun,
-          version:0.2,
-        };
-        let cnt=JSON.stringify(tosave, limitSize?(function (k, v) {
-            if(!withResult){
-              if(k=='resultScript'){
-                return '';
-              }
-            }
-            if (typeof(v)=='string' && v.length>3*1024*1024){
-              console.log(`string too long to save ${v.length}`);
-              return "console.log('string too long to save');";
-            }
-            return v;
-          }):undefined
-        );
-        cb(cnt);
+    newFile() {
+      if (confirm('Are you sure? Unsaved changes will be lost.')) {
+        this.clearAll();
+      }
+    },
+    openFile() {
+      this.fileDialogMode = 'open';
+      this.showFileDialog = true;
+    },
+    saveAsBlock() {
+      this.fileDialogMode = 'save';
+      this.showFileDialog = true;
+    },
+    dosave(){
+      this.serialize(async (cnt) => {
+          await this.vfs.saveFile(this.filename, cnt);
+          await this.vfs.setLastFile(this.filename);
+          alert(`Notebook "${this.filename}" saved.`);
       });
     },
-    clearAll(){     
-      Object.assign(this.$data, this.$options.data());
+    saveBlock() {
+      if(this.filename == '') {
+        this.saveAsBlock();
+      }else{
+        this.dosave();
+      }
     },
-    newFile(){
-      let now=new Date();      
-      let filename=prompt('Input file name',''+now.getFullYear()+'_'+(now.getMonth()+1)+'_'+now.getDate()+'.json');
-      if(!filename)return;
+    async handleFileOpen(path) {
+        await this.loadBlock(path);
+    },
+    handleFileSave(path) {
+      if(path.length<=0){
+        return;
+      }
+      if(!path.endsWith(".json")){
+        path+=".json";
+      }
+      this.filename = path;
+      this.dosave();
+    },
+    loadData(filename, data) {
       this.clearAll();
-      this.$data.filename=filename;
-      this.addblock();
+      this.filename = filename;
+      this.blocks = data.blocks.map(b => ({ ...b, uuid: `${Date.now()}-${this.uuid_pos++}` }));
+      this.maxeIndex = data.maxeIndex || 0;
+      if (this.blocks.length === 0) this.addblock();
     },
-    openFile(){
-      let files=[];
-      for(let n=0;n<localStorage.length;++n){
-        let f=localStorage.key(n);
-        if(f.startsWith('blocks_')){
-          files.push(f.substr(7));
-        }
-      }
-      let str="";
-      for(let n=0;n<files.length;++n){
-        let s=`${n}:${files[n]}`;
-        while(s.length<20)s+=' ';
-        str+=s;
-      }
-      let index=prompt("input the file index you want to open\r\n"+str,'');
-      if(index==undefined)return;
-      index=parseInt(index);
-      if(!isNaN(index)&&index<files.length){
-        this.loadBlock(files[index]);
-      }
-    },
-    saveBlock(saveResult=true){
-      if(typeof(Storage)!=="undefined")        
-      {
-        try{
-          this.serialize(cnt=>localStorage['blocks_'+this.filename]=cnt,true,saveResult);
-          localStorage['lastblocks']=this.filename;
-        }catch(e){
-          alert('failed to save');
-        }
-      }
-    },
-    shareBlock(){
-      this.updatecmeditor();
-      this.$nextTick(()=>
-      { 
-        let url=window.location.host+window.location.pathname+"?code=";
-        let code=this.selected.code;
-        url+=encodeURIComponent(code);
-        this.copy(url);
-      });
-    },
-    blockCopy(){
-      this.updatecmeditor();
-      this.$nextTick(()=>
-      {
-        this.copy(code);
-      });
-    },
-    copy(url){
-          var input = document.createElement('input');
-          input.setAttribute('readonly', 'readonly');
-          input.setAttribute('value', url);
-          document.body.appendChild(input);
-          input.select();
-          input.setSelectionRange(0, 99999);
-          document.execCommand('Copy');
-          if(!document.execCommand('Copy')) {
-            alert('failed!');
-          }else{
-            alert('copyed!');
-          }
-          document.body.removeChild(input);
-      },
-    exportBlock(){
-      this.serialize(cnt=>
-      {
-        var mimeType = 'text/plain';
-	      document.getElementById('createInvote').href= 'data:' + mimeType  +  ';charset=utf-8,' + encodeURIComponent(cnt);
-	      document.getElementById('createInvote').click();
-      });
-    },
-    importBlock(){
-      let that=this;
-      box.readfile().then(function([txt,filename,size]){
-        let data=JSON.parse(txt);
-        that.loadData(filename,data);
-      });
-    },
-    loadData(filename,data){
-      this.clearAll();
-      this.filename=filename;
-      this.$data.blocks=[];
-      if(data.version && data.version==0.2){
-        this.$data.blocks=data.blocks;
-        for(let b of this.$data.blocks){
-          //if(!('uuid' in b)){//should always change uuid for VUE to work
-            b['uuid']=new Date().getTime()+'-'+this.uuid_pos++;
-          //}
-        }
-        this.$data.maxIndex=data.maxIndex;
-        this.$data.maxeIndex=data.maxeIndex;
-        this.$data.lastRun=data.lastRun;
-      }else{//old storage format
-        this.$data.blocks=data;
-      }
-    },
-    appendBlocks(data){
-      for(let b of data.blocks){
-        //if(!('uuid' in b)){//should always change uuid for VUE to work
-          b['uuid']=new Date().getTime()+'-'+this.uuid_pos++;
-        //}
-        this.$data.blocks.push(b);
-      }
-    },
-    loadBlock(name){
-      if(typeof(Storage)!=="undefined")        
-      {       
-        if(!name){
-          if(localStorage['lastblocks']){
-            name=localStorage['lastblocks'];
-          }else{
-            name='last';
-          }
-        }        
-        if(localStorage['blocks_'+name]){          
-          let data=JSON.parse(localStorage['blocks_'+name]);          
-          this.loadData(name,data);
+    async loadBlock(path) {
+      const targetPath = path || await this.vfs.getLastFile();
+      if (!targetPath) return false;
+
+      const dataStr = await this.vfs.loadFile(targetPath);
+      if (dataStr) {
+        try {
+          this.loadData(targetPath, JSON.parse(dataStr));
           return true;
+        } catch (e) {
+          alert(`Error loading notebook "${targetPath}". It might be corrupted.`);
         }
       }
       return false;
     },
-    loadHelp(url='help.json'){
-      let that=this;
-      fetch(url).then(async function (response) {        
-        console.log(response);
-        let res=await response.json();
-        that.appendBlocks(res);
-      })
-      .catch(function (error) {
-        alert('error!'+error);
-        console.log(error);
+    exportBlock() {
+      this.serialize(cnt => {
+        const el = document.getElementById('createInvote');
+        el.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(cnt);
+        const display = this.filename.split('/').pop();
+        el.download = display || 'notebook.json'; el.click();
       });
     },
-    evalCode(debug=false){      
-      this.updatecmeditor();
-      this.saveBlock(false);
-      let cur=this.selected;
-      let that=this;
-      cur.eindex='*';
-      setTimeout(async()=>{
-        let info={};
-        try{
-          cur.result='';
-          cur.resultScript='';
-          let tgtCode=cur.code;
-          if(debug){
-            tgtCode="debugger;"+tgtCode;
-          }
-          let evalresult=box.runcode(tgtCode,info);
-          if(evalresult instanceof Promise){            
-            evalresult=await evalresult;
-          }
-          if(evalresult!=undefined){
-            cur.result+=String(evalresult);
-          }
-        }catch(e){
-          cur.result+=this.formatError(info.compiled_code,e);
-          setTimeout(function(){throw e},1);
+    importBlock() { this.$refs.file.click(); },
+    handleFileImport(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          this.loadData('/' + file.name, JSON.parse(e.target.result));
+        } catch (err) {
+          alert("Failed to parse imported file.");
         }
-        cur.eindex=this.maxeIndex++;
-        if(!this.portrait)this.saveBlock(true);        
-      },1);
+      };
+      reader.readAsText(file);
+      event.target.value = '';
     },
-    formatError(source,e){
-      let pos=-1,match=null;
-      let sk= e.stack.split('\n');
-      let reg=/at eval \(eval at box.runcode \([^\)]*\), <anonymous>:([0-9]+):([0-9]+)\)/;
-      for(let i=sk.length-1;i>=0;--i){
-          if(pos==-1){
-            match=sk[i].match(reg);
-            if(match){
-              pos=i;
-              break;
-            }            
-          }
-      }
-      if(pos==-1){
-        console.error('formatError pos==-1');
-        pos=sk.length;
-      }else{
-        ++pos;
-      }
-      let stack='';
-      for(let i=0;i<pos;++i){
-        stack+=sk[i].replace(/</g,'&lt;').replace(/>/g,'&gt;')+"\n";                
-      }
-      let errorinfo='';
-      if(match){
-        try{
-          let line=parseInt(match[1])-1;
-          let col=parseInt(match[2])-1;
-          source=source.split('\n');
-          let sourceline=source[line];
-          errorinfo=`<span style='color:red;'>Error At</span>[${line+1-2},${col+1-2}]: `+sourceline.substr(0,col);
-          errorinfo+="<span style='color:red;'>&lt---error here---&gt</span>"+sourceline.substr(col)+'\n';
-          }catch(err){
-
-          }
-      }   
-      return '<pre>'+errorinfo+"<span style='color:red;'>Error Name</span>: " + e.name + "\n<span style='color:red;'>Message</span>: " + e.message + "\n<span style='color:red;'>Stack</span>: " + stack+'</pre>';
-
+    shareBlock() {
+      if (!this.selected || !this.selected.code) return;
+      let url = window.location.origin + window.location.pathname + "?code=" + encodeURIComponent(this.selected.code);
+      navigator.clipboard.writeText(url).then(() => alert('Shareable link for cell copied to clipboard!'), () => alert('Failed to copy link.'));
     },
-    runAll(){      
-      this.updatecmeditor();
-      this.saveBlock(false);
-      this.maxeIndex=0;      
-      let that=this;
-      let i=0;
-      let next=()=>{
-        let cur=this.blocks[i];
-        this.selectedIndex=i;
-        cur.eindex='*';
-        setTimeout(async ()=>{
-          let info={};
-          try{
-            cur.result='';
-            cur.resultScript='';
-            let evalresult=box.runcode(cur.code,info);
-            if(evalresult instanceof Promise){            
-              evalresult=await evalresult;
-            }
-            if(evalresult!=undefined){
-              cur.result+=String(evalresult);
-            }
-          }catch(e){
-            cur.result+=this.formatError(info.compiled_code,e);
-            setTimeout(function(){throw e},1);
-          }
-          cur.eindex=this.maxeIndex++;
-          ++i;
-          if(i<this.blocks.length){            
-            setTimeout(next,0);
-          }else{
-            this.saveBlock(true);
-          }
-        },1);
-      }
-      next();      
+    copyBlock() { if (this.selected) this.cellClipboard = JSON.parse(JSON.stringify(this.selected)); },
+    cutBlock() { if (this.selected) { this.copyBlock(); this.deleteBlock(); } },
+    pasteBlock() {
+      if (!this.cellClipboard) return;
+      const newBlock = { ...JSON.parse(JSON.stringify(this.cellClipboard)), uuid: `${Date.now()}-${this.uuid_pos++}` };
+      this.blocks.splice(this.selectedIndex + 1, 0, newBlock);
+      this.selectedIndex++;
     },
-    addblock(icode=""){
-      this.blocks.push({
-        eindex:-1,
-        code:icode,
-        result:null,
-        resultScript:'',
-        uuid:new Date().getTime()+'-'+this.uuid_pos++,
-      });
-      this.selectedIndex=this.blocks.length-1;
-      //++this.maxIndex;
-    },
-    insertBlock(){
-      if(this.selectedIndex<this.blocks.length){
-        this.blocks.splice(this.selectedIndex,0,{
-          eindex:-1,
-          code:"",
-          result:null,
-          resultScript:'',
-          uuid:new Date().getTime()+'-'+this.uuid_pos++,
-        });
-        //++this.maxIndex;
+    moveCellUp() {
+      if (this.selectedIndex > 0) {
+        const i = this.selectedIndex;
+        [this.blocks[i], this.blocks[i - 1]] = [this.blocks[i - 1], this.blocks[i]];
+        this.selectedIndex--;
       }
     },
-    deleteBlock(){
-      if(this.selectedIndex<this.blocks.length){
-        let deleted=this.blocks.splice(this.selectedIndex,1)[0];
-        this.lastDeleted={val:deleted,pos:this.selectedIndex};
-        if(this.selectedIndex>0){
-          this.selectedIndex==this.selectedIndex-1;
+    moveCellDown() {
+      if (this.selectedIndex < this.blocks.length - 1) {
+        const i = this.selectedIndex;
+        [this.blocks[i], this.blocks[i + 1]] = [this.blocks[i + 1], this.blocks[i]];
+        this.selectedIndex++;
+      }
+    },
+    loadHelp(url) {
+      fetch(url).then(r => r.json()).then(d => this.appendBlocks(d.blocks))
+        .catch(e => alert('Error loading help file: ' + e));
+    },
+    appendBlocks(blocks) {
+      blocks.forEach(b => { this.blocks.push({ ...b, uuid: `${Date.now()}-${this.uuid_pos++}` }); });
+    },
+    formatError(source, e) {
+      let pos = -1, match = null;
+      let sk = e.stack.split('\n');
+      let reg = /at eval \(eval at box.runcode [^\)]*\), <anonymous>:([0-9]+):([0-9]+)\)/;
+      for (let i = sk.length - 1; i >= 0; --i) {
+        if (pos === -1) { match = sk[i].match(reg); if (match) { pos = i; break; } }
+      }
+      if (pos === -1) pos = sk.length; else ++pos;
+      let stack = sk.slice(0, pos).join('\n').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      let errorinfo = '';
+      if (match && source) {
+        try {
+          let line = parseInt(match[1]) - 1, col = parseInt(match[2]) - 1;
+          let sourceline = source.split('\n')[line];
+          errorinfo = `<span style='color:red;'>Error At</span>[${line + 1},${col + 1}]: ${sourceline.substr(0, col)}<span style='color:red;font-weight:bold;'>&lt;--&gt</span>${sourceline.substr(col)}\n`;
+        } catch (err) { } 
+      }
+      return `<pre>${errorinfo}<span style='color:red;'>Name</span>: ${e.name}\n<span style='color:red;'>Message</span>: ${e.message}\n<span style='color:red;'>Stack</span>:\n${stack}</pre>`;
+    },
+    async evalCode(debug = false) {
+      if (!this.selected) return;
+      const cur = this.selected;
+      let info = { compiled_code: '' };
+      cur.eindex = '*';
+      await this.$nextTick();
+      try {
+        cur.result = ''; cur.resultScript = '';
+        let codeToRun = cur.code;
+        if (debug) codeToRun = "debugger;" + codeToRun;
+        let evalresult = box.runcode(codeToRun, info);
+        if (evalresult instanceof Promise) evalresult = await evalresult;
+        if (evalresult !== undefined) cur.result += `<pre>${String(evalresult)}</pre>`;
+      } catch (e) {
+        cur.result = this.formatError(info.compiled_code, e);
+        console.error(e);
+      } finally {
+        cur.eindex = this.maxeIndex++;
+        if (!debug) {
+            this.serialize(async (cnt) => {
+                await this.vfs.saveFile(this.filename, cnt);
+                await this.vfs.setLastFile(this.filename);
+            });
         }
       }
-      if(this.blocks.length<=0){
-        this.addblock();
+    },
+    async runAll() {
+      this.maxeIndex = 0;
+      for (let i = 0; i < this.blocks.length; i++) {
+        this.selectedIndex = i; await this.evalCode();
       }
     },
-    unDeleteBlock(){
-      if(this.lastDeleted!=null){
-        this.blocks.splice(this.lastDeleted.pos,0,this.lastDeleted.val);
-        this.lastDeleted=null;
+    addblock(code = "") {
+      const newBlock = { eindex: -1, code, result: null, resultScript: '', uuid: `${Date.now()}-${this.uuid_pos++}` };
+      this.blocks.splice(this.selectedIndex + 1, 0, newBlock);
+      this.selectedIndex++;
+    },
+    insertBlock() {
+      const newBlock = { eindex: -1, code: "", result: null, resultScript: '', uuid: `${Date.now()}-${this.uuid_pos++}` };
+      this.blocks.splice(this.selectedIndex, 0, newBlock);
+    },
+    deleteBlock() {
+      if (this.blocks.length <= 1) return;
+      const deleted = this.blocks.splice(this.selectedIndex, 1);
+      this.lastDeleted = { val: deleted[0], pos: this.selectedIndex };
+      if (this.selectedIndex >= this.blocks.length) this.selectedIndex = this.blocks.length - 1;
+    },
+    unDeleteBlock() {
+      if (this.lastDeleted) {
+        this.blocks.splice(this.lastDeleted.pos, 0, this.lastDeleted.val);
+        this.selectedIndex = this.lastDeleted.pos;
+        this.lastDeleted = null;
       }
     },
-    getQueryString(name) {
-        let reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");
-        let r = window.location.search.substr(1).match(reg);
-        if (r != null) {
-            return decodeURIComponent(r[2]);
-        };
-        return null;
-    }
   }
 };
-const myapp=Vue.createApp(App);
 
+const myapp = Vue.createApp(App);
+
+myapp.component('file-dialog', FileDialogComponent);
 
 myapp.component('codemirror', {
-  props: ['code','updateTrigger'],
-  data: function () {
-    return {
-     
-    }
-  },
-  components: {
-  },
-  template: `
-      <textarea ref="codeinput" class="codehighlight" v-model='code'>        
-      </textarea>
-      `,
-  computed: {   
-  },
-  methods: {  
-    updateValue(){
-      if(!!this.editor){
-        this.$emit('update:code', this.editor.getValue());
-      }      
-    }
-  },
-  watch:{
-    updateTrigger(){
-      this.updateValue();
-    }
-  },
-  mounted(){
-    let portrait=window.orientation === 180 || window.orientation === 0;
-    let that=this;
+  props: ['modelValue'],
+  emits: ['update:modelValue', 'focus'],
+  template: `<textarea ref="codeinput"></textarea>`,
+  mounted() {
     this.editor = CodeMirror.fromTextArea(this.$refs.codeinput, {
-      lineNumbers: true,
+      lineNumbers: true, mode: {name: "javascript", globalVars: true},
+      gutters: ["CodeMirror-lint-markers"], lint: { esversion: 11, asi: true },
+      autoCloseBrackets: true, matchBrackets: true, viewportMargin: Infinity,
       extraKeys: {"": "autocomplete"},
-      hintOptions:{
-        additionalContext:box,
-        closeOnUnfocus:false,
-      },
-      mode: {name: "javascript", globalVars: true},
-      autoCloseTags: true,
-      viewportMargin: Infinity, 
-      autoCloseBrackets: true,
-      matchBrackets:true,
-      gutters: portrait?false:["CodeMirror-lint-markers"],
-      lint: {
-        "esversion": 11,
-        delay:(portrait?3000:500),
-        asi:true,
-        /*"undef": true,
-        "unused": true,
-        get_globals(){
-          let ret={};
-          for (var o = window; o; o = Object.getPrototypeOf(o)){
-            for(let key of Object.getOwnPropertyNames(o)){
-              ret[key]=true;
-            }
-          }
-          for (var o = box; o; o = Object.getPrototypeOf(o)){
-            for(let key of Object.getOwnPropertyNames(o)){
-              ret[key]=true;
-            }
-          }
-          return ret;
-        }*/
-      },
+      hintOptions: { additionalContext: box, closeOnUnfocus: false, },
     });
-
-    this.editor.on("focus",function(){
-      that.$emit('focus');
-      });
-
-    this.editor.on("blur" ,function (){
-      that.$emit('blur');
-      });
-
-    /*this.editor.on("keyup", function (cm, event) {
-        if (!cm.state.completionActive &&!(event.ctrlKey)){ //Enables keyboard navigation in autocomplete list  
-          if(
-            (event.keyCode >= 65 && event.keyCode <= 90) || (event.keyCode >= 47 && event.keyCode <= 57 && !event.shiftKey)
-            )            
-            {       ///Enter - do not open autocomplete list just after item has been selected in it
-                    CodeMirror.commands.autocomplete(cm, null, {completeSingle: false});
-                }
-         }
-    });*/
-    this.changeregex=new RegExp(/[a-z\.]+/, 'i');
-    this.editor.on("change", function (cm,changeObj) {
-        //console.log(changeObj);
-        if(!cm.state.completionActive && changeObj.origin== "+input" && changeObj.text[0].match(that.changeregex)){
-            CodeMirror.commands.autocomplete(cm, null, {completeSingle: false});
-        }
+    this.editor.setValue(this.modelValue || '');
+    this.editor.on('change', (cm, change) => {
+      if (cm.getValue() !== this.modelValue) this.$emit('update:modelValue', cm.getValue());
+      if (!cm.state.completionActive && change.origin === "+input" && change.text[0].match(/[a-z\.]/i)) {
+        CodeMirror.commands.autocomplete(cm, null, {completeSingle: false});
+      }
     });
+    this.editor.on('focus', () => this.$emit('focus'));
   },
-  beforeUnmount() {
+  watch: {
+    modelValue(newVal) { if (newVal !== this.editor.getValue()) this.editor.setValue(newVal); }
   }
 });
 
-
-myapp.component('codeResult', {
-  props: ['html','script'],
-  data: function () {
-    return {
-      timer:0,
-      key:0,
-    }
+myapp.component('code-result', {
+  props: ['html', 'script'],
+  template: `<div ref="output"></div>`,
+  watch: {
+    html: { immediate: true, handler: 'updateContent' },
+    script: { immediate: true, handler: 'updateContent' },
   },
-  components: {
-  },
-  template: `
-      <div class="coderesult" :key='key'>
-        <span v-html="html"></span>
-      </div>
-      `,
-  computed: {   
-  },
-  methods: {  
-    update(){
-      if(this.timer!=0){
-        //clearTimeout(this.timer);
-        return;
+  methods: {
+      updateContent() {
+          this.$nextTick(() => {
+            const el = this.$refs.output; if(!el) return;
+            el.innerHTML = this.html || '';
+            if (this.script) {
+              try { new Function(this.script)(); } catch (e) { console.error("Error executing result script:", e); }
+            }
+          });
       }
-      let that=this;
-      function doUpdate(){
-        that.timer=0;
-        //not needed
-        //that.key=(new Date().getTime() + (Math.random() * 10000)).toFixed(0);
-        setTimeout(()=>eval(that.script),0);
-      }
-      this.timer=setTimeout(doUpdate,1);      
-    }
-  },
-  watch:{
-    script(){
-      this.update();
-    }
-  },
-  mounted(){
-    this.update();
-  },
-  beforeUnmount() {
   }
 });
 
-vm=myapp.mount("#app");
-
-
-
-
-let portrait=window.orientation === 180 || window.orientation === 0;
-if(portrait){
-  function CloseEvent() { 
-    return 'Are you sure?';
-  }
-  window.onbeforeunload = CloseEvent;
-}
+vm = myapp.mount("#app");
 </script>
 
-
-
-
-<div id="footer" style='width:100%;text-align: center;color:gainsboro;font-size: xx-small;margin-top: 50px;'>
-  <a href="https://github.com/kikoqiu" target="_blank">copyright © 2021-2021 kikoqiu@163.com</a> 
-</div>
-<a onfocus="this.blur();" download="blocks.json" id="createInvote" style='display:none;' >code</a>
 </body>
 </html>

@@ -1,0 +1,101 @@
+<h2>Libraries</h2>
+<p>JSLab integrates with several powerful JavaScript libraries to extend its functionality.</p>
+
+<section id="mathjs">
+    <h3>Math.js</h3>
+    <p>
+        <a href="https://mathjs.org/" target="_blank">Math.js</a> is an extensive math library for JavaScript and Node.js. It features a flexible expression parser,
+        a large set of built-in functions and constants, and provides an integrated solution to work with different
+        data types like numbers, big numbers, complex numbers, fractions, units, matrices, and more.
+    </p>
+    <p>
+        Many Math.js functions are directly accessible in JSLab, or through the <code>math</code> global object.
+        For example, you can use <code>math.sqrt(9)</code> or <code>math.evaluate('2 + 3 * ans', { ans: 5 })</code>.
+        JSLab's <code>box.compile_expr</code>, <code>box.eval_expr</code>, <code>box.deriv</code>, and <code>box.symplify</code> functions
+        also leverage Math.js for symbolic computation.
+    </p>
+    <h4>Key Features:</h4>
+    <ul>
+        <li>Supports numbers, big numbers, complex numbers, fractions, units, matrices, and more.</li>
+        <li>Powerful expression parser.</li>
+        <li>Symbolic computation (derivatives, simplification).</li>
+        <li>Large set of built-in functions.</li>
+        <li>Extensible.</li>
+    </ul>
+    <h4>Basic Usage Examples:</h4>
+    <pre><code>// Direct function calls
+math.sqrt(25);      // Returns 5
+math.add(2, 3);     // Returns 5
+math.unit('5 cm') + math.unit('10 mm'); // Returns Unit {value: 0.06, unit: "m"}
+
+// Using the expression parser
+math.evaluate('1.2 * (2 + 4.5)'); // Returns 7.8
+math.evaluate('sin(45 deg)^2');   // Returns 0.5
+math.evaluate('9 / 3 + 2i');      // Returns Complex {re: 3, im: 2}
+
+// Symbolic differentiation using box.deriv
+box.deriv('x^2 + 3x', 'x'); // Returns '2 * x + 3'
+
+// Evaluate an expression with a scope
+const scope = { a: 5, b: 3 };
+math.evaluate('a * b', scope); // Returns 15</code></pre>
+    <p>For more detailed documentation and a full list of functions, please visit the <a href="https://mathjs.org/docs/index.html" target="_blank">official Math.js documentation</a>.</p>
+</section>
+
+
+<section id="d3">
+    <h3>d3.js</h3>
+    <p>
+        <a href="https://d3js.org/" target="_blank">d3.js</a>
+    </p>
+    <h4>Basic Usage Examples:</h4>
+    <pre><code>
+// Declare the chart dimensions and margins.
+const width = 640;
+const height = 400;
+const marginTop = 20;
+const marginRight = 20;
+const marginBottom = 30;
+const marginLeft = 40;
+
+// Declare the x (horizontal position) scale.
+const x = d3.scaleUtc()
+    .domain([new Date("2023-01-01"), new Date("2024-01-01")])
+    .range([marginLeft, width - marginRight]);
+
+// Declare the y (vertical position) scale.
+const y = d3.scaleLinear()
+    .domain([0, 100])
+    .range([height - marginBottom, marginTop]);
+
+// Create the SVG container.
+svg = d3.create("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+// Add the x-axis.
+svg.append("g")
+    .attr("transform", `translate(0,${height - marginBottom})`)
+    .call(d3.axisBottom(x));
+
+// Add the y-axis.
+svg.append("g")
+    .attr("transform", `translate(${marginLeft},0)`)
+    .call(d3.axisLeft(y));
+
+// Append the SVG element.
+echoHTML(svg.node().outerHTML);
+</code></pre>
+</section>
+
+<!-- Future libraries can be added here following a similar structure -->
+<section id="other-libraries">
+    <h3>Other Integrated Libraries</h3>
+    <ul>
+        <li><strong>Plotly.js:</strong> Used for interactive plotting. Accessible via <code>box.plotly</code>, <code>box.plot</code>, and <code>box.plot3d</code>.</li>
+        <li><strong>LibBF.js:</strong> Provides arbitrary-precision floating-point arithmetic. Accessible via <code>bfjs</code> global object.</li>
+        <li><strong>Babel:</strong> JavaScript compiler, used internally by JSLab for code transformation.</li>
+        <li><strong>CodeMirror:</strong> In-browser code editor, used for the interactive cells.</li>
+    </ul>
+    <p>More information about these and other libraries can be found by exploring their respective official documentation.</p>
+</section>
