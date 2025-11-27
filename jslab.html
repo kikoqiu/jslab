@@ -13,6 +13,7 @@
   <script src="math.15.1.0.js"></script>
   <!--script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.16.0/dist/numjs.min.js" defer="defer"></script-->
   <!--script src="numjs.0.16.1.min.js" defer="defer"></script-->
+
   <script src="tex-svg.js"></script>
   <script src="plotly-2.2.0.min.js"></script>
   <script src="babel.min.js"></script>
@@ -37,10 +38,13 @@
   <script src="jshint.2.13.0.js"></script>
   <script src="codemirror/addon/lint/lint.js"></script>
   <script src="codemirror/addon/lint/javascript-lint.js?v=20210802"></script>
+  <script src="storage.js"></script>
+  <script src="file-dialog.js"></script>
   <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css"-->
   <link rel="stylesheet" href="bootstrap-icons.css">
 
   <style>
+    /* General Styles from before */
     :root {
       --main-bg-color: #f7f7f7;
       --cell-bg-color: #ffffff;
@@ -96,11 +100,11 @@
     .main-content-area { padding: 20px; }
     .cells-container { 
       display: flex; flex-direction: column; gap: 5px; 
-      box-shadow: 0 0 5px 1px rgba(0,0,0,0.3); /* Black, more pronounced shadow */
+      box-shadow: 0 0 5px 1px rgba(0,0,0,0.3);
     }
     
     .cell {
-      border: 1px solid transparent; /* Keep transparent border for consistent sizing */
+      border: 1px solid transparent;
       position: relative;
       cursor: pointer;
       background-color: var(--cell-bg-color);
@@ -108,7 +112,7 @@
 
     .selection-indicator {
         position: absolute; top: 0; bottom: 0; left: 0; width: 4px;
-        background-color: var(--accent-color); visibility: hidden; /* border-radius: 0; removed as per feedback */
+        background-color: var(--accent-color); visibility: hidden;
     }
     .cell.selected > .cell-part > .selection-indicator { visibility: visible; }
     
@@ -124,10 +128,38 @@
     .prompt.out { color: #990000; }
 
     .editor-container { flex-grow: 1; }
-    .CodeMirror { height: auto; border: none !important; /* border-radius: 0; removed as per feedback */ }
+    .CodeMirror { height: auto; border: none !important; }
     
     .output-container { flex-grow: 1; padding: 10px; overflow-x: auto; }
     .output-container pre { margin: 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
+
+    /* File Dialog Styles */
+    .file-dialog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; }
+    .file-dialog { background: #fff; border-radius: 6px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: 700px; max-width: 90%; display: flex; flex-direction: column; height: 500px; }
+    .file-dialog-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px solid #ddd; font-weight: bold; }
+    .file-dialog-header .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
+    .file-dialog-nav { display: flex; align-items: center; padding: 5px 10px; border-bottom: 1px solid #ddd; background: #f7f7f7; }
+    .file-dialog-nav button { margin-right: 10px; }
+    .file-dialog-body { flex-grow: 1; overflow-y: auto; }
+    .file-list { padding: 5px; }
+    .file-list-item { display: flex; align-items: center; padding: 4px 8px; cursor: pointer; border-radius: 3px; }
+    .file-list-item:hover { background: #f0f0f0; }
+    .file-list-item.selected { background: #0078d7; color: white; }
+    .file-list-item i { margin-right: 8px; font-size: 16px; }
+    .file-dialog-footer { padding: 10px 15px; border-top: 1px solid #ddd; background: #f7f7f7; }
+    .file-name-input { display: flex; align-items: center; margin-bottom: 10px; }
+    .file-name-input label { margin-right: 10px; }
+    .file-name-input input { flex-grow: 1; }
+    .footer-buttons { display: flex; align-items: center; justify-content: flex-start; }
+    .footer-buttons .spacer { flex-grow: 1; }
+    .footer-buttons button { margin-left: 8px; }
+
+
+    button { padding: 6px 12px; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: #fff; }
+    button.primary { background: #0078d7; color: white; border-color: #0078d7; }
+    button.secondary { background: #6c757d; color: white; border-color: #6c757d; }
+    button.danger { background: #d9534f; color: white; border-color: #d9534f; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
 </head>
 
@@ -209,20 +241,48 @@
     
     <input type="file" ref="file" @change="handleFileImport" style="display: none">
     <a id="createInvote" style="display:none;"></a>
+
+    <file-dialog 
+      :visible="showFileDialog" 
+      :mode="fileDialogMode"
+      :default-name="filename"
+      :vfs="vfs"
+      @close="showFileDialog = false"
+      @open="handleFileOpen"
+      @save="handleFileSave"
+    ></file-dialog>
   </div>
 
 <script>
 const App = {
   data: () => ({
-    blocks: [], lastDeleted: null, selectedIndex: 0,
-    maxeIndex: 0, filename: '', uuid_pos: 0, cellClipboard: null,
+    blocks: [],
+    lastDeleted: null,
+    selectedIndex: 0,
+    maxeIndex: 0,
+    filename: '', // This now holds the full path
+    uuid_pos: 0,
+    cellClipboard: null,
+    showFileDialog: false,
+    fileDialogMode: 'open',
+    vfs: new VFS(),
   }),
-  watch: { filename(newvalue) { document.title = `JSLab - ${newvalue}`; } },
-  computed: { selected() { return this.blocks.length > this.selectedIndex ? this.blocks[this.selectedIndex] : null; } },
-  mounted() {
-    if (!this.loadBlock()) {
-      this.addblock("console.log('Welcome to JSLab!');");
-      this.filename = 'untitled.json';
+  watch: {
+    filename(newvalue) {
+      const display = newvalue.split('/').pop();
+      document.title = `JSLab - ${display}`;
+    }
+  },
+  computed: {
+    selected() {
+      return this.blocks.length > this.selectedIndex ? this.blocks[this.selectedIndex] : null;
+    }
+  },
+  async mounted() {
+    const loaded = await this.loadBlock();
+    if (!loaded) {
+      this.addblock("echo('Welcome to JSLab!');");
+      this.filename = '/untitled.json';
     }
     document.addEventListener("keydown", (event) => {
       if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.evalCode(); }
@@ -234,36 +294,53 @@ const App = {
       this.$nextTick(() => { cb(JSON.stringify({ blocks: this.blocks, maxeIndex: this.maxeIndex, version: 0.8 })); });
     },
     clearAll() {
-      Object.assign(this.$data, this.$options.data({}));
-      this.addblock(); this.filename = 'untitled.json';
+      Object.assign(this.$data, this.$options.data({vfs: this.vfs, showFileDialog: false, fileDialogMode: 'open'}));
+      this.addblock();
+      this.filename = '/untitled.json';
     },
-    newFile() { if(confirm('Are you sure? Unsaved changes will be lost.')) { this.clearAll(); } },
+    newFile() {
+      if (confirm('Are you sure? Unsaved changes will be lost.')) {
+        this.clearAll();
+      }
+    },
     openFile() {
-      const files = Object.keys(localStorage).filter(k => k.startsWith('blocks_')).map(k => k.substring(7));
-      if (files.length === 0) return alert("No saved notebooks in LocalStorage.");
-      const index = prompt("Select a file to open:\n" + files.map((f, i) => `${i}: ${f}`).join('\n'), '0');
-      const idx = parseInt(index, 10);
-      if (!isNaN(idx) && idx >= 0 && idx < files.length) { this.loadBlock(files[idx]); }
+      this.fileDialogMode = 'open';
+      this.showFileDialog = true;
     },
     saveBlock() {
-      this.serialize(cnt => {
-        localStorage.setItem('blocks_' + this.filename, cnt);
-        localStorage.setItem('lastblocks', this.filename);
-      });
+      this.fileDialogMode = 'save';
+      this.showFileDialog = true;
+    },
+    async handleFileOpen(path) {
+        await this.loadBlock(path);
+    },
+    handleFileSave(path) {
+        this.filename = path;
+        this.serialize(async (cnt) => {
+            await this.vfs.saveFile(this.filename, cnt);
+            await this.vfs.setLastFile(this.filename);
+            alert(`Notebook "${this.filename}" saved.`);
+        });
     },
     loadData(filename, data) {
-      this.clearAll(); this.filename = filename;
+      this.clearAll();
+      this.filename = filename;
       this.blocks = data.blocks.map(b => ({ ...b, uuid: `${Date.now()}-${this.uuid_pos++}` }));
       this.maxeIndex = data.maxeIndex || 0;
       if (this.blocks.length === 0) this.addblock();
     },
-    loadBlock(name) {
-      const n = name || localStorage.getItem('lastblocks');
-      if (!n) return false;
-      const dataStr = localStorage.getItem('blocks_' + n);
+    async loadBlock(path) {
+      const targetPath = path || await this.vfs.getLastFile();
+      if (!targetPath) return false;
+
+      const dataStr = await this.vfs.loadFile(targetPath);
       if (dataStr) {
-        try { this.loadData(n, JSON.parse(dataStr)); return true; } 
-        catch (e) { alert(`Error loading notebook "${n}". It might be corrupted.`); }
+        try {
+          this.loadData(targetPath, JSON.parse(dataStr));
+          return true;
+        } catch (e) {
+          alert(`Error loading notebook "${targetPath}". It might be corrupted.`);
+        }
       }
       return false;
     },
@@ -271,81 +348,88 @@ const App = {
       this.serialize(cnt => {
         const el = document.getElementById('createInvote');
         el.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(cnt);
-        el.download = this.filename || 'notebook.json'; el.click();
+        const display = this.filename.split('/').pop();
+        el.download = display || 'notebook.json'; el.click();
       });
     },
     importBlock() { this.$refs.file.click(); },
     handleFileImport(event) {
-      const file = event.target.files[0]; if (!file) return;
+      const file = event.target.files[0];
+      if (!file) return;
       const reader = new FileReader();
-      reader.onload = (e) => { 
-        try { this.loadData(file.name, JSON.parse(e.target.result)); } 
-        catch(err) { alert("Failed to parse imported file."); }
+      reader.onload = (e) => {
+        try {
+          this.loadData('/' + file.name, JSON.parse(e.target.result));
+        } catch (err) {
+          alert("Failed to parse imported file.");
+        }
       };
-      reader.readAsText(file); event.target.value = '';
+      reader.readAsText(file);
+      event.target.value = '';
     },
-    shareBlock(){
-        if(!this.selected || !this.selected.code) return;
-        let url = window.location.origin + window.location.pathname + "?code=" + encodeURIComponent(this.selected.code);
-        navigator.clipboard.writeText(url).then(() => alert('Shareable link for cell copied to clipboard!'), () => alert('Failed to copy link.'));
+    shareBlock() {
+      if (!this.selected || !this.selected.code) return;
+      let url = window.location.origin + window.location.pathname + "?code=" + encodeURIComponent(this.selected.code);
+      navigator.clipboard.writeText(url).then(() => alert('Shareable link for cell copied to clipboard!'), () => alert('Failed to copy link.'));
     },
     copyBlock() { if (this.selected) this.cellClipboard = JSON.parse(JSON.stringify(this.selected)); },
     cutBlock() { if (this.selected) { this.copyBlock(); this.deleteBlock(); } },
     pasteBlock() {
       if (!this.cellClipboard) return;
       const newBlock = { ...JSON.parse(JSON.stringify(this.cellClipboard)), uuid: `${Date.now()}-${this.uuid_pos++}` };
-      this.blocks.splice(this.selectedIndex + 1, 0, newBlock); this.selectedIndex++;
+      this.blocks.splice(this.selectedIndex + 1, 0, newBlock);
+      this.selectedIndex++;
     },
     moveCellUp() {
-        if (this.selectedIndex > 0) {
-            const i = this.selectedIndex;
-            [this.blocks[i], this.blocks[i - 1]] = [this.blocks[i - 1], this.blocks[i]];
-            this.selectedIndex--;
-        }
+      if (this.selectedIndex > 0) {
+        const i = this.selectedIndex;
+        [this.blocks[i], this.blocks[i - 1]] = [this.blocks[i - 1], this.blocks[i]];
+        this.selectedIndex--;
+      }
     },
     moveCellDown() {
-        if (this.selectedIndex < this.blocks.length - 1) {
-            const i = this.selectedIndex;
-            [this.blocks[i], this.blocks[i + 1]] = [this.blocks[i + 1], this.blocks[i]];
-            this.selectedIndex++;
-        }
+      if (this.selectedIndex < this.blocks.length - 1) {
+        const i = this.selectedIndex;
+        [this.blocks[i], this.blocks[i + 1]] = [this.blocks[i + 1], this.blocks[i]];
+        this.selectedIndex++;
+      }
     },
     loadHelp(url) {
       fetch(url).then(r => r.json()).then(d => this.appendBlocks(d.blocks))
         .catch(e => alert('Error loading help file: ' + e));
     },
     appendBlocks(blocks) {
-        blocks.forEach(b => { this.blocks.push({ ...b, uuid: `${Date.now()}-${this.uuid_pos++}` }); });
+      blocks.forEach(b => { this.blocks.push({ ...b, uuid: `${Date.now()}-${this.uuid_pos++}` }); });
     },
-    formatError(source, e){
-      let pos=-1, match=null;
+    formatError(source, e) {
+      let pos = -1, match = null;
       let sk = e.stack.split('\n');
       let reg = /at eval \(eval at box.runcode [^\)]*\), <anonymous>:([0-9]+):([0-9]+)\)/;
-      for(let i=sk.length-1; i>=0; --i) {
-          if(pos===-1) { match=sk[i].match(reg); if(match) { pos=i; break; } }
+      for (let i = sk.length - 1; i >= 0; --i) {
+        if (pos === -1) { match = sk[i].match(reg); if (match) { pos = i; break; } }
       }
-      if(pos===-1) pos=sk.length; else ++pos;
-      let stack=sk.slice(0, pos).join('\n').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      let errorinfo='';
-      if(match && source){
-        try{
-          let line = parseInt(match[1])-1, col = parseInt(match[2])-1;
-          let sourceline=source.split('\n')[line];
-          errorinfo=`<span style='color:red;'>Error At</span>[${line+1},${col+1}]: ${sourceline.substr(0,col)}<span style='color:red;font-weight:bold;'>&lt;--&gt</span>${sourceline.substr(col)}\n`;
-        } catch(err){}
-      }   
+      if (pos === -1) pos = sk.length; else ++pos;
+      let stack = sk.slice(0, pos).join('\n').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      let errorinfo = '';
+      if (match && source) {
+        try {
+          let line = parseInt(match[1]) - 1, col = parseInt(match[2]) - 1;
+          let sourceline = source.split('\n')[line];
+          errorinfo = `<span style='color:red;'>Error At</span>[${line + 1},${col + 1}]: ${sourceline.substr(0, col)}<span style='color:red;font-weight:bold;'>&lt;--&gt</span>${sourceline.substr(col)}\n`;
+        } catch (err) { } 
+      }
       return `<pre>${errorinfo}<span style='color:red;'>Name</span>: ${e.name}\n<span style='color:red;'>Message</span>: ${e.message}\n<span style='color:red;'>Stack</span>:\n${stack}</pre>`;
     },
-    async evalCode(debug=false) {
+    async evalCode(debug = false) {
       if (!this.selected) return;
       const cur = this.selected;
-      let info = {compiled_code: ''};
+      let info = { compiled_code: '' };
       cur.eindex = '*';
       await this.$nextTick();
       try {
         cur.result = ''; cur.resultScript = '';
         let codeToRun = cur.code;
-        if(debug) codeToRun = "debugger;" + codeToRun;
+        if (debug) codeToRun = "debugger;" + codeToRun;
         let evalresult = box.runcode(codeToRun, info);
         if (evalresult instanceof Promise) evalresult = await evalresult;
         if (evalresult !== undefined) cur.result += `<pre>${String(evalresult)}</pre>`;
@@ -354,7 +438,12 @@ const App = {
         console.error(e);
       } finally {
         cur.eindex = this.maxeIndex++;
-        if(!debug) this.saveBlock();
+        if (!debug) {
+            this.serialize(async (cnt) => {
+                await this.vfs.saveFile(this.filename, cnt);
+                await this.vfs.setLastFile(this.filename);
+            });
+        }
       }
     },
     async runAll() {
@@ -365,7 +454,8 @@ const App = {
     },
     addblock(code = "") {
       const newBlock = { eindex: -1, code, result: null, resultScript: '', uuid: `${Date.now()}-${this.uuid_pos++}` };
-      this.blocks.splice(this.selectedIndex + 1, 0, newBlock); this.selectedIndex++;
+      this.blocks.splice(this.selectedIndex + 1, 0, newBlock);
+      this.selectedIndex++;
     },
     insertBlock() {
       const newBlock = { eindex: -1, code: "", result: null, resultScript: '', uuid: `${Date.now()}-${this.uuid_pos++}` };
@@ -388,6 +478,8 @@ const App = {
 };
 
 const myapp = Vue.createApp(App);
+
+myapp.component('file-dialog', FileDialogComponent);
 
 myapp.component('codemirror', {
   props: ['modelValue'],
