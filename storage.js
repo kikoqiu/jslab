@@ -88,7 +88,18 @@ class VFS {
         for await (const entry of dirHandle.values()) {
             if (entry.name.startsWith('.')) continue; // Ignore hidden files
             if (entry.kind === 'file') {
-                files.push(entry.name);
+                try {
+                    const fileHandle = await dirHandle.getFileHandle(entry.name);
+                    const file = await fileHandle.getFile();
+                    files.push({
+                        name: entry.name,
+                        size: file.size,
+                        lastModified: file.lastModified
+                    });
+                } catch (e) {
+                    console.warn(`Could not get file details for ${entry.name}:`, e);
+                    files.push({ name: entry.name, size: 0, lastModified: 0 }); // Fallback
+                }
             } else if (entry.kind === 'directory') {
                 folders.push(entry.name);
             }

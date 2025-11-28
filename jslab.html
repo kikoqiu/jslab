@@ -145,10 +145,65 @@
     .file-dialog-nav button { margin-right: 10px; }
     .file-dialog-body { flex-grow: 1; overflow-y: auto; }
     .file-list { padding: 5px; }
-    .file-list-item { display: flex; align-items: center; padding: 4px 8px; cursor: pointer; border-radius: 3px; }
+
+    .file-list-header {
+        display: grid;
+        grid-template-columns: 24px 1fr 100px 150px; /* Icon + Name, Size, Modified */
+        padding: 4px 8px;
+        font-weight: bold;
+        border-bottom: 1px solid #eee;
+        background-color: #f7f7f7;
+    }
+    .file-list-header span:nth-child(2) { text-align: left; } /* Name */
+    .file-list-header span:nth-child(3) { text-align: right; } /* Size */
+    .file-list-header span:nth-child(4) { text-align: right; } /* Modified */
+
+    .file-list-item {
+        display: grid;
+        grid-template-columns: 24px 1fr 100px 150px; /* Icon + Name, Size, Modified */
+        align-items: center;
+        padding: 4px 8px;
+        cursor: pointer;
+        border-radius: 3px;
+    }
+    .file-list-item.folder {
+        grid-template-columns: 24px 1fr 100px 150px; /* Maintain columns for alignment */
+    }
     .file-list-item:hover { background: #f0f0f0; }
     .file-list-item.selected { background: #0078d7; color: white; }
-    .file-list-item i { margin-right: 8px; font-size: 16px; }
+    .file-list-item i {
+        margin-right: 0;
+        font-size: 16px;
+        text-align: center;
+        grid-column: 1; /* Explicitly place icon in first column */
+    }
+    .file-list-item .file-name {
+        grid-column: 2; /* Explicitly place name in second column */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-left: 8px; /* Add some space after the icon */
+    }
+    .file-list-item .file-size {
+        grid-column: 3; /* Explicitly place size in third column */
+        font-size: 0.8em;
+        color: #666;
+        text-align: right;
+    }
+    .file-list-item .file-date {
+        grid-column: 4; /* Explicitly place date in fourth column */
+        font-size: 0.8em;
+        color: #666;
+        text-align: right;
+    }
+    .file-list-item.folder .file-size,
+    .file-list-item.folder .file-date {
+        visibility: hidden; /* Hide for folders but maintain space */
+    }
+    .file-list-item.selected .file-size,
+    .file-list-item.selected .file-date {
+        color: rgba(255, 255, 255, 0.8);
+    }
     .file-dialog-footer { padding: 10px 15px; border-top: 1px solid #ddd; background: #f7f7f7; }
     .file-name-input { display: flex; align-items: center; margin-bottom: 10px; }
     .file-name-input label { margin-right: 10px; }
@@ -163,11 +218,39 @@
     button.secondary { background: #6c757d; color: white; border-color: #6c757d; }
     button.danger { background: #d9534f; color: white; border-color: #d9534f; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Notification Styles */
+    .top-notification {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #4CAF50; /* Green background for success */
+      color: white;
+      text-align: center;
+      padding: 10px 20px;
+      z-index: 3000; /* Above file dialog */
+      width: fit-content;
+      min-width: 200px;
+      border-bottom-left-radius: 5px;
+      border-bottom-right-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* Vue Transition Styles */
+    .slide-fade-enter-active, .slide-fade-leave-active {
+      transition: all 0.5s ease;
+    }
+    .slide-fade-enter-from, .slide-fade-leave-to {
+      transform: translateX(-50%) translateY(-100%);
+      opacity: 0;
+    }
   </style>
 </head>
 
 <body>
   <div id="app">
+    <notification-message v-model="showNotification" :message="notificationMessage"></notification-message>
     <header class="notebook-header">
        <div class="header-content">
          <nav class="menu-bar">
@@ -212,13 +295,13 @@
           </div>
         </nav>
         <div class="toolbar">
-          <button @click="saveBlock()" title="Save(Ctrl+S)"><i class="bi-save"></i></button>
-          <button @click="addblock()" title="Insert Cell Below"><i class="bi-plus-lg"></i></button>
+          <button @click="saveBlock()" title="Save(Ctrl+S)"><i class="bi-save"></i></button>          
           <button @click="cutBlock()" title="Cut"><i class="bi-scissors"></i></button>
           <button @click="copyBlock()" title="Copy"><i class="bi-clipboard"></i></button>
           <button @click="pasteBlock()" title="Paste" :disabled="cellClipboard == null"><i class="bi-clipboard-plus"></i></button>
           <button @click="moveCellUp()" title="Move Cell Up" :disabled="selectedIndex === 0"><i class="bi bi-arrow-up-square"></i></button>
           <button @click="moveCellDown()" title="Move Cell Down" :disabled="selectedIndex === blocks.length - 1"><i class="bi bi-arrow-down-square"></i></button>
+          <button @click="addblock()" title="Insert Cell Below"><i class="bi-plus-lg"></i></button>
           <button @click="evalCode()" title="Run (Ctrl+Enter)"><i class="bi-play-fill"></i></button>
         </div>
        </div>
@@ -293,6 +376,8 @@ const App = {
     fileDialogMode: 'open',
     vfs: new VFS(),
     showAboutModal: false,
+    showNotification: false,
+    notificationMessage: '',
     plotdiv:0,
   }),
   watch: {
@@ -346,7 +431,7 @@ const App = {
       this.serialize(async (cnt) => {
           await this.vfs.saveFile(this.filename, cnt);
           await this.vfs.setLastFile(this.filename);
-          alert(`Notebook "${this.filename}" saved.`);
+          this.showToast(`Notebook "${this.filename}" saved.`);
       });
     },
     saveBlock() {
@@ -521,6 +606,10 @@ const App = {
         this.lastDeleted = null;
       }
     },
+    showToast(message) {
+      this.notificationMessage = message;
+      this.showNotification = true;
+    }
   }
 };
 
@@ -572,6 +661,63 @@ myapp.component('code-result', {
           });
       }
   }
+});
+
+
+myapp.component('code-result', {
+  props: ['html', 'script'],
+  template: `<div ref="output"></div>`,
+  watch: {
+    html: { immediate: true, handler: 'updateContent' },
+    script: { immediate: true, handler: 'updateContent' },
+  },
+  methods: {
+      updateContent() {
+          this.$nextTick(() => {
+            const el = this.$refs.output; if(!el) return;
+            el.innerHTML = this.html || '';
+            if (this.script) {
+              try { new Function(this.script)(); } catch (e) { console.error("Error executing result script:", e); }
+            }
+          });
+      }
+  }
+});
+
+myapp.component('notification-message', {
+  props: {
+    message: String,
+    modelValue: Boolean, // Use modelValue for v-model compatibility
+  },
+  emits: ['update:modelValue'],
+  template: `
+    <transition name="slide-fade">
+      <div v-if="modelValue" class="top-notification">
+        {{ message }}
+      </div>
+    </transition>
+  `,
+  data() {
+    return {
+      timeoutId: null,
+    };
+  },
+  watch: {
+    modelValue(newVal) {
+      if (newVal) {
+        clearTimeout(this.timeoutId);
+        this.timeoutId = setTimeout(() => {
+          this.$emit('update:modelValue', false);
+        }, 2000); // Auto-dismiss after 2 seconds
+      }
+    },
+  },
+  methods: {
+    dismiss() {
+      clearTimeout(this.timeoutId);
+      this.$emit('update:modelValue', false);
+    },
+  },
 });
 
 vm = myapp.mount("#app");

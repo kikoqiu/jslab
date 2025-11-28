@@ -27,15 +27,22 @@ window.FileDialogComponent = {
           <span>{{ currentPath }}</span>
         </div>
         <div class="file-dialog-body">
+            <div class="file-list-header">
+                <span></span> <!-- Placeholder for icon -->
+                <span>Name</span>
+                <span>Size</span>
+                <span>Modified</span>
+            </div>
             <div class="file-list">
                 <div v-for="folder in folders" :key="currentPath + folder" class="file-list-item folder" :class="{selected: selectedName === folder && selectedType === 'folder'}" @click="select(folder, 'folder')" @dblclick="enterFolder(folder)">
-                    <i class="bi bi-folder"></i> {{ folder }}
+                    <i class="bi bi-folder"></i> <span class="file-name">{{ folder }}</span>
                 </div>
-                <div v-for="file in files" :key="currentPath + file" class="file-list-item file" :class="{selected: selectedName === file && selectedType === 'file'}" @click="select(file, 'file')" @dblclick="handleAction">
-                    <i class="bi bi-file-earmark-code"></i> {{ file }}
+                <div v-for="file in files" :key="currentPath + file.name" class="file-list-item file" :class="{selected: selectedName === file.name && selectedType === 'file'}" @click="select(file.name, 'file')" @dblclick="handleAction">
+                    <i class="bi bi-file-earmark-code"></i> <span class="file-name">{{ file.name }}</span>
+                    <span class="file-size">{{ formatSize(file.size) }}</span>
+                    <span class="file-date">{{ formatDate(file.lastModified) }}</span>
                 </div>
-            </div>
-        </div>
+            </div>        </div>
         <div class="file-dialog-footer">
           <div class="file-name-input">
             <label for="filename-input">File name:</label>
@@ -132,6 +139,18 @@ window.FileDialogComponent = {
             }
             this.fetchFiles();
         }
+    },
+    formatSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+    formatDate(timestamp) {
+        if (!timestamp) return '';
+        const date = new Date(timestamp);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
     }
   }
 };

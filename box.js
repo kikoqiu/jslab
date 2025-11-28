@@ -42,10 +42,12 @@ box.range=function(a,b,step=1,mapper){
 box.echo=function(...o){
   let str='';
   for(i of o){
-    if(str!='')str+=",&nbsp;";
-    str+=String(i)
+    if(str!='')str+=", ";
+    str+=String(i);
   }
-  vm.selected.result+=str.replace(/\n/ig,'<br/>').replace(/</ig,'&lt;').replace(/>/ig,'&gt;')+'<br/>';
+  str=str.replace(/</ig,'&lt;').replace(/>/ig,'&gt;')+'\n';
+  str=`<pre><code>${str}</code></pre>`;
+  vm.selected.result+=str;
 };
 
 /**
@@ -55,11 +57,22 @@ box.echo=function(...o){
 box.echoHTML=function(...o){
   let str='';
   for(i of o){
-    str+=String(i)
+    str+=String(i);
   }
   vm.selected.result += str;
 };
 
+/**
+ * dump object to JSON to output
+ * @param  {...any} o output 
+ */
+box.dumpJSON=function(...o){
+  let str='';
+  for(i of o){
+    str+=`<pre><code>${JSON.stringify(i)}</code></pre><br/>`;
+  }
+  vm.selected.result += str;
+};
 
 /**
  * Plot with plotly
