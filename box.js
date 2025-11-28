@@ -286,7 +286,8 @@ box.eval_expr=function(e,scope){
  */
 box.deriv=math.derivative;
 box.symplify=math.symplify;
-
+box.mathfrac=math.create({number:'Fraction'},math.all)
+box.mathbn=math.create({number:'BigNumber'},math.all)
 /**
  * Get latex string
  * @param  {...any} ex 
@@ -418,7 +419,8 @@ box.runcode=function (code,info){
       return ret;
     }  
   }else{
-    let ret= eval(currentCode);
+    let eval1=eval;
+    let ret= eval1(currentCode);
     return ret;
   }
 }
@@ -446,7 +448,8 @@ box.runcode=function (code,info){
       return ret;
     }  
   }else{
-    let ret= eval(currentCode);
+    let eval1=eval;
+    let ret= eval1(currentCode);
     return ret;
   }
   
