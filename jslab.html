@@ -553,6 +553,10 @@ const App = {
       return `<pre>${errorinfo}<span style='color:red;'>Name</span>: ${e.name}\n<span style='color:red;'>Message</span>: ${e.message}\n<span style='color:red;'>Stack</span>:\n${stack}</pre>`;
     },
     async evalCode(debug = false) {
+      if(this.filename == '') {
+        this.saveAsBlock();
+        return;
+      }
       if (!this.selected) return;
       const cur = this.selected;
       let info = { compiled_code: '' };
@@ -579,6 +583,10 @@ const App = {
       }
     },
     async runAll() {
+      if(this.filename == '') {
+        this.saveAsBlock();
+        return;
+      }
       this.maxeIndex = 0;
       for (let i = 0; i < this.blocks.length; i++) {
         this.selectedIndex = i; await this.evalCode();
