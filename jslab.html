@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JSLab</title>
 
+    <script src="jshint.2.13.6.js"></script>
+
   <script src="libbf.js/libbf.js"></script>
   <script src="libbf.js/bf.js"></script>
   <script>bfjs.gc_ele_limit = 100;</script>
@@ -27,19 +29,8 @@
   <script src="box.js"></script>
   <!--script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script-->
   <script src="vue.global.3.1.1.prod.js"></script>
-  <link rel="stylesheet" href="codemirror/lib/codemirror.css">
-  <link rel="stylesheet" href="codemirror/addon/hint/show-hint.css">
-  <link rel="stylesheet" href="codemirror/addon/lint/lint.css">
-  <script src="codemirror/lib/codemirror.js"></script>
-  <script src="codemirror/mode/javascript/javascript.js"></script>
-  <script src="codemirror/addon/hint/show-hint.js"></script>
-  <script src="codemirror/addon/hint/javascript-hint.js"></script>
-  <script src="codemirror/addon/edit/closebrackets.js"></script>
-  <script src="codemirror/addon/edit/matchbrackets.js"></script>
-  <!--script src="https://unpkg.com/jshint@2.13.0/dist/jshint.js"></script-->
-  <script src="jshint.2.13.0.js"></script>
-  <script src="codemirror/addon/lint/lint.js"></script>
-  <script src="codemirror/addon/lint/javascript-lint.js?v=20210802"></script>
+
+  <script src="codemirror6/helpers/editor.bundle.js"></script>
   <script src="storage.js"></script>
   <script src="file-dialog.js"></script>
   <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css"-->
@@ -625,31 +616,7 @@ const myapp = Vue.createApp(App);
 
 myapp.component('file-dialog', FileDialogComponent);
 
-myapp.component('codemirror', {
-  props: ['modelValue'],
-  emits: ['update:modelValue', 'focus'],
-  template: `<textarea ref="codeinput"></textarea>`,
-  mounted() {
-    this.editor = CodeMirror.fromTextArea(this.$refs.codeinput, {
-      lineNumbers: true, mode: {name: "javascript", globalVars: true},
-      gutters: ["CodeMirror-lint-markers"], lint: { esversion: 11, asi: true },
-      autoCloseBrackets: true, matchBrackets: true, viewportMargin: Infinity,
-      extraKeys: {"": "autocomplete"},
-      hintOptions: { additionalContext: box, closeOnUnfocus: false, },
-    });
-    this.editor.setValue(this.modelValue || '');
-    this.editor.on('change', (cm, change) => {
-      if (cm.getValue() !== this.modelValue) this.$emit('update:modelValue', cm.getValue());
-      if (!cm.state.completionActive && change.origin === "+input" && change.text[0].match(/[a-z\.]/i)) {
-        CodeMirror.commands.autocomplete(cm, null, {completeSingle: false});
-      }
-    });
-    this.editor.on('focus', () => this.$emit('focus'));
-  },
-  watch: {
-    modelValue(newVal) { if (newVal !== this.editor.getValue()) this.editor.setValue(newVal); }
-  }
-});
+myapp.component('codemirror', window.CodeMirror6VueComponent);
 
 myapp.component('code-result', {
   props: ['html', 'script'],
@@ -671,26 +638,6 @@ myapp.component('code-result', {
   }
 });
 
-
-myapp.component('code-result', {
-  props: ['html', 'script'],
-  template: `<div ref="output"></div>`,
-  watch: {
-    html: { immediate: true, handler: 'updateContent' },
-    script: { immediate: true, handler: 'updateContent' },
-  },
-  methods: {
-      updateContent() {
-          this.$nextTick(() => {
-            const el = this.$refs.output; if(!el) return;
-            el.innerHTML = this.html || '';
-            if (this.script) {
-              try { new Function(this.script)(); } catch (e) { console.error("Error executing result script:", e); }
-            }
-          });
-      }
-  }
-});
 
 myapp.component('notification-message', {
   props: {
