@@ -469,3 +469,242 @@ box.runcode=function (code,info){
 }
 
 
+/**
+ * @typedef {Object} SolverAPI
+ * @property {function(function(Array): boolean): SolverAPI} where - Adds a constraint filter.
+ * @property {function(number=): Generator<Array, void, unknown>} solve - Executes the permutation algorithm.
+ */
+
+/**
+ * Creates a high-performance solver for Partial (P(n,k)) and Full Permutations (N!).
+ * Supports constraints with automatic pruning via Proxy.
+ *
+ * @param {Array} sourceArray - The pool of elements (e.g., [1, 2, 3, 4]).
+ * @param {number} [k] - The length of the permutation (P(n, k)). Defaults to n.
+ * @returns {SolverAPI} The solver interface.
+ */
+ box.permutationSolver = function(sourceArray, k) {
+    // Default to full permutation if k is undefined
+    const targetLength = (k === undefined || k === null) ? sourceArray.length : k;
+    
+    // Validation
+    if (targetLength < 0 || targetLength > sourceArray.length) {
+        throw new Error(`Invalid k: ${k}. Must be between 0 and ${sourceArray.length}`);
+    }
+
+    // Internal buffer (copy of source). 
+    // We permute this array in-place to avoid memory allocation during recursion.
+    const arr = [...sourceArray];
+    const rules = [];
+
+    // --- State Management ---
+    // 'cursor' tracks the boundary of "valid/fixed" data.
+    // Indices < cursor are fixed. Indices >= cursor are technically "future/dirty".
+    let cursor = 0;
+
+    // Flag to detect if a rule tried to look ahead at future data.
+    let isRuleFullyEvaluated = true;
+
+    // --- The Proxy ---
+    // Allows us to run user rules safely. 
+    // It detects if a rule depends on data that hasn't been generated yet.
+    const proxy = new Proxy(arr, {
+        get(target, prop, receiver) {
+            const index = Number(prop);
+
+            // Pass through standard properties (.length, etc.)
+            if (isNaN(index)) {
+                return Reflect.get(target, prop, receiver);
+            }
+
+            // Detect Future Access
+            // If we are at depth 2 (cursor=2), data at index 2 is currently being decided, 
+            // but data at index 3 is completely unknown (dirty).
+            if (index > cursor) {
+                isRuleFullyEvaluated = false;
+                // Return the dirty value anyway to prevent math errors (e.g., NaN, Infinity).
+                // The solver will ignore the result of this rule later.
+            }
+
+            return target[index];
+        }
+    });
+
+    /**
+     * Checks all constraints.
+     * @returns {boolean} False if we should prune (stop) this branch.
+     */
+    const checkConstraints = () => {
+        for (const rule of rules) {
+            isRuleFullyEvaluated = true;
+            
+            // Execute rule against the proxy
+            const result = rule(proxy);
+
+            // 1. If the rule accessed future data (index > cursor), we can't trust the result yet.
+            //    Strategy: Optimistic Pass. Assume it's true and wait for deeper recursion.
+            if (!isRuleFullyEvaluated) {
+                continue;
+            }
+
+            // 2. If data was fully available and the rule returned false, Prune immediately.
+            if (result === false) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    /**
+     * Recursive Backtracker
+     * @param {number} start - Current index to fill.
+     * @param {number} k - Target length of the permutation.
+     */
+    function* permute(start, k) {
+        // Base Case: We have filled 'k' slots.
+        if (start === k) {
+            yield arr.slice(0, k); // Yield only the valid part
+            return;
+        }
+
+        const length = arr.length;
+
+        for (let i = start; i < length; i++) {
+            // 1. Swap: Choose element at 'i' for the current slot 'start'
+            [arr[start], arr[i]] = [arr[i], arr[start]];
+
+            // 2. Update Context: Data at 'start' is now fixed.
+            cursor = start;
+
+            // 3. Pruning: Check rules before going deeper
+            if (checkConstraints()) {
+                yield* permute(start + 1, k);
+            }
+
+            // 4. Backtrack: Restore array
+            [arr[start], arr[i]] = [arr[i], arr[start]];
+        }
+    }
+
+    // --- Public API ---
+    return {
+        where(predicate) {
+            rules.push(predicate);
+            return this;
+        },
+
+        /**
+         * Generates the permutations.
+         */
+        solve() {
+            return permute(0, targetLength);
+        }
+    };
+}
+
+
+/**
+ * Generates permutations of length `k` from the source array.
+ * 
+ * @template T
+ * @param {T[]} sourceArray - The pool of elements.
+ * @param {number} [k] - The number of elements to select. Defaults to array length.
+ * @returns {Generator<T[], void, unknown>}
+ */
+box.permute = function* (sourceArray, k) {
+    // Create a local copy to protect the original array
+    const arr = [...sourceArray];
+    const n = arr.length;
+    
+    // Default to Full Permutation if k is not provided
+    const targetLength = (k === undefined || k === null) ? n : k;
+
+    // Safety check
+    if (targetLength < 0 || targetLength > n) return;
+
+    /**
+     * Internal recursive worker.
+     * @param {number} index - Current position to fill.
+     */
+    function* backtrack(index) {
+        // Base Case: We have filled 'k' positions
+        if (index === targetLength) {
+            yield arr.slice(0, targetLength);
+            return;
+        }
+
+        for (let i = index; i < n; i++) {
+            // 1. Swap
+            [arr[index], arr[i]] = [arr[i], arr[index]];
+
+            // 2. Recurse
+            yield* backtrack(index + 1);
+
+            // 3. Backtrack (Restore)
+            [arr[index], arr[i]] = [arr[i], arr[index]];
+        }
+    }
+
+    yield* backtrack(0);
+}
+
+
+
+/**
+ * Generates all combinations of `k` elements from the source array.
+ * Order implies no distinction: [A, B] is considered the same as [B, A].
+ *
+ * Algorithm: Recursive Backtracking with Index Pruning.
+ * Time Complexity: O(C(n, k))
+ * Space Complexity: O(k) (recursion stack + buffer)
+ *
+ * @template T
+ * @param {T[]} sourceArray - The pool of elements to choose from.
+ * @param {number} k - The number of elements to select.
+ * @returns {Generator<T[], void, unknown>}
+ */
+box.combinations = function* (sourceArray, k) {
+    const n = sourceArray.length;
+
+    // Boundary check
+    if (k < 0 || k > n) return;
+
+    // Pre-allocate a buffer to store the current combination.
+    // This avoids pushing/popping dynamic arrays.
+    const buffer = new Array(k);
+
+    /**
+     * Internal recursive worker.
+     * @param {number} start - The index in sourceArray to start picking from.
+     * @param {number} depth - The current count of items selected (index in buffer).
+     */
+    function* backtrack(start, depth) {
+        // Base Case: If the buffer is full (depth == k), yield the result.
+        if (depth === k) {
+            // Must yield a copy (Array.from or .slice) because 'buffer' is reused.
+            yield Array.from(buffer);
+            return;
+        }
+
+        // Optimization: Calculate the furthest index we can go to.
+        // We need (k - depth) more items.
+        // If sourceArray has 'n' items, we must leave enough room for the remaining slots.
+        // Example: n=5, k=3, depth=0. We need 3 items. Max index we can pick is 2 (0,1,2).
+        // If we picked index 3, we'd only have index 4 left (1 item), but we need 2 more.
+        const limit = n - (k - depth) + 1;
+
+        for (let i = start; i < limit; i++) {
+            // 1. Pick current element
+            buffer[depth] = sourceArray[i];
+
+            // 2. Recurse: Move to next element (i+1) and next depth level
+            yield* backtrack(i + 1, depth + 1);
+            
+            // 3. Backtrack: No explicit code needed here as we overwrite buffer[depth] 
+            //    in the next iteration of this loop.
+        }
+    }
+
+    yield* backtrack(0, 0);
+}
+
