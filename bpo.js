@@ -3,7 +3,7 @@ let _Op = (function(){
 	return {
 	add(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint')) return a+b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorAdd){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
@@ -14,7 +14,7 @@ let _Op = (function(){
 
 	sub(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a-b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorSub){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
@@ -25,7 +25,7 @@ let _Op = (function(){
 
 	mul(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a*b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorMul){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
@@ -36,7 +36,7 @@ let _Op = (function(){
 
 	div(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a/b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorDiv){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
@@ -47,7 +47,7 @@ let _Op = (function(){
 
 	pow(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a**b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorPow){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
@@ -58,7 +58,7 @@ let _Op = (function(){
 
 	binaryAnd(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a&b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorBinaryAnd){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
@@ -69,7 +69,7 @@ let _Op = (function(){
 
 	binaryOr(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a|b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorBinaryOr){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
@@ -80,7 +80,7 @@ let _Op = (function(){
 
 	binaryXor(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a^b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorBinaryXor){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
@@ -91,7 +91,7 @@ let _Op = (function(){
 
 	binaryLShift(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a<<b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorBinaryLShift){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
@@ -102,7 +102,7 @@ let _Op = (function(){
 
 	binaryRShift(a, b) {
 		if((typeof(a)=='number' && typeof(b)=='number') || (typeof(a)=='bigint' && typeof(b)=='bigint'))return a>>b;
-		if(typeof(a)!='object' && typeof(b)=='object'){
+		if(typeof(a)!='object' && typeof(b)=='object'&&b.operatorBinaryRShift){
 			a = new b.constructor(a);
 		}else if(typeof(a)=='object' && typeof(b)=='object' && a.constructor!=b.constructor){
 			throw new Error('bpo: not the same class');
