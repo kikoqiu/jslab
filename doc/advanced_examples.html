@@ -6,9 +6,8 @@
 
 <h4>BigInt Operations</h4>
 <p>JSLab fully supports JavaScript's native <code>BigInt</code> type, allowing you to perform calculations with arbitrary-precision integers, exceeding the limits of standard JavaScript numbers. This is particularly useful for cryptographic operations, scientific computing, or any scenario requiring extremely large integer values.</p>
-<pre><code>echo('Js buildin bigint<hr/>');
-let res=1n;
-for(let i=2n;i<=50n;++i){
+<pre><code>let res=1n;
+for(let i=2n;i&lt=50n;++i){
   res*=i;
 }
 latex(math.parse('50!'),'=',res); // Calculates 50 factorial and displays it using LaTeX.</code></pre>
@@ -21,23 +20,29 @@ latex(math.parse('50!'),'=',res); // Calculates 50 factorial and displays it usi
     <li><code>bfjs.sqrt(x)</code>: Calculates the square root of <code>x</code>.</li>
     <li><code>bfjs.acos(x)</code>: Calculates the arc cosine of <code>x</code>.</li>
     <li><code>value.toFixed(precision, roundingMode)</code>: Formats a <code>bfjs</code> number to a specified precision.</li>
+    <li>...</li>
 </ul>
 <pre><code>// Demonstrate high-precision sine and PI
 let value1=bfjs.sin(2 * bfjs.PI());
-latex(math.parse('sin(2\pi)'),'=',value1.toFixed(10,150));
+latex(math.parse('sin(2\\pi)'),'=',value1.toFixed(10,150));
 echo('Expected result for sin(2π) is 0.');
-echo();
+
 
 // Verify a trigonometric identity with high precision
 let value2=(bfjs.sin(bfjs.PI().div(3)).minus(bfjs.sqrt(3).div(2)));
-latex(math.parse('sin(\pi/3)-\sqrt{3}/2'),'=',value2.toFixed(10,150));
+latex(math.parse('sin(\\pi/3)-\\sqrt{3}/2'),'=',value2.toFixed(10,150));
 echo('Expected result for sin(π/3) - sqrt(3)/2 is 0.');
-echo();
+
 
 // Calculate 2 * arccos(0) to high precision (should be PI)
 let value3=bfjs.acos(0).times(2);
-latex(math.parse('2 \arccos(0)'),'=',value3.toFixed(10,150));
+latex(math.parse('2 \\arccos(0)'),'=',value3.toFixed(10,150));
 echo('Expected result for 2 * arccos(0) is PI.');</code></pre>
+
+<pre><code>//bfjs operator override
+echo(`sin(pi)*10=${bfjs.PI()*10}`);
+echo(`1/7=${bfjs.bf(1)/7}`);
+</code></pre>
 
 <pre><code>//big float constants
 //set decimal precision to 2000 digits
