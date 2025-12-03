@@ -27869,13 +27869,17 @@
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif", // Sans-serif for description
         padding: "10px 15px",
         maxWidth: "600px",
+        minWidth: "calc( min(300px, 50vw) )",
         whiteSpace: "pre-wrap",
         backgroundColor: "#ffffff", // White background
         color: "#333333", // Dark gray text
-        border: "1px solid #e0e0e0", // Light gray border
+        /*border: "1px solid #e0e0e0", // Light gray border
         borderRadius: "6px",
         lineHeight: "1.6",
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)", // Subtle shadow, matching autocomplete list
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)", // Subtle shadow, matching autocomplete list*/
+      },
+      ".cm-tooltip-doc.noprewrap": {
+        whiteSpace: "normal",
       },
       ".cm-tooltip-doc h6": {
         // Signature heading
@@ -27906,6 +27910,40 @@
       ".cm-tooltip-doc::-webkit-scrollbar-track": {
         background: "transparent",
       },
+
+      ".cm-tooltip-doc span": {
+        display: "inline-block",
+        marginLeft: "8px",
+        fontSize: "0.5em",
+        color: "#555555", // Slightly lighter dark gray for body
+        opacity: 0.9,
+      },
+      ".cm-tooltip-doc ul.cm-tooltip-list": {
+        listStyle: "none",
+        padding: "0",
+        margin: "0 0 8px 0",
+        border: "1px solid #eaecef",
+        backgroundColor: "#f6f8fa", // Very light gray background
+      },
+      ".cm-tooltip-doc ul.cm-tooltip-list li": {
+        fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace",
+        fontSize: "0.9em",
+        color: "#24292e",
+        marginBottom: "2px"
+      },
+      ".cm-tooltip-doc pre": {
+        fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace",
+        fontSize: "0.85em",
+        backgroundColor: "#f6f8fa", // Very light gray background
+        padding: "8px",
+        borderRadius: "4px",
+        overflowX: "auto",
+        margin: "4px 0 8px 0",
+        color: "#24292e",
+        border: "1px solid #eaecef"
+      },
+
+
       ".cm-tooltip.cm-completionInfo": { // For older CodeMirror versions where doc tooltip is separate
         background: "#ffffff",
         border: "1px solid #e0e0e0",
@@ -27962,6 +28000,36 @@
         return snippet(`${name}(${snippetArgs})`);
     }
 
+
+    function generateTooltipHtmlForMathHelp(info) {
+        const headerHtml = `<h6>${info.name}<span>(${info.category})</span></h6>`;
+
+        const syntaxHtml = `
+        <ul class="cm-tooltip-list">
+            ${info.syntax.map(s => `<li>${s}</li>`).join('')}
+        </ul>
+    `;
+
+        const descHtml = `<p>${info.description}</p>`;
+
+        const examplesHtml = `
+        <p><strong>Examples:</strong></p>
+        <pre>${info.examples.join('\n')}</pre>
+    `;
+
+        const seeAlsoHtml = `
+        <p><strong>See also:</strong> ${info.seealso.join(', ')}</p>
+    `;
+
+        return `<div class="cm-tooltip-doc noprewrap">
+            ${headerHtml}
+            ${syntaxHtml}
+            ${descHtml}
+            ${examplesHtml}
+            ${seeAlsoHtml}
+        </div>`;
+    }
+
     const customCompletions = (context) => {
         // This regex is more robust, capturing chains of properties.
         const match = context.matchBefore(/(?:[\w$]+\.)*[\w$]*/);
@@ -27973,7 +28041,7 @@
         const foundKey = new Set();
 
         function addCompletion(options) {
-            const { label, apply, type = 'property', docString, boost = 0 } = options;
+            const { label, fullMatch, apply, type = 'property', docString, boost = 0 } = options;
             // Avoid duplicates by label
             if (!label ) return;
             if (foundKey.has(label.split('(')[0])) return;
@@ -27985,6 +28053,17 @@
                 type,
                 boost,
                 info: () => { // Lazily generate tooltip DOM
+                  if(fullMatch && fullMatch.startsWith('math.')){
+                    try{
+                      const help=math.help(fullMatch.substring(5));
+                      if (!help) return null;
+                      const html=generateTooltipHtmlForMathHelp(help.doc);
+                      const container = document.createRange().createContextualFragment(html);
+                      return container;
+                    }catch(e){
+                      return null;
+                    }
+                  }else {
                     if (!docString) return null;
                     const container = document.createElement('div');
                     container.className = 'cm-tooltip-doc';
@@ -27999,6 +28078,7 @@
                         container.appendChild(docElement);
                     }
                     return container;
+                  }
                 }
             });
         }
@@ -28052,13 +28132,14 @@
         if (parentObj) {
             Object.getOwnPropertyNames(parentObj).forEach(prop => {
                 if (prop.toLowerCase().startsWith(memberPrefix.toLowerCase()) && !prop.startsWith('_')) {
-                    try {
-                        const val = parentObj[prop];
-                        const type = typeof val === 'function' ? 'function' : 'property';
-                        addCompletion({ label: prop, type, boost:10});
-                    } catch (e) { // Handle security errors
-                        addCompletion({ label: prop, type: 'property', boost:10 });
-                    }
+                  let fullMatch = parts.length > 1 ? parts.slice(0, -1).join('.') + '.' + prop : prop;
+                  try {
+                      const val = parentObj[prop];
+                      const type = typeof val === 'function' ? 'function' : 'property';
+                      addCompletion({ label: prop, fullMatch, type, boost:10});
+                  } catch (e) { // Handle security errors
+                      addCompletion({ label: prop, fullMatch, type: 'property', boost:10 });
+                  }
                 }
             });
         }
@@ -28116,7 +28197,11 @@
 
     // --- VUE COMPONENT ---
     const CodeMirror6VueComponent = {
-      props: ['modelValue'], emits: ['update:modelValue', 'focus'], template: '<div ref="editor"></div>',
+      props: ['modelValue', 'hasFocus'],
+      emits: ['update:modelValue', 'focus'],
+      template: '<div ref="editor"></div>',
+      setup(props) {
+      },
       mounted() {
         this.editorView = new EditorView({
           state: EditorState.create({
@@ -28195,11 +28280,17 @@
           }),
           parent: this.$refs.editor
         });
+        this.editorView?.focus();
       },
       watch: {
         modelValue(newValue) {
           if (this.editorView && newValue !== this.editorView.state.doc.toString()) {
             this.editorView.dispatch({ changes: { from: 0, to: this.editorView.state.doc.length, insert: newValue } });
+          }
+        },
+        hasFocus(newValue) {
+          if (newValue) {
+            this.editorView?.focus();
           }
         }
       },

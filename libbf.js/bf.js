@@ -191,6 +191,35 @@ function bf(val,radix=10){
 			}
 	}
 }
+bf.prototype.toUint8Array = function() {
+	const BF_T_STRUCT_SIZE = 20; // Size of bf_t struct in bytes (4*5 fields)
+	const limb_size = 4; // Assuming limb_t is uint32_t (4 bytes)
+
+	// Create a DataView to read bf_t struct members from WASM memory
+	const dataView = new DataView(module.libbf.HEAPU8.buffer, this.h, BF_T_STRUCT_SIZE);
+	
+	// Read ctx, sign, expn, len, tab from the bf_t struct
+	// For the purpose of backup, we only need len and the tab pointer's target data
+	// ctx field is at offset 0 (4 bytes, pointer)
+	// sign field is at offset 4 (4 bytes, int)
+	// expn field is at offset 8 (4 bytes, slimb_t)
+	const len = dataView.getUint32(12, true); // len field is at offset 12 (4 bytes, limb_t)
+	const tab_ptr = dataView.getUint32(16, true); // tab field is at offset 16 (4 bytes, pointer)
+	
+	const limbs_byte_length = len * limb_size;
+	const total_backup_size = BF_T_STRUCT_SIZE + limbs_byte_length;
+	
+	const h_bak_data = new Uint8Array(total_backup_size);
+	
+	// Copy bf_t struct data (20 bytes)
+	h_bak_data.set(new Uint8Array(module.libbf.HEAPU8.buffer, this.h, BF_T_STRUCT_SIZE), 0);
+	
+	// Copy limb data if tab pointer is valid and len > 0
+	if (tab_ptr !== 0 && len > 0) {
+		h_bak_data.set(new Uint8Array(module.libbf.HEAPU8.buffer, tab_ptr, limbs_byte_length), BF_T_STRUCT_SIZE);
+	}
+	return h_bak_data;
+};
 module._bf=bf;
 bf.prototype.dispose=function(recoverable=true){
 	if(module.gc_use_finalization){
@@ -205,24 +234,62 @@ bf.prototype.dispose=function(recoverable=true){
 	}else{
 		if(this.h!=0){
 			if(recoverable){
-				this.strval=this.toString(32,Math.ceil((module.precision+32)/Math.log2(32)));
+				this.h_bak = this.toUint8Array();
+				
+				// Clean up for GC
+				module.libbf._delete_(this.h); // Free the bf_t struct itself
+				this.h = 0;
+			} else {
+				module.libbf._delete_(this.h);
+				this.h=0;
 			}
-		}
-		if(this.h!=0){
-			module.libbf._delete_(this.h);
-			this.h=0;
 		}
 	}
 }
+module.fromUint8Array = function(data) {
+	const BF_T_STRUCT_SIZE = 20; // Size of bf_t struct in bytes
+	const limb_size = 4; // Assuming limb_t is uint32_t (4 bytes)
+
+	// Read len from the backed-up data
+	const dataView = new DataView(data.buffer, 0, BF_T_STRUCT_SIZE);
+	const len = dataView.getUint32(12, true); // len field is at offset 12
+
+	const limbs_byte_length = len * limb_size;
+
+	// Allocate new memory in WASM for bf_t struct and for limbs
+	const new_h = module.libbf._malloc(BF_T_STRUCT_SIZE);
+	let new_tab_ptr = 0;
+	if (len > 0) {
+		new_tab_ptr = module.libbf._malloc(limbs_byte_length);
+	}
+	
+	// Copy the backed-up bf_t struct data to the new WASM memory location
+	module.libbf.HEAPU8.set(data.subarray(0, BF_T_STRUCT_SIZE), new_h);
+
+	// Copy the backed-up limb data to the new WASM memory location
+	if (new_tab_ptr !== 0) {
+		module.libbf.HEAPU8.set(data.subarray(BF_T_STRUCT_SIZE, BF_T_STRUCT_SIZE + limbs_byte_length), new_tab_ptr);
+	}
+	
+	// Update the 'tab' pointer within the newly allocated bf_t struct
+	// tab field is at offset 16 bytes (i.e., 16/4 = 4th Uint32 element)
+	module.libbf.HEAPU32[(new_h / 4) + 4] = new_tab_ptr;
+	
+	return new_h;
+};
 bf.prototype.geth=function(){	
 	if(module.gc_use_finalization){
 		return this.h;
 	}else{		
 		if(this.h==0){
-			//this would cause gc		
+			if(this.h_bak){
+				this.h = module.fromUint8Array(this.h_bak); // Use the new function
+				this.h_bak = null; // Clear the backup
+			} else {
+				// Original behavior for a truly new bf
+				this.h = module.libbf._new_();
+			}
 			module.gc_track(this,true);
-			this.h=module.libbf._new_();
-			this.fromString(this.strval,32,module.precision);
 		}else{
 			//this would not cause gc, because addToArray=false		
 			module.gc_track(this,false);
