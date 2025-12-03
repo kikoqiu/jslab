@@ -28,7 +28,7 @@
   </script>
   <script src="box.js"></script>
   <!--script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script-->
-  <script src="vue.global.3.1.1.prod.js"></script>
+  <script src="vue.global.3.5.25.js"></script>
 
   <script src="codemirror6/helpers/editor.bundle.js"></script>
   <script src="storage.js"></script>
@@ -90,11 +90,16 @@
     .toolbar button:hover { background-color: #eee; }
     .toolbar button:disabled { color: #ccc; cursor: not-allowed; background-color: transparent; }
 
-    .main-content-area { padding: 20px; }
+    .main-content-area { 
+      padding: 20px;
+      padding-bottom: 30vh;
+    }
     .cells-container { 
       display: flex; flex-direction: column; gap: 5px; 
       box-shadow: 0 0 5px 1px rgba(0,0,0,0.3);
       background-color: var(--cell-bg-color);
+      padding-top:10px;
+      padding-bottom: 10px;
     }
     
     .cell {
@@ -292,7 +297,7 @@
           <button @click="pasteBlock()" title="Paste" :disabled="cellClipboard == null"><i class="bi-clipboard-plus"></i></button>
           <button @click="moveCellUp()" title="Move Cell Up" :disabled="selectedIndex === 0"><i class="bi bi-arrow-up-square"></i></button>
           <button @click="moveCellDown()" title="Move Cell Down" :disabled="selectedIndex === blocks.length - 1"><i class="bi bi-arrow-down-square"></i></button>
-          <button @click="addblock()" title="Insert Cell Below"><i class="bi-plus-lg"></i></button>
+          <button @click="addblock()" title="Insert Cell Below (Alt+Enter)"><i class="bi-plus-lg"></i></button>
           <button @click="evalCode()" title="Run (Ctrl+Enter)"><i class="bi-play-fill"></i></button>
         </div>
        </div>
@@ -305,7 +310,7 @@
               <div class="selection-indicator"></div>
               <div class="prompt">In [{{ block.eindex === -1 ? '&nbsp;' : block.eindex }}]:</div>
               <div class="editor-container">
-                  <codemirror v-model="block.code" @focus="selectedIndex = index"></codemirror>
+                  <codemirror v-model="block.code" @focus="selectedIndex = index" :has-focus="selectedIndex === index"></codemirror>
               </div>
           </div>
           <div v-if="block.result" class="cell-part cell-output-wrapper" @click="selectedIndex = index">
@@ -390,6 +395,7 @@ const App = {
     }
     document.addEventListener("keydown", (event) => {
       if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.evalCode(); }
+      if (event.altKey && event.key === 'Enter') { event.preventDefault(); this.addblock(); }
       if (event.ctrlKey && event.key === 's') { event.preventDefault(); this.saveBlock(); }
     });
   },

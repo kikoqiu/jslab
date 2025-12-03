@@ -306,7 +306,11 @@ const jshintLinter = linter(view => {
 
 // --- VUE COMPONENT ---
 const CodeMirror6VueComponent = {
-  props: ['modelValue'], emits: ['update:modelValue', 'focus'], template: '<div ref="editor"></div>',
+  props: ['modelValue', 'hasFocus'],
+  emits: ['update:modelValue', 'focus'],
+  template: '<div ref="editor"></div>',
+  setup(props) {
+  },
   mounted() {
     this.editorView = new EditorView({
       state: EditorState.create({
@@ -385,11 +389,17 @@ const CodeMirror6VueComponent = {
       }),
       parent: this.$refs.editor
     });
+    this.editorView?.focus();
   },
   watch: {
     modelValue(newValue) {
       if (this.editorView && newValue !== this.editorView.state.doc.toString()) {
         this.editorView.dispatch({ changes: { from: 0, to: this.editorView.state.doc.length, insert: newValue } });
+      }
+    },
+    hasFocus(newValue) {
+      if (newValue) {
+        this.editorView?.focus();
       }
     }
   },
