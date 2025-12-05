@@ -28170,13 +28170,14 @@
                 //let readonlyGlobals=["console", "window", "document", "box", "Babel", "math", "d3", "JSHINT"];
                 //readonlyGlobals.forEach(k => globalsForJshint[k] = false);
 
-                JSHINT(view.state.doc.toString(), { esversion: 11, asi: true, undef: true, browser: true, devel: true, typed: true, globals: globalsForJshint });
+                let code="async function _noname(){\n"+view.state.doc.toString()+"\n}";
+                JSHINT(code, { esversion: 11, asi: true, undef: true, browser: true, devel: true, typed: true, globals: globalsForJshint });
                 const errors = JSHINT.data()?.errors;
                 
                 if (errors) {
                     diagnostics = errors.map(e => {
                         if (!e) return null;
-                        const lineNo = Math.min(e.line, view.state.doc.lines);
+                        const lineNo = Math.min(e.line - 1, view.state.doc.lines);
                         const line = view.state.doc.line(lineNo);
                         let from = line.from + e.character - 1;
                         if (from < line.from || from > line.to) from = line.from;
@@ -28186,7 +28187,7 @@
                             if (match) to = from + match[0].length;
                         }
                         return { from, to, severity: e.code?.[0] === 'W' ? "warning" : "error", message: `${e.reason} (${e.code})` };
-                    }).filter(Boolean);
+                    });
                 }
             } catch (e) {
                 console.error("[JSHint Linter Failure]:", e);

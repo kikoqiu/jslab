@@ -557,6 +557,9 @@ const App = {
       }
       return `<pre>${errorinfo}<span style='color:red;'>Name</span>: ${e.name}\n<span style='color:red;'>Message</span>: ${e.message}\n<span style='color:red;'>Stack</span>:\n${stack}</pre>`;
     },
+    delay(durationMs) {
+      return new Promise(resolve => setTimeout(resolve, durationMs));
+    },
     async evalCode(debug = false) {
       if(this.filename == '') {
         this.saveAsBlock();
@@ -567,6 +570,7 @@ const App = {
       let info = { compiled_code: '' };
       cur.eindex = '*';
       await this.$nextTick();
+      await this.delay(20); // Allow UI to update
       try {
         cur.result = ''; cur.resultScript = '';
         let codeToRun = cur.code;
