@@ -388,11 +388,19 @@ const App = {
     }
   },
   async mounted() {
-    const loaded = await this.loadBlock();
+    let loaded = await this.loadBlock();
+
+    let qcode = this.getQueryString('code');
+    if(qcode != null){
+      this.addblock(qcode);
+      loaded = true;
+    }
+
     if (!loaded) {
       this.addblock("echo('Welcome to JSLab!');");
       this.filename = '';
     }
+
     document.addEventListener("keydown", (event) => {
       if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.evalCode(); }
       if (event.altKey && event.key === 'Enter') { event.preventDefault(); this.addblock(); }
@@ -614,6 +622,14 @@ const App = {
     showToast(message) {
       this.notificationMessage = message;
       this.showNotification = true;
+    },    
+    getQueryString(name) {
+        let reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");
+        let r = window.location.search.substr(1).match(reg);
+        if (r != null) {
+            return decodeURIComponent(r[2]);
+        };
+        return null;
     }
   }
 };
