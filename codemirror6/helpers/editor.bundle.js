@@ -28164,12 +28164,13 @@
             }
             let diagnostics = [];
             try {
-                const globalsForJshint = { "console": false, "window": false, "document": false, "box":false };
-                if (window.box) Object.keys(window.box).forEach(k => globalsForJshint[k] = false);
-                if (window.math) globalsForJshint['math'] = false;
-                if (window.d3) globalsForJshint['d3'] = false;
-                
-                JSHINT(view.state.doc.toString(), { esversion: 11, asi: true, undef: true, browser: true, globals: globalsForJshint });
+                const globalsForJshint = {};
+                Object.keys(window).forEach(k => globalsForJshint[k] = true);
+                if (window.box!==window) Object.keys(window.box).forEach(k => globalsForJshint[k] = false);
+                //let readonlyGlobals=["console", "window", "document", "box", "Babel", "math", "d3", "JSHINT"];
+                //readonlyGlobals.forEach(k => globalsForJshint[k] = false);
+
+                JSHINT(view.state.doc.toString(), { esversion: 11, asi: true, undef: true, browser: true, devel: true, typed: true, globals: globalsForJshint });
                 const errors = JSHINT.data()?.errors;
                 
                 if (errors) {
