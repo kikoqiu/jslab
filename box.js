@@ -132,12 +132,12 @@ box.plot=function(...args){
   if(args.length==1){
     let x=range(0,args[0].length);
     let y=args[0];
-    data.push({x,y,type: 'scatter'});
+    data.push({x,y,type: 'scatter',mode:'lines',line:{width:1}});
   }else{
     for(var pos=0;pos<args.length;pos+=2){
       let x=args[pos];
       let y=args[pos+1];
-      data.push({x,y,type: 'scatter'});
+      data.push({x,y,type: 'scatter',mode:'lines',line:{width:1}});
     }
     pos-=2;
     if(pos==args.length-1){
