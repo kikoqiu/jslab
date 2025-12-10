@@ -1,6 +1,16 @@
-var wrap_with_box=false;
+var box=globalThis;
 
-var box=wrap_with_box?{}:globalThis;
+box.outputBuffer={'result':'','resultScript':'','plotdiv':0};
+
+box.initOutputBuffer=async function(){
+  box.outputBuffer={'result':'','resultScript':'','plotdiv':await globalEval('vm.selected.plotdiv') || 0};
+}
+
+box.flushOutputBuffer=async function(){
+  await globalEval(`vm.selected.result += ${JSON.stringify(box.outputBuffer.result)};`);
+  await globalEval(`vm.selected.resultScript += ${JSON.stringify(box.outputBuffer.resultScript)};`);
+  await globalEval(`vm.selected.plotdiv = ${box.outputBuffer.plotdiv};`);
+}
 
 /**
  * Range generator
@@ -15,11 +25,11 @@ box.rangen=function *(a,b,step=1,mapper){
         step=a/a;
     }
     if(!!mapper){
-        for(let i=a;i<b;i=i+step){    
+        for(let i=a;i<b;i=i+step){
             yield mapper(i);
         }
     }else{
-        for(let i=a;i<b;i=i+step){    
+        for(let i=a;i<b;i=i+step){
             yield i;
         }
     }
@@ -41,13 +51,13 @@ box.range=function(a,b,step=1,mapper){
  */
 box.echo=function(...o){
   let str='';
-  for(i of o){
-    if(str!='')str+=", ";
+  for(var i of o){
+    if(str!='')str+=', ';
     str+=String(i);
   }
   str=str.replace(/</ig,'&lt;').replace(/>/ig,'&gt;')+'\n';
   str=`<pre><code>${str}</code></pre>`;
-  vm.selected.result+=str;
+  box.outputBuffer.result += str;
 };
 
 /**
@@ -56,10 +66,10 @@ box.echo=function(...o){
  */
 box.echoHTML=function(...o){
   let str='';
-  for(i of o){
+  for(var i of o){
     str+=String(i);
   }
-  vm.selected.result += str;
+  box.outputBuffer.result += str;
 };
 
 /**
@@ -68,10 +78,10 @@ box.echoHTML=function(...o){
  */
 box.dumpJSON=function(...o){
   let str='';
-  for(i of o){
+  for(var i of o){
     str+=`<pre><code>${JSON.stringify(i)}</code></pre><br/>`;
   }
-  vm.selected.result += str;
+  box.outputBuffer.result += str;
 };
 
 /**
@@ -88,14 +98,11 @@ box.plotly=function(data, layout, config, style){
   layout=JSON.stringify(layout);
   config=JSON.stringify(config);  
   let json=JSON.stringify(data); 
-  //let deed=window.pako.deflate(json,{level:9});
-  //console.log(json.length);
-  //console.log(deed.length);
-  div='divplot'+new Date().getTime()+(vm.plotdiv++);
-  vm.selected.result+=
-    '<div class="plot" id="'+div+'" style="'+style+';"></div>';
+  var div='divplot'+new Date().getTime()+'-'+ box.outputBuffer.plotdiv++;
+  //console.log('Plotly div:',div);
+  box.outputBuffer.result += `<div class="plot" id="${div}" style="${style};"></div>`; 
   let scr=`Plotly.react("${div}", ${json},${layout},${config});`;//newPlot
-  vm.selected.resultScript+=scr;
+  box.outputBuffer.resultScript += scr;
 };
 
 /**
@@ -103,7 +110,7 @@ box.plotly=function(data, layout, config, style){
  * @param {Array} data 
  */
 box.unpack=function(data,...props){
-  if(props.length==1)return data.map(o=>o[props]);
+  if(props.length==1)return data.map(o=>o[props[0]]);
   let ret=[];
   for(let i=0;i<props.length;++i){
     let p=props[i];
@@ -199,68 +206,14 @@ box.plot3d=function(...args){
  * @param {String} encoding encoding for reading text file
  * @returns a promise with [content,filename,size]
  */
-box.readfile=function(type='text',encoding="utf-8"){
-  return new Promise(async (resolve,rej) => {    
-    try {
-      // Use window.showOpenFilePicker for modern file selection
-      const [fileHandle] = await window.showOpenFilePicker();
-      const selectedFile = await fileHandle.getFile();
-
-      if (!selectedFile) {
-        return rej(new Error('No file selected.'));
-      }
-
-      const name = selectedFile.name;
-      const size = selectedFile.size;
-      console.log("filename:" + name + ", size:" + size);
-
-      const reader = new FileReader();
-
-      reader.onload = function() {
-        resolve([this.result, name, size]);
-      };
-
-      reader.onerror = function(event) {
-        rej(new Error('File reading error: ' + event.target.error.message));
-      };
-
-      // Read file based on the specified type
-      switch (type) {
-        case 'text':
-          reader.readAsText(selectedFile, encoding);
-          break;
-        case 'bin':
-          reader.readAsArrayBuffer(selectedFile);
-          break;
-        case 'binstr':
-          reader.readAsBinaryString(selectedFile);
-          break;
-        case 'dataurl':
-          reader.readAsDataURL(selectedFile);
-          break;
-        default:
-          rej(new Error('Unknown file type: ' + type));
-          break;
-      }
-    } catch (e) {
-      // Handle cases where the user cancels the file picker or other errors
-      if (e.name === 'AbortError') {
-        rej(new Error('File selection cancelled by user.'));
-      } else {
-        rej(e);
-      }
-    }
-  });  
+box.readfile=async function(type='text',encoding="utf-8"){
+  return await workerhelperCall('readfile',type,encoding);
 }
 
 box.readCsv=async function(encoding="utf-8"){
   let filecnt=await box.readfile(type='text',encoding)
   return d3.csvParse(filecnt[0])
 };
-
-/*box.fplot=function(func,rng,  style='width:600px;height:300px;'){
-  box.plot(rng,rng.map(x=>func(x)))
-};*/
 
 /**
  * Compile a mathjs expression
@@ -307,13 +260,7 @@ box.mathbn=math.create({number:'BigNumber'},math.all)
  */
 box.latexstr=function(...ex){
   let result='';
-
   for(let data of ex){
-    if(!!window.pyodide&&pyodide.isPyProxy){
-      if(pyodide.isPyProxy(data)){
-        data=box.importpy('sympy').latex(data);
-      }
-    }
     if(typeof(data)=='object' && data.toTex){
       data=data.toTex({
         parenthesis: 'auto',    // parenthesis option
@@ -339,135 +286,17 @@ box.latex_style=''
  */
 box.latex=function(...ex){
   let result=box.latexstr(...ex);
-
   let style=box.latex_style;
-  div='divplot'+new Date().getTime()+vm.plotdiv++;
+  var div='divplot'+new Date().getTime()+'-'+ box.outputBuffer.plotdiv++;
   if(false){
- vm.selected.result+=
-    '<div class="latex" id="'+div+'" style="'+style+'">'+MathJax.tex2svg(result, {em: 16, ex: 6, display: false}).outerHTML+'</div>';
+    //box.outputBuffer.result+= '<div class="latex" id="'+div+'" style="'+style+'">'+MathJax.tex2svg(result, {em: 16, ex: 6, display: false}).outerHTML+'</div>';
   }else{
     let json=JSON.stringify(result); 
-    vm.selected.result+=
-      '<div class="latex" id="'+div+'" style="'+style+'"></div>';
+    box.outputBuffer.result+= '<div class="latex" id="'+div+'" style="'+style+'"></div>';
     let scr='document.getElementById("'+div+'").appendChild(MathJax.tex2svg('+json+', {em: 16, ex: 6, display: true}));'
-    vm.selected.resultScript+=scr;
+    box.outputBuffer.resultScript += scr;
   }
 };
-/*
-//safe box
-box.global_proxy=new Proxy(box, {    
-        get: function(target, prop, receiver) {          
-          return prop in target ? target[prop] : undefined;
-        },
-        has: function(target, prop) {
-          return true;
-        },
-        set: function(target, prop, value, receiver) {
-          target[prop]=value;
-          return true;
-        }
-      }
-    );
-
-box.eval=eval;
-box.window=window;
-box.console=console;
-box.bfjs=bfjs;
-box._Op=_Op;
-box.Math=Math;
-box.Date=Date;
-  */
-box.global_proxy=new Proxy(window, {    
-      get: function(target, prop, receiver) {  
-        if(prop in box) return box[prop];        
-        if(prop in target)return target[prop];        
-        return undefined;
-      },
-      has: function(target, prop) {
-        if(prop in box) return true;        
-        if(prop in target)return true;
-        return false;   
-      },
-      set: function(target, prop, value, receiver) {
-        box[prop]=value;
-        return true;
-      }
-    }
-  );
-
-/**
- * Runs a piece of code async
- * @param {*} code 
- * @returns the promise
- */
-box.runcode=function (code,info){  
-  var input = code;
-  var currentCode = Babel.transform("(async function(){'bpo enable';\r\n"+input+"\r\n})();", 
-    { 
-      presets: [
-        /*[
-          "env",
-          {
-            exclude:[
-              "@babel/plugin-transform-async-to-generator",
-              '@babel/plugin-transform-regenerator',
-              '@babel/plugin-transform-destructuring',              
-            ],
-            useBuiltIns:false
-          }
-        ],*/
-      ] ,//env Babel.availablePresets//"es2017"
-      plugins: ["bpo"],
-      sourceType: "script",
-      sourceMaps:"inline",
-    }  ).code;
-  console.log(currentCode);
-  if(info)info.compiled_code=currentCode;
-  box.box=box;
-  box.currentCode=currentCode;
-
-  if(wrap_with_box){
-    with(box.global_proxy){
-      let ret= eval(currentCode);
-      return ret;
-    }  
-  }else{
-    let eval1=eval;
-    let ret= eval1(currentCode);
-    return ret;
-  }
-}
-
-/**
- * Runs a piece of code sync
- * @param {*} code 
- * @returns the result
- */
- box.runcodeSync_=function (code,info){  
-  var input = code;
-  var currentCode = Babel.transform("'bpo enable';\r\n"+input, 
-  { 
-    presets: [/*"es2017"*/] ,//env Babel.availablePresets
-    plugins: ["bpo"]}
-  ).code;
-  if(info)info.compiled_code=currentCode;
-  console.log(currentCode);
-  box.box=box;
-  box.currentCode=currentCode;
-
-  if(wrap_with_box){
-    with(box.global_proxy){
-      let ret= eval(currentCode);
-      return ret;
-    }  
-  }else{
-    let eval1=eval;
-    let ret= eval1(currentCode);
-    return ret;
-  }
-  
-}
-
 
 /**
  * @typedef {Object} SolverAPI

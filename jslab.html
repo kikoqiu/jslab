@@ -6,27 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JSLab</title>
 
-  <script src="jshint.2.13.6.js"></script>
+  <!--for math help-->
+  <script src="math.15.1.0.js" defer></script>
 
-  <script src="libbf.js/libbf.js"></script>
-  <script src="libbf.js/bf.js"></script>
-  <script>bfjs.gc_ele_limit = 100;</script>
-  
-  <!--script src="https://unpkg.com/mathjs@15.1.0/lib/browser/math.js"></script-->
-  <script src="math.15.1.0.js"></script>
-  <script src="d3@7.js"></script>
-  <!--script src="https://cdn.jsdelivr.net/gh/nicolaspanel/numjs@0.16.0/dist/numjs.min.js" defer="defer"></script-->
-  <!--script src="numjs.0.16.1.min.js" defer="defer"></script-->
+  <script src="jshint.2.13.6.js"></script> 
 
   <script src="tex-svg.js"></script>
   <script src="plotly-3.3.0.min.js"></script>
   <script src="babel.min.js"></script>
   <script type="module">
-    import { _Op, visitor } from "./bpo.js";
-    window._Op = _Op;
+    import { visitor } from "./bpo.js";
     Babel.registerPlugin("bpo", visitor);
   </script>
-  <script src="box.js"></script>
+  <script src="workerhelper.js"></script>
   <!--script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script-->
   <script src="vue.global.3.5.25.js"></script>
 
@@ -574,8 +566,8 @@ const App = {
       try {
         cur.result = ''; cur.resultScript = '';
         let codeToRun = cur.code;
-        if (debug) codeToRun = "debugger;" + codeToRun;
-        let evalresult = box.runcode(codeToRun, info);
+        if (debug) codeToRun = "debugger;\n" + codeToRun;
+        let evalresult = workerhelper.runcode(codeToRun, info);
         if (evalresult instanceof Promise) evalresult = await evalresult;
         if (evalresult !== undefined) cur.result += `<pre>${String(evalresult)}</pre>`;
       } catch (e) {
@@ -654,10 +646,15 @@ myapp.component('code-result', {
   methods: {
       updateContent() {
           this.$nextTick(() => {
-            const el = this.$refs.output; if(!el) return;
+            const el = this.$refs.output; 
+            if(!el) return;
             el.innerHTML = this.html || '';
             if (this.script) {
-              try { new Function(this.script)(); } catch (e) { console.error("Error executing result script:", e); }
+              try { 
+                new Function(this.script)(); 
+              } catch (e) {
+                console.error("Error executing result script:", e);
+              }
             }
           });
       }

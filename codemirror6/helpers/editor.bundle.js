@@ -28030,7 +28030,7 @@
         </div>`;
     }
 
-    const customCompletions = (context) => {
+    const customCompletions = async (context) => {
         // This regex is more robust, capturing chains of properties.
         const match = context.matchBefore(/(?:[\w$]+\.)*[\w$]*/);
         if (!match || (match.from === match.to && !context.explicit)) {
@@ -28086,34 +28086,17 @@
         const text = match.text;
         const parts = text.split('.');    
 
-        // --- Logic for general `window` and other objects ---
-        let parentObj = window;
-        let memberPrefix = text;
-        let fromPos = match.from;
+        let memberPrefix = parts.pop();
+        let pathParts = parts;
+        let fromPos = match.to - memberPrefix.length;
 
-        // If there is a dot, we are accessing a property.
-        if (parts.length > 1 || text.endsWith('.')) {
-            let pathParts;
-            if (text.endsWith('.')) {
-                memberPrefix = "";
-                pathParts = parts.slice(0, -1);
-            } else {
-                memberPrefix = parts.pop();
-                pathParts = parts;
-            }
+        //force empty prefix to get all members, leave filtering to CM
+        memberPrefix="";
 
-            try {
-                // Resolve the object path from `window`
-                parentObj = pathParts.reduce((acc, part) => acc ? acc[part] : undefined, window);
-                fromPos = match.to - memberPrefix.length;
-            } catch (e) {
-                parentObj = null;
-            }
-        }
 
         // --- Logic for `box` members ---
         // For `box.`, provide documented completions from `function_info`
-        if (text.toLowerCase().startsWith('box.') || parentObj == window) {
+        if (text.toLowerCase().startsWith('box.') || parts.length <= 0) {
             function_info.forEach(({key,value}) => {
               const memberDoc = value.split('\n',2)[0].substring(4);
               if (memberDoc.toLowerCase().startsWith(memberPrefix.toLowerCase())) {
@@ -28126,22 +28109,12 @@
               return { from: match.from + 4, options: found, validFor: /^\w*$/ };
             }
         }
-
+        let ctx = {text,memberPrefix,pathParts};
 
         // --- Get properties from the resolved parent object ---
-        if (parentObj) {
-            Object.getOwnPropertyNames(parentObj).forEach(prop => {
-                if (prop.toLowerCase().startsWith(memberPrefix.toLowerCase()) && !prop.startsWith('_')) {
-                  let fullMatch = parts.length > 1 ? parts.slice(0, -1).join('.') + '.' + prop : prop;
-                  try {
-                      const val = parentObj[prop];
-                      const type = typeof val === 'function' ? 'function' : 'property';
-                      addCompletion({ label: prop, fullMatch, type, boost:10});
-                  } catch (e) { // Handle security errors
-                      addCompletion({ label: prop, fullMatch, type: 'property', boost:10 });
-                  }
-                }
-            });
+        let result=await workerhelper.getCompletions(ctx);
+        for(let item of result){
+          addCompletion(item);
         }
 
         if (found.length === 0) return null;
@@ -28155,45 +28128,41 @@
 
 
     // --- LINTING LOGIC ---
-    const jshintLinter = linter(view => {
-        return new Promise(resolve => {
-            if (typeof JSHINT === 'undefined') {
-                console.warn("JSHINT not loaded, skipping lint.");
+    const jshintLinter = linter(async view => {
+        if (typeof JSHINT === 'undefined') {
+            console.warn("JSHINT not loaded, skipping lint.");
                 resolve([]);
                 return;
-            }
-            let diagnostics = [];
-            try {
-                const globalsForJshint = {};
-                Object.keys(window).forEach(k => globalsForJshint[k] = true);
-                if (window.box!==window) Object.keys(window.box).forEach(k => globalsForJshint[k] = false);
-                //let readonlyGlobals=["console", "window", "document", "box", "Babel", "math", "d3", "JSHINT"];
-                //readonlyGlobals.forEach(k => globalsForJshint[k] = false);
+        }
 
-                let code="async function _noname(){\n"+view.state.doc.toString()+"\n}";
-                JSHINT(code, { esversion: 11, asi: true, undef: true, browser: true, devel: true, typed: true, globals: globalsForJshint });
-                const errors = JSHINT.data()?.errors;
-                
-                if (errors) {
-                    diagnostics = errors.map(e => {
-                        if (!e) return null;
-                        const lineNo = Math.min(e.line - 1, view.state.doc.lines);
-                        const line = view.state.doc.line(lineNo);
-                        let from = line.from + e.character - 1;
-                        if (from < line.from || from > line.to) from = line.from;
-                        let to = from + 1;
-                        if (e.evidence) {
-                            const match = e.evidence.match(/\S*$/);
-                            if (match) to = from + match[0].length;
-                        }
-                        return { from, to, severity: e.code?.[0] === 'W' ? "warning" : "error", message: `${e.reason} (${e.code})` };
-                    });
-                }
-            } catch (e) {
-                console.error("[JSHint Linter Failure]:", e);
+        let diagnostics = [];
+        try {
+            // Get the execution context's globals from the worker
+            const globalsForJshint = await workerhelper.getWorkerGlobals();
+
+            let code="async function _noname(){\n"+view.state.doc.toString()+"\n}";
+            JSHINT(code, { esversion: 11, asi: true, undef: true, browser: true, devel: true, typed: true, globals: globalsForJshint });
+            const errors = JSHINT.data()?.errors;
+            
+            if (errors) {
+                diagnostics = errors.map(e => {
+                    if (!e) return null;
+                    const lineNo = Math.max(1, Math.min(e.line - 1, view.state.doc.lines));
+                    const line = view.state.doc.line(lineNo);
+                    let from = line.from + e.character - 1;
+                    if (from < line.from || from > line.to) from = line.from;
+                    let to = from + 1;
+                    if (e.evidence) {
+                        const match = e.evidence.match(/\S*$/);
+                        if (match) to = from + match[0].length;
+                    }
+                    return { from, to, severity: e.code?.[0] === 'W' ? "warning" : "error", message: `${e.reason} (${e.code})` };
+                });
             }
-            resolve(diagnostics);
-        });
+        } catch (e) {
+            console.error("[JSHint Linter Failure]:", e);
+        }
+        return diagnostics;
     });
 
 
