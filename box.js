@@ -79,7 +79,7 @@ box.echoHTML=function(...o){
 box.dumpJSON=function(...o){
   let str='';
   for(var i of o){
-    str+=`<pre><code>${JSON.stringify(i)}</code></pre><br/>`;
+    str+=`<pre><code>${JSON.stringify(i)}</code></pre>`;
   }
   box.outputBuffer.result += str;
 };
@@ -339,6 +339,9 @@ box.latex=function(...ex){
     // It detects if a rule depends on data that hasn't been generated yet.
     const proxy = new Proxy(arr, {
         get(target, prop, receiver) {
+            if (prop === 'length') {
+                return cursor + 1;
+            }
             const index = Number(prop);
 
             // Pass through standard properties (.length, etc.)

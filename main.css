@@ -1,0 +1,265 @@
+/* General Styles from before */
+    :root {
+      --main-bg-color: #f7f7f7;
+      --cell-bg-color: #ffffff;
+      --border-color: #e7e7e7;
+      --menu-bg-color: #ffffff;
+      --menu-border-color: #d1d1d1;
+      --accent-color: #2196F3;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font-family);
+      background-color: var(--main-bg-color);
+    }
+    
+    .header-content, .main-content-area {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    .notebook-header {
+      background-color: var(--menu-bg-color);
+      border-bottom: 1px solid var(--menu-border-color);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      padding: 0 20px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+
+    .menu-bar { display: flex; padding: 2px 0; }
+    .menu-item { position: relative; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+    .menu-item:hover .dropdown-content { display: block; }
+    .dropdown-content {
+      display: none; position: absolute; background-color: white;
+      min-width: 180px; box-shadow: 0px 5px 15px 0px rgba(0,0,0,0.15);
+      z-index: 1001; border: 1px solid #ddd; border-radius: 4px; padding: 5px 0;
+    }
+    .dropdown-content a { color: black; padding: 7px 15px; text-decoration: none; display: block; font-size: 13px; }
+    .dropdown-content a:hover { background-color: #f1f1f1; }
+    .dropdown-content a.disabled { color: #aaa; cursor: not-allowed; }
+    .dropdown-content a.disabled:hover { background-color: transparent; }
+
+    .toolbar { display: flex; align-items: center; gap: 4px; padding: 4px 0; border-top: 1px solid var(--border-color); }
+    .toolbar button {
+      background: none; border: 1px solid transparent; border-radius: 3px;
+      padding: 1px 5px; cursor: pointer; font-size: 16px; color: #333;
+    }
+    .toolbar button:hover { background-color: #eee; }
+    .toolbar button:disabled { color: #ccc; cursor: not-allowed; background-color: transparent; }
+
+    .main-content-area { 
+      padding: 20px;
+      padding-bottom: 30vh;
+    }
+    .cells-container { 
+      display: flex; flex-direction: column; gap: 5px; 
+      box-shadow: 0 0 5px 1px rgba(0,0,0,0.3);
+      background-color: var(--cell-bg-color);
+      padding-top:10px;
+      padding-bottom: 10px;
+    }
+    
+    .cell {
+      border: 1px solid transparent;
+      position: relative;
+      /*cursor: pointer;*/
+      background-color: var(--cell-bg-color);
+    }
+
+    .selection-indicator {
+        position: absolute; top: 0; bottom: 0; left: 0; width: 4px;
+        background-color: var(--accent-color); visibility: hidden;
+    }
+    .cell.selected > .cell-part > .selection-indicator { visibility: visible; }
+    
+    .cell-part { position: relative; }
+    .cell-input, .cell-output-wrapper { display: flex; }
+    
+    .cell-output-wrapper { margin-top: 5px; }
+
+    .prompt {
+      flex: 0 0 80px; padding: 10px 0; font-family: monospace;
+      font-size: 12px; text-align: center; color: #3D85C6;
+    }
+    .prompt.out { color: #990000; }
+
+    .editor-container { flex-grow: 1; }
+    .CodeMirror { height: auto; border: none !important; }
+    
+    .output-container { flex-grow: 1; padding: 10px; overflow-x: auto; }
+    .output-container pre { margin: 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
+
+    /* File Dialog Styles */
+    .file-dialog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; }
+    .file-dialog { background: #fff; border-radius: 6px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: 700px; max-width: 90%; display: flex; flex-direction: column; height: 500px; }
+    .file-dialog-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px solid #ddd; font-weight: bold; }
+    .file-dialog-header .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
+    .file-dialog-nav { display: flex; align-items: center; padding: 5px 10px; border-bottom: 1px solid #ddd; background: #f7f7f7; }
+    .file-dialog-nav button { margin-right: 10px; }
+    .file-dialog-body { flex-grow: 1; overflow-y: auto; }
+    .file-list { padding: 5px; }
+
+    .file-list-header {
+        display: grid;
+        grid-template-columns: 24px 1fr 100px 150px; /* Icon + Name, Size, Modified */
+        padding: 4px 8px;
+        font-weight: bold;
+        border-bottom: 1px solid #eee;
+        background-color: #f7f7f7;
+    }
+    .file-list-header span:nth-child(2) { text-align: left; } /* Name */
+    .file-list-header span:nth-child(3) { text-align: right; } /* Size */
+    .file-list-header span:nth-child(4) { text-align: right; } /* Modified */
+
+    .file-list-item {
+        display: grid;
+        grid-template-columns: 24px 1fr 100px 150px; /* Icon + Name, Size, Modified */
+        align-items: center;
+        padding: 4px 8px;
+        cursor: pointer;
+        border-radius: 3px;
+    }
+    .file-list-item.folder {
+        grid-template-columns: 24px 1fr 100px 150px; /* Maintain columns for alignment */
+    }
+    .file-list-item:hover { background: #f0f0f0; }
+    .file-list-item.selected { background: #0078d7; color: white; }
+    .file-list-item i {
+        margin-right: 0;
+        font-size: 16px;
+        text-align: center;
+        grid-column: 1; /* Explicitly place icon in first column */
+    }
+    .file-list-item .file-name {
+        grid-column: 2; /* Explicitly place name in second column */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-left: 8px; /* Add some space after the icon */
+    }
+    .file-list-item .file-size {
+        grid-column: 3; /* Explicitly place size in third column */
+        font-size: 0.8em;
+        color: #666;
+        text-align: right;
+    }
+    .file-list-item .file-date {
+        grid-column: 4; /* Explicitly place date in fourth column */
+        font-size: 0.8em;
+        color: #666;
+        text-align: right;
+    }
+    .file-list-item.folder .file-size,
+    .file-list-item.folder .file-date {
+        visibility: hidden; /* Hide for folders but maintain space */
+    }
+    .file-list-item.selected .file-size,
+    .file-list-item.selected .file-date {
+        color: rgba(255, 255, 255, 0.8);
+    }
+    .file-dialog-footer { padding: 10px 15px; border-top: 1px solid #ddd; background: #f7f7f7; }
+    .file-name-input { display: flex; align-items: center; margin-bottom: 10px; }
+    .file-name-input label { margin-right: 10px; }
+    .file-name-input input { flex-grow: 1; }
+    .footer-buttons { display: flex; align-items: center; justify-content: flex-start; }
+    .footer-buttons .spacer { flex-grow: 1; }
+    .footer-buttons button { margin-left: 8px; }
+
+
+    button { padding: 6px 12px; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: #fff; }
+    button.primary { background: #0078d7; color: white; border-color: #0078d7; }
+    button.secondary { background: #6c757d; color: white; border-color: #6c757d; }
+    button.danger { background: #d9534f; color: white; border-color: #d9534f; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Notification Styles */
+    .top-notification {
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #4CAF50; /* Green background for success */
+      color: white;
+      text-align: center;
+      padding: 10px 20px;
+      z-index: 3000; /* Above file dialog */
+      width: fit-content;
+      min-width: 200px;
+      border-bottom-left-radius: 5px;
+      border-bottom-right-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* Vue Transition Styles */
+    .slide-fade-enter-active, .slide-fade-leave-active {
+      transition: all 0.5s ease;
+    }
+    .slide-fade-enter-from, .slide-fade-leave-to {
+      transform: translateX(-50%) translateY(-100%);
+      opacity: 0;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .rotating {
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+
+    .toolbar button {
+      background: none; border: 1px solid transparent; border-radius: 3px;
+      padding: 1px 5px; cursor: pointer; font-size: 16px; color: #333;
+      height: 28px; /* Fixed height for vertical alignment */
+      box-sizing: border-box;
+    }
+    .toolbar button:hover { background-color: #eee; }
+    .toolbar button:disabled { color: #ccc; cursor: not-allowed; background-color: transparent; }
+    
+    .run-button-icon-only {
+        width: 32px; /* Square-ish size */
+        padding: 1px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .run-button-icon-only .bi-play-fill {
+        font-size: 18px;
+    }
+
+    /* Standalone timer text styling */
+    .timer-text-standalone {
+        font-family: 'Menlo', 'Consolas', 'Roboto Mono', monospace;
+        font-size: 13px;
+        vertical-align: middle;
+        margin-left: 8px;
+    }
+
+    /* The spinner */
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(0, 0, 0, 0.2);
+      border-top-color: #333; /* Matches button text color */
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* Vue transition for elements */
+    .fade-enter-active, .fade-leave-active {
+      transition: opacity 0.1s ease;
+    }
+    .fade-enter-from, .fade-leave-to {
+      opacity: 0;
+    }
+    
