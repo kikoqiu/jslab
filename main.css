@@ -262,4 +262,37 @@
     .fade-enter-from, .fade-leave-to {
       opacity: 0;
     }
+
+    /* Styles for mobile/portrait view */
+    @media (max-width: 768px) {
+        .main-content-area {
+            padding: 0; /* Remove padding on smaller screens */
+            padding-top:5px;
+            padding-bottom:30px;
+        }
+
+        .header-content {
+          padding: 0 5px;
+        }
+
+        .notebook-header {
+          padding: 0 5px;
+        }
+
+        .cell-input, .cell-output-wrapper {
+            flex-direction: column; /* Stack prompt and editor/output vertically */
+        }
+
+        .editor-container{
+            margin-left:5px;
+        }
+
+        .prompt {
+            flex: 0 0 auto; /* Allow prompt to resize */
+            width: 100%;
+            text-align: left;
+            padding: 4px 10px; /* Adjust padding */
+            box-sizing: border-box;
+        }
+    }
     
