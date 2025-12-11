@@ -112,7 +112,8 @@ workerhelper.runcode = function (code, info) {
     const tcode =   
 `(async () => {'bpo enable';await box.initOutputBuffer();
 ${code}
-await box.flushOutputBuffer();\n})();`
+await box.flushOutputBuffer();
+})();`
     const compiledCode = Babel.transform(tcode,     { 
       presets: [
         /*[
@@ -232,3 +233,28 @@ workerhelper.readfile=function(type='text',encoding="utf-8"){
     }
   });  
 }
+
+workerhelper.writefile = function(content, fileName) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const pickerOpts = {};
+      if (fileName) {
+        pickerOpts.suggestedName = fileName;
+      }
+      
+      const fileHandle = await window.showSaveFilePicker(pickerOpts);
+      const writable = await fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+      
+      const file = await fileHandle.getFile();
+      resolve(`File "${file.name}" of size ${file.size} saved successfully.`);
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        reject(new Error('File save cancelled by user.'));
+      } else {
+        reject(e);
+      }
+    }
+  });
+};

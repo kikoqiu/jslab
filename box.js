@@ -210,6 +210,21 @@ box.readfile=async function(type='text',encoding="utf-8"){
   return await workerhelperCall('readfile',type,encoding);
 }
 
+/**
+ * 
+ * @param {*} content 
+ * @param {String} fileName default filename
+ * @returns a promise that resolves when file is written
+ */
+box.writefile = async function(content, fileName) {
+  return await workerhelperCall('writefile', content, fileName);
+};
+
+/**
+ * 
+ * @param {String} encoding 
+ * @returns d3 csv parsed object
+ */
 box.readCsv=async function(encoding="utf-8"){
   let filecnt=await box.readfile(type='text',encoding)
   return d3.csvParse(filecnt[0])
