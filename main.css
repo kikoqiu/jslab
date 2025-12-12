@@ -95,36 +95,42 @@
 
     /* File Dialog Styles */
     .file-dialog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; }
-    .file-dialog { background: #fff; border-radius: 6px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: 700px; max-width: 90%; display: flex; flex-direction: column; height: 500px; }
+    .file-dialog { background: #fff; border-radius: 6px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); width: 90%; max-width: 1100px; display: flex; flex-direction: column; height: 70vh; max-height: 900px; }
     .file-dialog-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px solid #ddd; font-weight: bold; }
     .file-dialog-header .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
-    .file-dialog-nav { display: flex; align-items: center; padding: 5px 10px; border-bottom: 1px solid #ddd; background: #f7f7f7; }
-    .file-dialog-nav button { margin-right: 10px; }
+    .file-dialog-header .header-btn { background: none; border: none; font-size: 16px; cursor: pointer; padding: 0 5px; }
+    .file-dialog-nav { display: flex; align-items: center; padding: 5px 10px; border-bottom: 1px solid #ddd; background: #f7f7f7; gap: 10px; }
+    .file-dialog-nav button { margin-right: 0; }
+    .file-dialog-nav .spacer { flex-grow: 1; }
+    .file-dialog-nav .sync-status { font-size: 12px; color: #666; }
     .file-dialog-body { flex-grow: 1; overflow-y: auto; }
     .file-list { padding: 5px; }
 
     .file-list-header {
         display: grid;
-        grid-template-columns: 24px 1fr 100px 150px; /* Icon + Name, Size, Modified */
+        grid-template-columns: 24px 1fr 100px 150px 120px; /* Icon, Name, Size, Modified, Actions */
         padding: 4px 8px;
         font-weight: bold;
         border-bottom: 1px solid #eee;
         background-color: #f7f7f7;
+        gap: 10px;
     }
     .file-list-header span:nth-child(2) { text-align: left; } /* Name */
     .file-list-header span:nth-child(3) { text-align: right; } /* Size */
     .file-list-header span:nth-child(4) { text-align: right; } /* Modified */
+    .file-list-header span:nth-child(5) { text-align: right; } /* Actions */
 
     .file-list-item {
         display: grid;
-        grid-template-columns: 24px 1fr 100px 150px; /* Icon + Name, Size, Modified */
+        grid-template-columns: 24px 1fr 100px 150px 120px; /* Icon, Name, Size, Modified, Actions */
         align-items: center;
         padding: 4px 8px;
         cursor: pointer;
         border-radius: 3px;
+        gap: 10px;
     }
     .file-list-item.folder {
-        grid-template-columns: 24px 1fr 100px 150px; /* Maintain columns for alignment */
+        grid-template-columns: 24px 1fr 100px 150px 120px; /* Maintain columns for alignment */
     }
     .file-list-item:hover { background: #f0f0f0; }
     .file-list-item.selected { background: #0078d7; color: white; }
@@ -139,8 +145,14 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        padding-left: 8px; /* Add some space after the icon */
     }
+    .file-list-item .file-name input {
+        width: 95%;
+        padding: 2px 4px;
+        border: 1px solid #ccc;
+        border-radius: 2px;
+    }
+
     .file-list-item .file-size {
         grid-column: 3; /* Explicitly place size in third column */
         font-size: 0.8em;
@@ -153,6 +165,27 @@
         color: #666;
         text-align: right;
     }
+    .file-list-item .actions {
+        grid-column: 5;
+        text-align: right;
+        visibility: hidden; /* Hide actions by default */
+    }
+    .file-list-item:hover .actions,
+    .file-list-item.selected .actions {
+        visibility: visible; /* Show on hover or when selected */
+    }
+    .file-list-item .actions button {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px 4px;
+        font-size: 14px;
+        color: #333;
+    }
+    .file-list-item.selected .actions button {
+        color: white; /* Make icons white on selected background */
+    }
+
     .file-list-item.folder .file-size,
     .file-list-item.folder .file-date {
         visibility: hidden; /* Hide for folders but maintain space */
@@ -164,7 +197,7 @@
     .file-dialog-footer { padding: 10px 15px; border-top: 1px solid #ddd; background: #f7f7f7; }
     .file-name-input { display: flex; align-items: center; margin-bottom: 10px; }
     .file-name-input label { margin-right: 10px; }
-    .file-name-input input { flex-grow: 1; }
+    .file-name-input input { flex-grow: 1; padding: 6px; border: 1px solid #ccc; border-radius: 3px; }
     .footer-buttons { display: flex; align-items: center; justify-content: flex-start; }
     .footer-buttons .spacer { flex-grow: 1; }
     .footer-buttons button { margin-left: 8px; }
@@ -175,6 +208,44 @@
     button.secondary { background: #6c757d; color: white; border-color: #6c757d; }
     button.danger { background: #d9534f; color: white; border-color: #d9534f; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+    .form-group input {
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+    .form-group-checkbox {
+        display: flex;
+        align-items: center;
+        margin: 15px 0;
+    }
+    .form-group-checkbox input[type="checkbox"] {
+        width: auto; /* Allow checkbox to take its natural width */
+        margin-right: 10px;
+    }
+    /* WebDAV Config specific footer buttons */
+    .webdav-config-footer-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px; /* Spacing between buttons */
+    }
+    /* Input focus styling */
+    input:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 2px var(--accent-color);
+    }
+
 
     /* Notification Styles */
     .top-notification {
@@ -269,6 +340,19 @@
             padding: 0; /* Remove padding on smaller screens */
             padding-top:5px;
             padding-bottom:30px;
+        }
+
+        .file-dialog-overlay {
+            align-items: flex-start;
+        }
+
+        .file-dialog {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            max-height: none;
+            border-radius: 0;
+            box-shadow: none;
         }
 
         .header-content {

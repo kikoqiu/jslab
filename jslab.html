@@ -10,6 +10,7 @@
 
   <!--script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script-->
   <script src="vue.global.3.5.25.js"></script>
+  <script src="axios.min.js"></script>
 
   <script src="tex-svg.js"></script>
   <script src="plotly-3.3.0.min.js"></script>
@@ -25,6 +26,7 @@
   <script src="codemirror6/helpers/editor.bundle.js"></script>
   <script src="storage.js"></script>
   <script src="file-dialog.js"></script>
+  <script src="webdav.js"></script>
   <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css"-->
   <link rel="stylesheet" href="bootstrap-icons.css">
   <link rel="stylesheet" href="main.css">
@@ -39,10 +41,11 @@
          <nav class="menu-bar">
           <div class="menu-item"> File
             <div class="dropdown-content">
+              <a href="#" @click.prevent="openFile()">File Explorer</a>
               <a href="#" @click.prevent="newFile()">New</a>
               <a href="#" @click.prevent="openFile()">Open</a>
               <a href="#" @click.prevent="saveBlock()">Save</a>
-              <a href="#" @click.prevent="saveAsBlock()">Save As</a>
+              <a href="#" @click.prevent="saveAsBlock()">Save As...</a>
               <a href="#" @click.prevent="exportBlock()">Export to File</a>
               <a href="#" @click.prevent="importBlock()">Import from File</a>
               <a href="#" @click.prevent="shareBlock()">Share Link</a>
@@ -124,14 +127,19 @@
     <input type="file" ref="file" id="file" @change="handleFileImport" style="display: none">
     <a id="createInvote" style="display:none;"></a>
 
-    <file-dialog 
-      :visible="showFileDialog" 
+    <file-dialog ref="fileDialog"
+      :visible="showFileDialog"
       :mode="fileDialogMode"
       :default-name="filename"
       :vfs="vfs"
       @close="showFileDialog = false"
       @open="handleFileOpen"
-      @save="handleFileSave">
+      @save="handleFileSave"
+      @rename="handleFileRename"
+      @move="handleFileMove"
+      @show-toast="showToast"
+      @reload-file="handleFileReload"
+    >
     </file-dialog>
 
     <!-- About Modal -->
@@ -166,7 +174,7 @@ const App = {
     uuid_pos: 0,
     cellClipboard: null,
     showFileDialog: false,
-    fileDialogMode: 'open',
+    fileDialogMode: 'open', // 'open' or 'save'
     vfs: new VFS(),
     showAboutModal: false,
     showNotification: false,
@@ -174,7 +182,7 @@ const App = {
     plotdiv:0,
     isExecuting: false,
     executionTime: 0,
-    timerInterval: null,
+    timerInterval: null
   }),
   watch: {
     filename(newvalue) {
@@ -189,17 +197,17 @@ const App = {
   },
   async mounted() {
     let loaded = await this.loadBlock();
-
     let qcode = this.getQueryString('code');
     if(qcode != null){
       this.addblock(qcode);
       loaded = true;
     }
-
     if (!loaded) {
       this.addblock("echo('Welcome to JSLab!');");
       this.filename = '';
     }
+    // Initial sync on load
+    this.triggerSync();
 
     document.addEventListener("keydown", (event) => {
       if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); this.evalCode(); }
@@ -208,21 +216,36 @@ const App = {
     });
   },
   methods: {
-    toggleAboutModal() {
-      this.showAboutModal = !this.showAboutModal;
+    toggleAboutModal() { this.showAboutModal = !this.showAboutModal; },
+    triggerSync() {
+        if (this.$refs.fileDialog) {
+            this.$refs.fileDialog.runSync();
+        }
+    },
+    handleFileRename({ oldPath, newPath }) {
+        if (this.filename === oldPath) { this.filename = newPath; }
+    },
+    handleFileMove({ oldPath, newPath }) {
+        if (this.filename === oldPath) { this.filename = newPath; }
+    },
+    handleFileReload(path) {
+        if (path === this.filename) {
+            this.showToast(`File reloaded due to remote changes.`);
+            this.loadBlock(path);
+        }
     },
     serialize(cb) {
       this.$nextTick(() => { cb(JSON.stringify({ blocks: this.blocks, maxeIndex: this.maxeIndex, version: 0.8 })); });
     },
     clearAll() {
-      Object.assign(this.$data, this.$options.data({vfs: this.vfs, showFileDialog: false, fileDialogMode: 'open'}));
+      const vfs = this.vfs;
+      Object.assign(this.$data, this.$options.data());
+      this.vfs = vfs;
       this.addblock();
       this.filename = '';
     },
     newFile() {
-      if (confirm('Are you sure? Unsaved changes will be lost.')) {
-        this.clearAll();
-      }
+      if (confirm('Are you sure? Unsaved changes will be lost.')) { this.clearAll(); }
     },
     openFile() {
       this.fileDialogMode = 'open';
@@ -232,30 +255,26 @@ const App = {
       this.fileDialogMode = 'save';
       this.showFileDialog = true;
     },
-    dosave(){
+    async dosave(){
       this.serialize(async (cnt) => {
           await this.vfs.saveFile(this.filename, cnt);
           await this.vfs.setLastFile(this.filename);
-          this.showToast(`Notebook "${this.filename}" saved.`);
+          this.showToast(`Notebook "${this.filename.split('/').pop()}" saved locally.`);
+          
+          // Trigger background WebDAV upload
+          if (this.$refs.fileDialog) {
+              this.$refs.fileDialog.uploadSingleFile(this.filename);
+          }
       });
     },
     saveBlock() {
-      if(this.filename == '') {
-        this.saveAsBlock();
-      }else{
-        this.dosave();
-      }
+      if(this.filename == '') { this.saveAsBlock(); }
+      else{ this.dosave(); }
     },
-    async handleFileOpen(path) {
-        await this.loadBlock(path);
-    },
+    async handleFileOpen(path) { await this.loadBlock(path); },
     handleFileSave(path) {
-      if(path.length<=0){
-        return;
-      }
-      if(!path.endsWith(".json")){
-        path+=".json";
-      }
+      if(path.length<=0) return;
+      if(!path.endsWith(".json")) path+=".json";
       this.filename = path;
       this.dosave();
     },
@@ -269,15 +288,12 @@ const App = {
     async loadBlock(path) {
       const targetPath = path || await this.vfs.getLastFile();
       if (!targetPath) return false;
-
       const dataStr = await this.vfs.loadFile(targetPath);
       if (dataStr) {
         try {
           this.loadData(targetPath, JSON.parse(dataStr));
           return true;
-        } catch (e) {
-          alert(`Error loading notebook "${targetPath}". It might be corrupted.`);
-        }
+        } catch (e) { alert(`Error loading notebook "${targetPath}". It might be corrupted.`); }
       }
       return false;
     },
@@ -297,9 +313,7 @@ const App = {
       reader.onload = (e) => {
         try {
           this.loadData('/' + file.name, JSON.parse(e.target.result));
-        } catch (err) {
-          alert("Failed to parse imported file.");
-        }
+        } catch (err) { alert("Failed to parse imported file."); }
       };
       reader.readAsText(file);
       event.target.value = '';

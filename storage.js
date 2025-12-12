@@ -71,7 +71,11 @@ class VFS {
         if (!fileHandle) return null;
         try {
             const file = await fileHandle.getFile();
-            return await file.text();
+            // Handle arraybuffer if content is not text, e.g., for WebDAV files.
+            // For now, assuming text content.            
+            const buffer = await file.arrayBuffer();
+            const decoder = new TextDecoder('utf-8'); // Assume UTF-8
+            return decoder.decode(buffer);            
         } catch (error) {
             // console.error(`Error loading file "${path}":`, error);
             return null;
@@ -87,6 +91,7 @@ class VFS {
         
         for await (const entry of dirHandle.values()) {
             if (entry.name.startsWith('.')) continue; // Ignore hidden files
+            if (entry.name === WebDAVSyncer.SERVER_MODIFIED_JSON_NAME) continue; // Ignore servermodified.json
             if (entry.kind === 'file') {
                 try {
                     const fileHandle = await dirHandle.getFileHandle(entry.name);
@@ -104,7 +109,7 @@ class VFS {
                 folders.push(entry.name);
             }
         }
-        return { files: files.sort(), folders: folders.sort() };
+        return { files: files.sort((a,b) => a.name.localeCompare(b.name)), folders: folders.sort() };
     }
     
     async createDirectory(path) {
@@ -144,6 +149,81 @@ class VFS {
             console.error(`Error deleting directory "${path}":`, error);
             return false;
         }
+    }
+
+    async getHandle(path) {
+        const parts = path.split('/').filter(p => p);
+        const name = parts.pop();
+        if (!name) return this.getRoot();
+
+        const dirPath = '/' + parts.join('/');
+        const dirHandle = await this.getDirectoryHandle(dirPath);
+        if (!dirHandle) return null;
+
+        try {
+            return await dirHandle.getFileHandle(name);
+        } catch {
+            try {
+                return await dirHandle.getDirectoryHandle(name);
+            } catch {
+                return null; 
+            }
+        }
+    }
+
+    async move(oldPath, newPath) {
+        try {
+            const oldHandle = await this.getHandle(oldPath);
+            if (!oldHandle) throw new Error("Source item not found.");
+
+            if (oldHandle.kind === 'file') {
+                // 1. Read content
+                const file = await oldHandle.getFile();
+                const content = await file.arrayBuffer();
+
+                // 2. Write to new path
+                const newFileHandle = await this.getFileHandle(newPath, { create: true });
+                if (!newFileHandle) throw new Error("Could not create destination file handle.");
+                
+                const writable = await newFileHandle.createWritable();
+                await writable.write(content);
+                await writable.close();
+
+                // 3. On successful write, remove the old file using its own handle
+                try {
+                    await oldHandle.remove();
+                } catch (e) {}//ignore errors on delete
+                return true;
+
+            } else { // Directory
+                await this.createDirectory(newPath);
+                const oldDirHandle = await this.getDirectoryHandle(oldPath);
+
+                for await (const entry of oldDirHandle.values()) {
+                    const entryOldPath = `${oldPath.replace(/\/$/, '')}/${entry.name}`;
+                    const entryNewPath = `${newPath.replace(/\/$/, '')}/${entry.name}`;
+                    if (!await this.move(entryOldPath, entryNewPath)) {
+                        throw new Error(`Failed to move child item: ${entry.name}`);
+                    }
+                }
+                try {
+                // After moving all children, remove the now-empty old directory
+                await oldDirHandle.remove(); // The handle itself can be removed
+                } catch (e) {}//ignore errors on delete
+                return true;
+            }
+        } catch (e) {
+            console.error(`Move operation failed for ${oldPath} -> ${newPath}:`, e);
+            return false;
+        }
+    }
+
+    async rename(path, newName) {
+        const parts = path.split('/').filter(p => p);
+        parts.pop();
+        const parentPath = '/' + parts.join('/');
+        const newPath = (parentPath === '/' ? '' : parentPath) + '/' + newName;
+        return this.move(path, newPath);
     }
 
     async setLastFile(path) {
