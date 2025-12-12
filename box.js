@@ -554,4 +554,73 @@ box.combinations = function* (sourceArray, k) {
 
     yield* backtrack(0, 0);
 }
+/**
+ * load SheetJS library
+ * @returns 
+ */
+box.loadSheetJS=async function(){
+  if(self.XLSX)return;
+  await importScripts('3pty/xlsx.full.min.js');
+}
 
+/**
+ * Open an Excel file and return the workbook object
+ * @returns workbook object
+ */
+box.openExcel=async function(){
+  await box.loadSheetJS();
+  let data=await box.readfile(type='bin');
+  let workbook=XLSX.read(data[0],{type:'array'});
+  return workbook;
+}
+
+/**
+ * Write an Excel workbook object to file 
+ * @param {Object} workbook 
+ * @param {String} fileName default 'output.xlsx'
+ */
+box.saveExcel=async function(workbook, fileName='output.xlsx'){
+  await box.loadSheetJS();
+  let wbout=XLSX.write(workbook,{bookType:'xlsx',type:'array'});
+  await box.writefile(wbout,fileName);
+}
+
+/**
+ * Read an Excel file and parse the first sheet
+ * @param {String} resultType 'json', 'array'
+ * @param {number} sheetIndex Sheet index to read, default 0
+ * @returns JSON array
+ */
+box.readExcel=async function(resultType='json', sheetIndex=0){
+  await box.loadSheetJS();
+  let workbook=await box.openExcel();
+  let firstSheetName=workbook.SheetNames[sheetIndex];
+  let worksheet=workbook.Sheets[firstSheetName];
+  if(resultType=='array'){
+    let arr=XLSX.utils.sheet_to_json(worksheet,{header:1,defval:null});
+    return arr;
+  }else{
+    let json=XLSX.utils.sheet_to_json(worksheet,{defval:null});
+    return json;
+  }
+}
+
+/**
+ * Write JSON array to an Excel file
+ * @param {Array} data 
+ * @param {String} type 'json', 'array'
+ * @param {String} fileName default 'output.xlsx'
+ * @param {String} sheetName default 'Sheet1'
+ */
+box.writeExcel=async function(data,type='json', fileName='output.xlsx',sheetName='Sheet1'){
+  await box.loadSheetJS();
+  let worksheet;
+  if(type=='array'){
+    worksheet=XLSX.utils.aoa_to_sheet(data);
+  }else{
+    worksheet=XLSX.utils.json_to_sheet(data);
+  }
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, worksheet, sheetName);
+  await box.saveExcel(wb,fileName);
+}
