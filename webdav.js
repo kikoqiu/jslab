@@ -392,7 +392,7 @@ class WebDAVSyncer {
                 await this.uploadFile(localFullPath, localFullPath);
                 this.serverModifiedTimes[localFullPath] = await this._getRemoteFileModTime(localFullPath);
             } else if (!remoteFile.isCollection) { // Upload modified file
-                if (localFile.lastModified > serverModTime) {
+                if (serverModTime > 0 === false && localFile.lastModified > remoteFile.lastModified) {
                     await this.uploadFile(localFullPath, localFullPath);
                     this.serverModifiedTimes[localFullPath] = await this._getRemoteFileModTime(localFullPath);
                 }
