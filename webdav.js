@@ -175,11 +175,11 @@ class WebDAVSyncer {
         const responses = xmlDoc.getElementsByTagNameNS("DAV:", "response");
 
         const decodedRequestUrl = decodeURIComponent(requestUrl);
-        const requestPath = new URL(decodedRequestUrl).pathname;
+        const requestPath = decodeURIComponent(new URL(decodedRequestUrl).pathname);
         const baseRequestPath = requestPath.endsWith('/') ? requestPath : requestPath + '/';
 
-        const backupPathPrefix = new URL(this._remoteUrl(WebDAVSyncer.BACKUP_ROOT_NAME + '/')).pathname;
-        const recyclePathPrefix = new URL(this._remoteUrl(WebDAVSyncer.RECYCLE_ROOT_NAME + '/')).pathname;
+        const backupPathPrefix = decodeURIComponent(new URL(this._remoteUrl(WebDAVSyncer.BACKUP_ROOT_NAME + '/')).pathname);
+        const recyclePathPrefix = decodeURIComponent(new URL(this._remoteUrl(WebDAVSyncer.RECYCLE_ROOT_NAME + '/')).pathname);
 
         for (const res of responses) {
             // 1. Extract and validate basic properties from the XML response
@@ -193,7 +193,7 @@ class WebDAVSyncer {
             // 2. Process href, filter out items, and derive the item name
             let hrefPath;
             try {
-                hrefPath = new URL(decodeURIComponent(href), decodedRequestUrl).pathname;
+                hrefPath = decodeURIComponent(new URL(decodeURIComponent(href), decodedRequestUrl).pathname);
             } catch (e) { continue; }
 
             // Filter out ignored directories

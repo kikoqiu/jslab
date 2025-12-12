@@ -248,7 +248,7 @@ window.FileDialogComponent = {
     },
     runSync() {
         if (!this.webdavSyncer) {
-            this.$emit('show-toast', 'WebDAV is not configured.');
+            //this.$emit('show-toast', 'WebDAV is not configured.');
             return;
         }
         this.$emit('show-toast', 'Sync started...');
