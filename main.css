@@ -20,6 +20,28 @@
         margin: 0 auto;
     }
 
+    .header-content {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .header-top-row {
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+
+    .filename-display {
+        text-align: right;
+        flex-grow: 1;
+        padding: 6px 10px;
+        font-size: 13px;
+        color: #666;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     .notebook-header {
       background-color: var(--menu-bg-color);
       border-bottom: 1px solid var(--menu-border-color);

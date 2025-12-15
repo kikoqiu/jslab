@@ -38,49 +38,52 @@
     <notification-message v-model="showNotification" :message="notificationMessage"></notification-message>
     <header class="notebook-header">
        <div class="header-content">
-         <nav class="menu-bar">
-          <div class="menu-item"> File
-            <div class="dropdown-content">
-              <a href="#" @click.prevent="openFile()">File Explorer</a>
-              <a href="#" @click.prevent="newFile()">New</a>
-              <a href="#" @click.prevent="openFile()">Open</a>
-              <a href="#" @click.prevent="saveBlock()">Save</a>
-              <a href="#" @click.prevent="saveAsBlock()">Save As...</a>
-              <a href="#" @click.prevent="exportBlock()">Export to File</a>
-              <a href="#" @click.prevent="importBlock()">Import from File</a>
-              <a href="#" @click.prevent="shareBlock()">Share Link</a>
-            </div>
-          </div>
-          <div class="menu-item"> Edit
-            <div class="dropdown-content">
-              <a href="#" @click.prevent="insertBlock()">Insert Cell Above</a>
-              <a href="#" @click.prevent="addblock()">Insert Cell Below</a>
-              <a href="#" @click.prevent="moveCellUp()" :class="{disabled: selectedIndex === 0}">Move Cell Up</a>
-              <a href="#" @click.prevent="moveCellDown()" :class="{disabled: selectedIndex === blocks.length - 1}">Move Cell Down</a>
-              <a href="#" @click.prevent="cutBlock()">Cut Cell</a>
-              <a href="#" @click.prevent="copyBlock()">Copy Cell</a>
-              <a href="#" @click.prevent="pasteBlock()" :class="{disabled: cellClipboard == null}">Paste Cell</a>
-              <a href="#" @click.prevent="deleteBlock()">Delete Cell</a>
-              <a href="#" @click.prevent="unDeleteBlock()" :class="{disabled: lastDeleted == null}">Undo Delete</a>
-            </div>
-          </div>
-          <div class="menu-item"> Run
-            <div class="dropdown-content">
-              <a href="#" @click.prevent="evalCode()" :class="{disabled: isExecuting}">Run Selected</a>
-              <a href="#" @click.prevent="runAll()" :class="{disabled: isExecuting}">Run All</a>
-              <a href="#" @click.prevent="evalCode(true)" :class="{disabled: isExecuting}">Debug Cell</a>
-            </div>
-          </div>
-           <div class="menu-item"> Help
-            <div class="dropdown-content">
-              <a href="doc/help.html" target="_blank">Documentation</a>
-              <a href="#" @click.prevent="loadHelp('help.json')">Load General Usage</a>
-              <a href="#" @click.prevent="loadHelp('helpplot.json')">Load Plotting Usage</a>
-              <a href="#" @click.prevent="toggleAboutModal()">About</a>
-            </div>
-          </div>
-        </nav>
-        <div class="toolbar">
+         <div class="header-top-row">
+          <nav class="menu-bar">
+           <div class="menu-item"> File
+             <div class="dropdown-content">
+               <a href="#" @click.prevent="openFile()">File Explorer</a>
+               <a href="#" @click.prevent="newFile()">New</a>
+               <a href="#" @click.prevent="openFile()">Open</a>
+               <a href="#" @click.prevent="saveBlock()">Save</a>
+               <a href="#" @click.prevent="saveAsBlock()">Save As...</a>
+               <a href="#" @click.prevent="exportBlock()">Export to File</a>
+               <a href="#" @click.prevent="importBlock()">Import from File</a>
+               <a href="#" @click.prevent="shareBlock()">Share Link</a>
+             </div>
+           </div>
+           <div class="menu-item"> Edit
+             <div class="dropdown-content">
+               <a href="#" @click.prevent="insertBlock()">Insert Cell Above</a>
+               <a href="#" @click.prevent="addblock()">Insert Cell Below</a>
+               <a href="#" @click.prevent="moveCellUp()" :class="{disabled: selectedIndex === 0}">Move Cell Up</a>
+               <a href="#" @click.prevent="moveCellDown()" :class="{disabled: selectedIndex === blocks.length - 1}">Move Cell Down</a>
+               <a href="#" @click.prevent="cutBlock()">Cut Cell</a>
+               <a href="#" @click.prevent="copyBlock()">Copy Cell</a>
+               <a href="#" @click.prevent="pasteBlock()" :class="{disabled: cellClipboard == null}">Paste Cell</a>
+               <a href="#" @click.prevent="deleteBlock()">Delete Cell</a>
+               <a href="#" @click.prevent="unDeleteBlock()" :class="{disabled: lastDeleted == null}">Undo Delete</a>
+             </div>
+           </div>
+           <div class="menu-item"> Run
+             <div class="dropdown-content">
+               <a href="#" @click.prevent="evalCode()" :class="{disabled: isExecuting}">Run Selected</a>
+               <a href="#" @click.prevent="runAll()" :class="{disabled: isExecuting}">Run All</a>
+               <a href="#" @click.prevent="evalCode(true)" :class="{disabled: isExecuting}">Debug Cell</a>
+             </div>
+           </div>
+            <div class="menu-item"> Help
+             <div class="dropdown-content">
+               <a href="doc/help.html" target="_blank">Documentation</a>
+               <a href="#" @click.prevent="loadHelp('help.json')">Load General Usage</a>
+               <a href="#" @click.prevent="loadHelp('helpplot.json')">Load Plotting Usage</a>
+               <a href="#" @click.prevent="toggleAboutModal()">About</a>
+             </div>
+           </div>
+         </nav>
+         <div class="filename-display">{{ displayFilename }}</div>
+        </div>
+         <div class="toolbar">
           <button @click="saveBlock()" title="Save(Ctrl+S)"><i class="bi-save"></i></button>          
           <button @click="cutBlock()" title="Cut"><i class="bi-scissors"></i></button>
           <button @click="copyBlock()" title="Copy"><i class="bi-clipboard"></i></button>
@@ -185,12 +188,15 @@ const App = {
     timerInterval: null
   }),
   watch: {
-    filename(newvalue) {
-      const display = newvalue.split('/').pop();
-      document.title = `JSLab - ${display}`;
+    filename() {
+      document.title = `JSLab - ${this.displayFilename}`;
     }
   },
   computed: {
+    displayFilename() {
+      if (!this.filename) return 'Untitled';
+      return this.filename.split('/').pop();
+    },
     selected() {
       return this.blocks.length > this.selectedIndex ? this.blocks[this.selectedIndex] : null;
     }
