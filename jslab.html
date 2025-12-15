@@ -185,17 +185,28 @@ const App = {
     plotdiv:0,
     isExecuting: false,
     executionTime: 0,
-    timerInterval: null
+    timerInterval: null,
+    isDirty: false,
+    autoSaveInterval: null
   }),
   watch: {
     filename() {
       document.title = `JSLab - ${this.displayFilename}`;
+    },
+    blocks: {
+      handler() {
+        this.isDirty = true;
+      },
+      deep: true
+    },
+    isDirty() {
+        document.title = `JSLab - ${this.displayFilename}`;
     }
   },
   computed: {
     displayFilename() {
-      if (!this.filename) return 'Untitled';
-      return this.filename.split('/').pop();
+      const name = this.filename ? this.filename.split('/').pop() : 'Untitled';
+      return this.isDirty ? `${name}*` : name;
     },
     selected() {
       return this.blocks.length > this.selectedIndex ? this.blocks[this.selectedIndex] : null;
@@ -220,6 +231,15 @@ const App = {
       if (event.altKey && event.key === 'Enter') { event.preventDefault(); this.addblock(); }
       if (event.ctrlKey && event.key === 's') { event.preventDefault(); this.saveBlock(); }
     });
+
+    this.autoSaveInterval = setInterval(() => {
+      if (this.filename && this.isDirty) {
+        this.dosave();
+      }
+    }, 300000);
+  },
+  beforeUnmount() {
+    clearInterval(this.autoSaveInterval);
   },
   methods: {
     toggleAboutModal() { this.showAboutModal = !this.showAboutModal; },
@@ -266,6 +286,7 @@ const App = {
           await this.vfs.saveFile(this.filename, cnt);
           await this.vfs.setLastFile(this.filename);
           this.showToast(`Notebook "${this.filename.split('/').pop()}" saved locally.`);
+          this.isDirty = false;
           
           // Trigger background WebDAV upload
           if (this.$refs.fileDialog) {
@@ -290,6 +311,7 @@ const App = {
       this.blocks = data.blocks.map(b => ({ ...b, uuid: `${Date.now()}-${this.uuid_pos++}` }));
       this.maxeIndex = data.maxeIndex || 0;
       if (this.blocks.length === 0) this.addblock();
+      this.$nextTick(() => { this.isDirty = false; });
     },
     async loadBlock(path) {
       const targetPath = path || await this.vfs.getLastFile();
