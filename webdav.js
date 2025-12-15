@@ -289,44 +289,98 @@ class WebDAVSyncer {
         }
     }
 
-    async deleteRemote(path) {
-        if (path.startsWith(`/${WebDAVSyncer.RECYCLE_ROOT_NAME}/`)) return;
-        if (this.config.backup && await this._remoteItemType(path) !== null) {
-            await this._backupRemoteFile(path);
-        } else {
-            try {
-                await this.axios.delete(this._remoteUrl(path), this._getAxiosConfig());
-            } catch (e) {
-                if (e.response && e.response.status === 404) return; // Not found is fine
-                throw new Error(`Remote delete failed for ${path}: ${e.message}`);
+        async deleteRemote(path) {
+            if (path.startsWith(`/${WebDAVSyncer.RECYCLE_ROOT_NAME}/`)) return;
+            if (this.config.backup && await this._remoteItemType(path) !== null) {
+                await this._backupRemoteFile(path);
+            } else {
+                try {
+                    await this.axios.delete(this._remoteUrl(path), this._getAxiosConfig());
+                } catch (e) {
+                    if (e.response && e.response.status === 404) return; // Not found is fine
+                    throw new Error(`Remote delete failed for ${path}: ${e.message}`);
+                }
+            }
+            await this._removeServerModifiedTime(path);
+        }
+    
+        async ensureRemoteDirExists(filePath) {
+            const dirPath = filePath.substring(0, filePath.lastIndexOf('/'));
+            if (!dirPath || dirPath === '/') {
+                return; // Root directory, always exists.
+            }
+    
+            // 1. Get all potential parent directory paths, from shallowest to deepest.
+            const segments = dirPath.split('/').filter(p => p);
+            const pathsInOrder = [];
+            let currentPath = '';
+            for (const segment of segments) {
+                currentPath += `/${segment}`;
+                pathsInOrder.push(currentPath);
+            }
+    
+            // 2. Find which directories need to be created by traversing backwards.
+            const dirsToCreate = [];
+            for (let i = pathsInOrder.length - 1; i >= 0; i--) {
+                const path = pathsInOrder[i];
+                const itemType = await this._remoteItemType(path + '/');
+                if (itemType === 'collection') {
+                    // Found an existing parent, no need to check further up.
+                    break;
+                }
+                if (itemType === 'file') {
+                    throw new Error(`Cannot create directory at ${path}: A file with that name already exists.`);
+                }
+                // itemType is null, directory doesn't exist. Add to our list.
+                dirsToCreate.push(path);
+            }
+    
+            // 3. Create the directories from shallowest to deepest.
+            dirsToCreate.reverse();
+    
+            for (const path of dirsToCreate) {
+                try {
+                    await this.axios({
+                        method: 'MKCOL',
+                        url: this._remoteUrl(path + '/'),
+                        ...this._getAxiosConfig()
+                    });
+                } catch (e) {
+                    // Handle race condition where another client creates the directory.
+                    if (e.response && (e.response.status === 405 || e.response.status === 409)) {
+                        console.warn(`MKCOL for ${path} failed, likely because it was created concurrently.`);
+                    } else {
+                        throw new Error(`Creating remote directory ${path} failed: ${e.message}`);
+                    }
+                }
             }
         }
-        await this._removeServerModifiedTime(path);
-    }
-
-    async moveRemote(oldPath, newPath, skipBackup = false) {
-        if (oldPath.startsWith(`/${WebDAVSyncer.RECYCLE_ROOT_NAME}/`) || newPath.startsWith(`/${WebDAVSyncer.RECYCLE_ROOT_NAME}/`)) return;
-        if (!skipBackup && this.config.backup && await this._remoteItemType(newPath) !== null) {
-            await this._backupRemoteFile(newPath);
+    
+        async moveRemote(oldPath, newPath, skipBackup = false) {
+            if (oldPath.startsWith(`/${WebDAVSyncer.RECYCLE_ROOT_NAME}/`) || newPath.startsWith(`/${WebDAVSyncer.RECYCLE_ROOT_NAME}/`)) return;
+            
+            await this.ensureRemoteDirExists(newPath);
+    
+            if (!skipBackup && this.config.backup && await this._remoteItemType(newPath) !== null) {
+                await this._backupRemoteFile(newPath);
+            }
+            try {
+                const oldModTime = await this._getRemoteFileModTime(oldPath);
+                const destinationHeader = new URL(this._remoteUrl(newPath)).pathname;
+                await this.axios({
+                    method: 'MOVE', url: this._remoteUrl(oldPath),
+                    headers: { 'Destination': destinationHeader, 'Overwrite': 'T' },
+                    ...this._getAxiosConfig()
+                });
+    
+                await this._removeServerModifiedTime(oldPath);
+                const newModTime = await this._getRemoteFileModTime(newPath);
+                await this._updateServerModifiedTime(newPath, newModTime > 0 ? newModTime : oldModTime);
+    
+            } catch (e) {
+                throw new Error(`Remote move failed for ${oldPath}: ${e.message}`);
+            }
         }
-        try {
-            const oldModTime = await this._getRemoteFileModTime(oldPath);
-            const destinationHeader = new URL(this._remoteUrl(newPath)).pathname;
-            await this.axios({
-                method: 'MOVE', url: this._remoteUrl(oldPath),
-                headers: { 'Destination': destinationHeader, 'Overwrite': 'T' },
-                ...this._getAxiosConfig()
-            });
-
-            await this._removeServerModifiedTime(oldPath);
-            const newModTime = await this._getRemoteFileModTime(newPath);
-            await this._updateServerModifiedTime(newPath, newModTime > 0 ? newModTime : oldModTime);
-
-        } catch (e) {
-            throw new Error(`Remote move failed for ${oldPath}: ${e.message}`);
-        }
-    }
-
     async createRemoteDir(path) {
         if (path.startsWith(`/${WebDAVSyncer.RECYCLE_ROOT_NAME}/`)) return;
         if (!path.endsWith('/')) path += '/';

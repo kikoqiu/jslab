@@ -36,7 +36,7 @@ window.FileDialogComponent = {
           </div>
         </div>
         <div class="file-dialog-nav">
-          <button @click="goUp" :disabled="currentPath === '/' || movingItem" title="Go up a directory">&uarr; Up</button>
+          <button @click="goUp" :disabled="currentPath === '/'" title="Go up a directory">&uarr; Up</button>
           <span>{{ currentPath }}</span>
         </div>
         <div class="file-dialog-body">
@@ -135,7 +135,7 @@ window.FileDialogComponent = {
       this.files = files; this.folders = folders;
     },
     goUp() {
-      if (this.currentPath === '/' || this.movingItem) return;
+      if (this.currentPath === '/') return;
       let parts = this.currentPath.split('/').filter(p => p);
       parts.pop();
       this.currentPath = '/' + (parts.join('/') ? parts.join('/') + '/' : '');
@@ -178,21 +178,22 @@ window.FileDialogComponent = {
     startRename(name, type) { this.renamingName = name; this.selectedName = name; this.selectedType = type; },
     cancelRename() { this.renamingName = null; },
     async finishRename(event, oldName, type) {
-        const newName = event.target.value;
-        this.cancelRename();
-        if (newName && newName !== oldName && !newName.includes('/')) {
-            const oldPath = (this.currentPath + oldName).replace(/\/\//g, '/');
-            const newPath = (this.currentPath + newName).replace(/\/\//g, '/');
-            const success = await this.vfs.rename(oldPath, newName);
-            if (success) {
-                this.fetchFiles();
-                this.$emit('rename', { oldPath, newPath }); // Inform parent of rename
-                if (this.webdavSyncer) {
-                    this.$emit('show-toast', `Renaming ${oldName} on remote...`);
-                    this.webdavSyncer.moveRemote(oldPath, newPath).catch(e => this.$emit('show-toast', `Remote rename failed: ${e.message}`));
-                }
-            } else { this.$emit('show-toast', `Failed to rename ${oldName}`); }
-        }
+      if(this.renamingName == null) return;
+      const newName = event.target.value;
+      this.cancelRename();
+      if (newName && newName !== oldName && !newName.includes('/')) {
+          const oldPath = (this.currentPath + oldName).replace(/\/\//g, '/');
+          const newPath = (this.currentPath + newName).replace(/\/\//g, '/');
+          const success = await this.vfs.rename(oldPath, newName);
+          if (success) {
+              this.fetchFiles();
+              this.$emit('rename', { oldPath, newPath }); // Inform parent of rename
+              if (this.webdavSyncer) {
+                  this.$emit('show-toast', `Renaming ${oldName} on remote...`);
+                  this.webdavSyncer.moveRemote(oldPath, newPath).catch(e => this.$emit('show-toast', `Remote rename failed: ${e.message}`));
+              }
+          } else { this.$emit('show-toast', `Failed to rename ${oldName}`); }
+      }
     },
     startMove(name, type) { this.movingItem = { name, type, path: (this.currentPath + name).replace(/\/\//g, '/') }; },
     cancelMove() { this.movingItem = null; },
