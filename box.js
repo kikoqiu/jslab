@@ -14,36 +14,41 @@ box.flushOutputBuffer=async function(){
 
 /**
  * Range generator
- * @param {*} a start
- * @param {*} b end
+ * @param {*} start
+ * @param {*} end (exclusive)
  * @param {*} step step
  * @param {*} mapper mapper function eg. i=>sin(i)
  */
-box.rangen=function *(a,b,step=1,mapper){
-    if(typeof(step)=='function'){
-        mapper=step;
-        step=a/a;
+box.rangen=function *(start,end,step=1,mapper=undefined){
+  if(end >= start){
+    for(let i=start;i<end;i=i+step){
+      if(!!mapper){
+        yield mapper(i);
+      }else{
+        yield i;
+      }
     }
-    if(!!mapper){
-        for(let i=a;i<b;i=i+step){
-            yield mapper(i);
-        }
-    }else{
-        for(let i=a;i<b;i=i+step){
-            yield i;
-        }
+  }else{
+    for(let i=start;i>end;i=i+step){
+      if(!!mapper){
+        yield mapper(i);
+      }else{
+        yield i;
+      }
     }
+  }
+
 };
 /**
  * Range array
- * @param {*} a start
- * @param {*} b end
+ * @param {*} start
+ * @param {*} end (exclusive)
  * @param {*} step step
  * @param {*} mapper mapper function eg. i=>sin(i)
  * @returns 
  */
-box.range=function(a,b,step=1,mapper){
-  return [...box.rangen(a,b,step,mapper)];
+box.range=function(start,end,step=1,mapper=undefined){
+  return [...box.rangen(start,end,step,mapper)];
 }
 /**
  * echo output
