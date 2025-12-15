@@ -113,7 +113,7 @@
     .CodeMirror { height: auto; border: none !important; }
     
     .output-container { flex-grow: 1; padding: 10px; overflow-x: auto; }
-    .output-container pre { margin: 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
+    .output-container pre { margin: 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-break: break-all; }
 
     /* File Dialog Styles */
     .file-dialog-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; display: flex; justify-content: center; align-items: center; }

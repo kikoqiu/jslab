@@ -372,6 +372,7 @@ const CodeMirror6VueComponent = {
             javascriptLanguage.data.of({ // Adds our custom source to the completion pool
                 autocomplete: customCompletions
             }),
+            EditorView.lineWrapping, // Add this line for word wrapping
             autocompletion(),   // Enables the autocompletion UI
 
             jshintLinter,
