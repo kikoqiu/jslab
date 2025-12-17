@@ -140,6 +140,6 @@ The returned result is directly inserted into the javascript code, any markdown 
             return ''; // Return empty string on error to prevent breaking the editor
         }
     };
-    return inlineCopilot({onSuggestionRequest,delay:0,acceptOnClick:true,hotkey:"Alt-i",maxPrefix:1000,maxSuffix:1000});
+    return inlineCopilot({onSuggestionRequest,delay:0,acceptOnClick:true,hotkey:"Alt-i",maxPrefix:10000,maxSuffix:10000});
 }
 export { createCopilotExtension };
