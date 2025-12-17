@@ -10,6 +10,7 @@ window.AiDialogComponent = {
         apiUrl: '',
         apiKey: '',
         model: '',
+        advMode: false,
       },
       usage: { // Separate usage data
         prompt_tokens: 0,
@@ -44,8 +45,12 @@ window.AiDialogComponent = {
                 <input type="text" id="ai-model" v-model="settings.model" placeholder="e.g., gpt-3.5-turbo">
             </div>
             <div class="form-group">
-                <label for="ai-jotkey">Hotkey</label>
+                <label for="ai-hotkey">Hotkey</label>
                 <input type="text" id="ai-hotkey" value="Alt-i" readonly>
+            </div>
+            <div class="form-group-checkbox">
+                <input type="checkbox" id="ai-advMode" v-model="settings.advMode">
+                <label for="ai-advMode">Replace Mode (not suggested)</label>
             </div>
             <div class="usage-stats">
                 <p><strong>Session Usage:</strong></p>
@@ -78,6 +83,7 @@ window.AiDialogComponent = {
         this.settings.apiUrl = aiSettings.apiUrl;
         this.settings.apiKey = aiSettings.apiKey;
         this.settings.model = aiSettings.model;
+        this.settings.advMode = aiSettings.advMode;
         this.usage.prompt_tokens = aiSettings.usage.prompt_tokens || 0;
         this.usage.completion_tokens = aiSettings.usage.completion_tokens || 0;
       }
@@ -89,6 +95,7 @@ window.AiDialogComponent = {
           apiUrl: this.settings.apiUrl,
           apiKey: this.settings.apiKey,
           model: this.settings.model,
+          advMode: this.settings.advMode,
         }
       });
       this.$emit('close');

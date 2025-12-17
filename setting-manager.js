@@ -13,6 +13,8 @@ class SettingManager {
                 apiUrl: '',
                 apiKey: '',
                 model: 'gpt-3.5-turbo',
+                advMode: false,
+                hotkey: 'Alt-i',
                 usage: {
                     prompt_tokens: 0,
                     completion_tokens: 0,

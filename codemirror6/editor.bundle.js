@@ -26974,21 +26974,26 @@ All the code runs in an async function context, so you can use 'await' directly.
 Available functions:
 ${functions}
 `;
-        console.log("AI Copilot context prompt:", contextPrompt);
-        const systemPrompt = `You are an expert JavaScript programmer. Your task is to analyze a snippet of code and provide a completion or a replacement.
- You **MUST** respond in a structured JSON format with the following fields:
+        //console.log("AI Copilot context prompt:", contextPrompt);
+        let onSuggestionRequest = async (prefix, suffix) => {
+            const aiSettings = settingManager.get('ai');
+            const { apiUrl, apiKey, model, enabled, advMode } = aiSettings;
+            let systemPrompt;
+            if (advMode) {
+                systemPrompt =
+                    `You are an expert JavaScript programmer. Your task is to analyze a snippet of code and provide a completion or a replacement.
+Current cursor position is marked with <!--CUR_CURSOR-->. 
+**WARNING:** Reply with DIRECT json content. Do **NOT** add any explanation or markdown formatting.
+The result is directly parsed by JSON.parse, any markdown formatting elements will lead to failure.
+
+You **MUST** respond in a structured JSON format with the following fields:
 - text (string): The code to insert at the cursor's position.
 - linesToDelete (number): The number of lines to delete (from the current cursor's line).
-Current cursor position is marked with <!--CUR_CURSOR--> part. 
-Reply with DIRECT json content. 
-Do **NOT** add any explanation or markdown formatting.
-Do **NOT** add any explanation or markdown formatting.
-Do **NOT** add any explanation or markdown formatting.
+
 Example response for the prompt:
 //write Hello, World! to the console
 console.log(<!--CUR_CURSOR-->'an useless line.');
 console.log('Goodbye!');
-
 
 Your response should be:
 {
@@ -27002,11 +27007,17 @@ linesToDelete = 2 means to delete the current line and the next line.
 If linesToDelete >= 1, it means the current line is deleted. And you should repeat the code on the current line if needed.
 If linesToDelete >= 1, it means the current line is deleted. And you should repeat the code on the current line if needed.
 If linesToDelete >= 1, it means the current line is deleted. And you should repeat the code on the current line if needed.
+`;
+            }
+            else {
+                systemPrompt =
+                    `You are an expert JavaScript programmer. Your task is to analyze a snippet of code and provide a completion.
+Only output the code that replaces <!--CUR_CURSOR--> part. 
+**WARNING:** Do **NOT** add any explanation or MARKDOWN around the code.
+The returned result is directly inserted into the javascript code, any markdown formatting elements will lead to failure.
 
 `;
-        let onSuggestionRequest = async (prefix, suffix) => {
-            const aiSettings = settingManager.get('ai');
-            const { apiUrl, apiKey, model, enabled } = aiSettings;
+            }
             if (!enabled) {
                 return;
             }
@@ -27023,7 +27034,8 @@ If linesToDelete >= 1, it means the current line is deleted. And you should repe
                 let requestJson = JSON.stringify({
                     model: model,
                     messages: messages,
-                    stream: false
+                    stream: false,
+                    temperature: 0,
                 });
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -27038,7 +27050,13 @@ If linesToDelete >= 1, it means the current line is deleted. And you should repe
                     throw new Error(`API request failed with status ${response.status}: ${errorText}`);
                 }
                 const data = await response.json();
-                const prediction = JSON.parse(data.choices[0]?.message?.content);
+                let prediction;
+                if (advMode) {
+                    prediction = JSON.parse(data.choices[0]?.message?.content);
+                }
+                else {
+                    prediction = { 'text': data.choices[0]?.message?.content, linesToDelete: 0 };
+                }
                 if (prediction) {
                     const oldUsage = settingManager.get('ai.usage');
                     let promptTokens = 0;
