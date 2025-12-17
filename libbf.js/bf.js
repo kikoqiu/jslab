@@ -184,11 +184,16 @@ function bf(val,radix=10){
 		case "number":
 			this.fromNumber(val);
 			break;
+		case 'bigint':
+			this.fromString(val.toString(),10);
+			break;
 		case 'object':
 			if(!!val &&val.constructor==bf)	{
 				this.copy(val);
 				break;
 			}
+		default:
+			throw new Error('bf: invalid constructor oprand '+ typeof(val));
 	}
 }
 bf.prototype.toUint8Array = function() {
@@ -323,7 +328,7 @@ bf.prototype.wraptypeh=function (...ar){
 			ret.push(0);
 		}else if(a.constructor==bf){
 			ret.push(a.geth());
-		}else if(typeof(a) == 'string' || typeof(a) == 'number'){
+		}else if(typeof(a) == 'string' || typeof(a) == 'number' || typeof(a) == 'bigint'){
 			let b=new bf(a);
 			ret.push(b.h);
 			disposes.push(b);
@@ -603,9 +608,9 @@ bf.prototype.fromString=function(str,radix=10,prec=0){
  * @param {*} prec precision digits in radix
  * @returns 
  */
-bf.prototype.toString=function(radix=10,prec=0){
+bf.prototype.toString=function(radix=10,prec=-1){
 	if(radix>64)throw new Error('radix error');
-	if(prec<1)prec=Math.ceil(module.precision/Math.log2(radix));
+	if(prec<0)prec=Math.ceil(module.precision/Math.log2(radix));
 	let flag=0;
 	//Flags.BF_FTOA_FORMAT_FREE_MIN | Flags.BF_RNDZ | Flags.BF_FTOA_JS_QUIRKS;
 	flag=Flags.BF_FTOA_FORMAT_FIXED| Flags.BF_RNDZ | Flags.BF_FTOA_JS_QUIRKS
@@ -620,9 +625,9 @@ bf.prototype.toString=function(radix=10,prec=0){
  * @param {*} prec precision digits in radix
  * @returns 
  */
- bf.prototype.toFixed=function(radix=10,prec=0,rnd_mode=Flags.BF_RNDNA){
+ bf.prototype.toFixed=function(radix=10,prec=-1,rnd_mode=Flags.BF_RNDNA){
 	if(radix>64)throw new Error('radix error');
-	if(prec<1)prec=Math.floor(module.precision/Math.log2(radix));
+	if(prec<0)prec=Math.floor(module.precision/Math.log2(radix));
 	let flag=0;
 	flag= rnd_mode | Flags.BF_FTOA_FORMAT_FRAC
 	let ret= module.libbf._ftoa_(0,this.geth(),radix,prec,flag);
@@ -633,7 +638,10 @@ bf.prototype.toString=function(radix=10,prec=0){
 
 
 
-
+bf.prototype.toBigInt=function(){
+	let s=this.toString(10,0);
+	return BigInt(s);
+}
 
 
 
