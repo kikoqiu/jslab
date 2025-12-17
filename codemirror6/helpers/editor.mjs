@@ -2,6 +2,7 @@
 import { javascript, javascriptLanguage } from "@codemirror/lang-javascript";
 import { indentWithTab } from "@codemirror/commands";
 import { linter, lintGutter } from "@codemirror/lint";
+import { createCopilotExtension } from "./aiCopilot.mjs";
 
 import { EditorState} from "@codemirror/state"
 import {
@@ -373,6 +374,10 @@ const CodeMirror6VueComponent = {
                 autocomplete: customCompletions
             }),
             EditorView.lineWrapping, // Add this line for word wrapping
+            
+            // AI Copilot Integration
+            createCopilotExtension(function_info),
+
             autocompletion(),   // Enables the autocompletion UI
 
             jshintLinter,

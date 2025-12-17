@@ -90,11 +90,11 @@ box.dumpJSON=function(...o){
 };
 
 /**
- * Plot with plotly
+ * Plot with plotly.js. General plot function. Parameters are passed to plotly
  * @param {*} data data arrays
  * @param {*} layout 
  * @param {*} config 
- * @param {*} style Extra plot div style
+ * @param {*} style Extra plot html div css style
  */
 box.plotly=function(data, layout, config, style){
   if(!style){
@@ -127,9 +127,10 @@ box.unpack=function(data,...props){
 
 /**
  * Plot a line figure
- * @param  {...any} args x-points,y-points,x-point,y-point...,[{labels,style,layout,config}] 
+ * @param  {...any} xPoints_yPoints x-points,y-points,[x-point,y-point...],[{labels,style,layout,config}] 
  */
-box.plot=function(...args){
+box.plot=function(...xPoints_yPoints){
+  let args=xPoints_yPoints;
   let style=null;  
   let data=[];
   let layout=null;
@@ -168,9 +169,10 @@ box.plot=function(...args){
 
 /**
  * Plot a 3d line figure
- * @param  {...any} args x-points,y-points,z-points,x-point,y-point,z-points...,[{labels,style,layout,config}] 
+ * @param  {...any} xPoints_yPoints_zPoints x-points,y-points,z-points,[x-point,y-point,z-points...],[{labels,style,layout,config}] 
  */
-box.plot3d=function(...args){
+box.plot3d=function(...xPoints_yPoints_zPoints){
+  let args=xPoints_yPoints_zPoints;
   let style=null;  
   let data=[];
   let layout=null;

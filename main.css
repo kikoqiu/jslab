@@ -401,4 +401,16 @@
             box-sizing: border-box;
         }
     }
+
+    .usage-stats {
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid var(--border-color);
+        font-size: 0.9em;
+        color: #555;
+    }
+    .usage-stats p {
+        margin: 5px 0;
+    }
+
     

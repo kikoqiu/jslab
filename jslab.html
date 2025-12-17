@@ -23,9 +23,11 @@
   <!--for math help-->
   <script src="math.15.1.0.js" defer></script>
   <script src="jshint.2.13.6.js"></script>
-  <script src="codemirror6/helpers/editor.bundle.js"></script>
+  <script src="codemirror6/editor.bundle.js"></script>
   <script src="storage.js"></script>
   <script src="file-dialog.js"></script>
+  <script src="setting-manager.js"></script>
+  <script src="ai-dialog.js"></script>
   <script src="webdav.js"></script>
   <!--link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css"-->
   <link rel="stylesheet" href="bootstrap-icons.css">
@@ -50,6 +52,7 @@
                <a href="#" @click.prevent="exportBlock()">Export to File</a>
                <a href="#" @click.prevent="importBlock()">Import from File</a>
                <a href="#" @click.prevent="shareBlock()">Share Link</a>
+               <a href="#" @click.prevent="openAiDialog()">AI Copilot</a>
              </div>
            </div>
            <div class="menu-item"> Edit
@@ -145,6 +148,11 @@
     >
     </file-dialog>
 
+    <ai-dialog
+      :visible="showAiDialog"
+      @close="showAiDialog = false"
+    ></ai-dialog>
+
     <!-- About Modal -->
     <div v-if="showAboutModal" class="file-dialog-overlay" @click.self="toggleAboutModal">
       <div class="file-dialog" style="height: auto; max-height: 80%; width: 500px;">
@@ -180,6 +188,7 @@ const App = {
     fileDialogMode: 'open', // 'open' or 'save'
     vfs: new VFS(),
     showAboutModal: false,
+    showAiDialog: false,
     showNotification: false,
     notificationMessage: '',
     plotdiv:0,
@@ -242,6 +251,7 @@ const App = {
     clearInterval(this.autoSaveInterval);
   },
   methods: {
+    openAiDialog() { this.showAiDialog = true; },
     toggleAboutModal() { this.showAboutModal = !this.showAboutModal; },
     triggerSync() {
         if (this.$refs.fileDialog) {
@@ -516,6 +526,7 @@ const App = {
 const myapp = Vue.createApp(App);
 
 myapp.component('file-dialog', FileDialogComponent);
+myapp.component('ai-dialog', AiDialogComponent);
 
 myapp.component('codemirror', window.CodeMirror6VueComponent);
 
