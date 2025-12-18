@@ -631,3 +631,19 @@ box.writeExcel=async function(data,type='json', fileName='output.xlsx',sheetName
   XLSX.utils.book_append_sheet(wb, worksheet, sheetName);
   await box.saveExcel(wb,fileName);
 }
+
+/**
+ * Load the d3 library with linkedom polyfill
+ */
+box.loadD3=async function(){
+  if(globalThis.d3 && globalThis.linkedom){
+    return;
+  }
+
+  await importScripts('./3pty/linkedom-browser/dist/linkedom.browser.min.js');
+  let {document}= globalThis.linkedom.parseHTML('<html><body></body></html>');
+  window.document=document;
+
+  await importScripts('./3pty/d3@7.js')
+
+}

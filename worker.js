@@ -1,11 +1,12 @@
 'use strict';
 
+globalThis.window=globalThis;
+
 // --- Library Initialization ---
 const workerLibs = [
     'libbf.js/libbf.js',
     'libbf.js/bf.js',
     'math.15.1.0.js',
-    'd3@7.js',
     'box.js',
 ];
 async function loadLibs() {
@@ -107,6 +108,7 @@ self.onmessage = async function (e) {
                 const result = await eval1(payload.code);
                 self.postMessage({ type: 'executionResult', payload: { result } });
             } catch (error) {
+                console.error(error);
                 self.postMessage({ type: 'executionResult', payload: { error: { message: `${error.name}: ${error.message}\n${error.stack}` } } });
             }
             break;

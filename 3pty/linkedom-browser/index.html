@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkeDOM Browser Test</title>
+</head>
+<body>
+  <h1>LinkeDOM Browser Bundle Test</h1>
+  <p>Check the developer console to see the output.</p>
+
+  <script src="./dist/linkedom.browser.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    console.log('--- LinkeDOM Test ---');
+    
+    // The 'linkedom' global object is now available from the bundled script
+    if (window.linkedom) {
+      try {
+        const html = '<body><h1>Hello from linkedom!</h1><p>This was parsed in the browser.</p></body>';
+        const { document } = window.linkedom.parseHTML(html);
+        
+        const h1 = document.querySelector('h1');
+        const p = document.querySelector('p');
+
+        console.log('Successfully parsed HTML.');
+        console.log('H1 content:', h1.textContent);
+        console.log('P content:', p.textContent);
+
+        // You can manipulate the DOM as well
+        p.textContent = 'Content updated!';
+        console.log('Updated P content:', document.querySelector('p').textContent);
+        console.log('Full serialized DOM:', document.toString());
+
+      } catch (error) {
+        console.error('An error occurred during the linkedom test:', error);
+      }
+    } else {
+      console.error('Error: window.linkedom is not defined. The script may not have loaded correctly.');
+    }
+
+    console.log('--- Test End ---');
+
+    console.log('\n--- D3.js SVG Test ---');
+    if (window.d3 && window.linkedom) {
+        try {
+            const { document } = window.linkedom.parseHTML('<html><body></body></html>');
+
+            // D3 needs a real DOM node to work with, so we give it the body from linkedom
+            const svg = d3.select(document.body)
+                .append('svg')
+                .attr('width', 100)
+                .attr('height', 100);
+
+            svg.append('circle')
+                .attr('cx', 50)
+                .attr('cy', 50)
+                .attr('r', 40)
+                .attr('stroke', 'black')
+                .attr('stroke-width', 2)
+                .attr('fill', 'red');
+
+            console.log('D3 successfully created an SVG in the linkedom document.');
+            console.log('Generated SVG:', svg.node().outerHTML);
+            console.log('Full document body:', document.body.innerHTML);
+        } catch(error) {
+            console.error('An error occurred during the D3 test:', error);
+        }
+    } else {
+        if (!window.d3) console.error('Error: D3.js (d3) is not defined.');
+        if (!window.linkedom) console.error('Error: window.linkedom is not defined.');
+    }
+    console.log('--- D3 Test End ---');
+  </script>
+</body>
+</html>
