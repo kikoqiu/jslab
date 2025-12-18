@@ -633,17 +633,30 @@ box.writeExcel=async function(data,type='json', fileName='output.xlsx',sheetName
 }
 
 /**
- * Load the d3 library with linkedom polyfill
+ * Load the linkedom library
  */
-box.loadD3=async function(){
-  if(globalThis.d3 && globalThis.linkedom){
-    return;
+box.loadLinkedom=async function(){
+  if(globalThis.linkedom){
+    return globalThis.linkedom;
   }
+  //await importScripts('./3pty/linkedom-browser/dist/linkedom.browser.min.js');
 
-  await importScripts('./3pty/linkedom-browser/dist/linkedom.browser.min.js');
+  globalThis.linkedom = await import('./3pty/linkedom.js');
   let {document}= globalThis.linkedom.parseHTML('<html><body></body></html>');
   window.document=document;
 
-  await importScripts('./3pty/d3@7.js')
+  return globalThis.linkedom;
+}
 
+/**
+ * Load the d3 library with linkedom polyfill
+ */
+box.loadD3=async function(){
+  await box.loadLinkedom();
+
+  if(globalThis.d3){
+    return;
+  }
+
+  await importScripts('./3pty/d3@7.js')
 }
