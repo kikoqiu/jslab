@@ -53,10 +53,17 @@ class VFS {
     }
 
     async saveFile(path, content) {
+        try{
+            content=await BinaryCompressor.compressString(content);
+        } catch (error) {
+            console.error(`Error saving file "${path}":`, error);
+            return false;
+        }
+
         const fileHandle = await this.getFileHandle(path, { create: true });
         if (!fileHandle) return false;
         try {
-            const writable = await fileHandle.createWritable();
+            const writable = await fileHandle.createWritable();            
             await writable.write(content);
             await writable.close();
             return true;
@@ -74,10 +81,9 @@ class VFS {
             // Handle arraybuffer if content is not text, e.g., for WebDAV files.
             // For now, assuming text content.            
             const buffer = await file.arrayBuffer();
-            const decoder = new TextDecoder('utf-8'); // Assume UTF-8
-            return decoder.decode(buffer);            
+            return await BinaryCompressor.decompressToString(buffer);
         } catch (error) {
-            // console.error(`Error loading file "${path}":`, error);
+            console.error(`Error loading file "${path}":`, error);
             return null;
         }
     }
@@ -228,10 +234,10 @@ class VFS {
 
     async setLastFile(path) {
         if (!path) return;
-        await this.saveFile('/.lastfile', path);
+        window.localStorage.lastFile = path;
     }
 
     async getLastFile() {
-        return await this.loadFile('/.lastfile');
+        return window.localStorage.lastFile;
     }
 }

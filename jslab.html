@@ -24,6 +24,7 @@
   <script src="math.15.1.0.js" defer></script>
   <script src="jshint.2.13.6.js"></script>
   <script src="codemirror6/editor.bundle.js"></script>
+  <script src="compressor.js"></script>
   <script src="storage.js"></script>
   <script src="file-dialog.js"></script>
   <script src="setting-manager.js"></script>
@@ -244,7 +245,7 @@ const App = {
       if (this.filename && this.isDirty) {
         this.dosave();
       }
-    }, 300000);
+    }, 600000);
   },
   beforeUnmount() {
     clearInterval(this.autoSaveInterval);

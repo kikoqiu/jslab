@@ -77,7 +77,7 @@ class WebDAVSyncer {
             }
         }
         const content = JSON.stringify(filteredTimes, null, 2);
-        await this.vfs.saveFile(path, new TextEncoder('utf-8').encode(content));
+        await this.vfs.saveFile(path, content);
     }
 
     async _updateServerModifiedTime(path, timestamp) {
@@ -257,7 +257,8 @@ class WebDAVSyncer {
                 ...this._getAxiosConfig(),
                 responseType: 'arraybuffer'
             });
-            await this.vfs.saveFile(localPath, response.data);
+            let rst = await BinaryCompressor.decompressToString(response.data);
+            await this.vfs.saveFile(localPath, rst);
             if (remoteModTime) {
                 await this._updateServerModifiedTime(localPath, remoteModTime);
             }
@@ -269,12 +270,13 @@ class WebDAVSyncer {
 
     async uploadFile(localPath, remotePath, updateModTime = true) {
         if (localPath.startsWith(`/${WebDAVSyncer.RECYCLE_ROOT_NAME}/`)) return;
-        const content = await this.vfs.loadFile(localPath);
+        let content = await this.vfs.loadFile(localPath);
         if (content === null) return;
         if (this.config.backup && await this._remoteItemType(remotePath) !== null) {
             await this._backupRemoteFile(remotePath);
         }
         try {
+            content = await BinaryCompressor.compressString(content);
             await this.axios.put(this._remoteUrl(remotePath), content, this._getAxiosConfig());
             if (updateModTime) {
                 const newModTime = await this._getRemoteFileModTime(remotePath);
