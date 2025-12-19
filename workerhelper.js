@@ -110,9 +110,8 @@ workerhelper.runcode = function (code, info) {
         return Promise.reject(new Error("Worker is not ready yet. Please wait a moment."));
     }
     const tcode =   
-`(async () => {'bpo enable';await box.initOutputBuffer();
+`(async () => {'bpo enable';
 ${code}
-await box.flushOutputBuffer();
 })();`
     const compiledCode = Babel.transform(tcode,     { 
       presets: [
@@ -258,3 +257,11 @@ workerhelper.writefile = function(content, fileName) {
     }
   });
 };
+
+workerhelper.setVmSelectedResult = function(cnt){
+  vm.selected.result = cnt;
+}
+
+workerhelper.setVmSelectedResultScript = function(cnt){
+  vm.selected.resultScript = cnt;
+}

@@ -1,16 +1,56 @@
 var box=globalThis;
 
-box.outputBuffer={'result':'','resultScript':'','plotdiv':0};
+box.outputBuffer={'result':null,'resultScript':''};
+
+box.document = globalThis.linkedom.parseHTML('<html><body></body></html>');
 
 box.initOutputBuffer=async function(){
-  box.outputBuffer={'result':'','resultScript':'','plotdiv':await globalEval('vm.selected.plotdiv') || 0};
+  box.outputBuffer={'result':null,'resultScript':''};
+  let {document} = globalThis.linkedom.parseHTML('<html><body></body></html>');
+  globalThis.document=document;
 }
 
-box.flushOutputBuffer=async function(){
-  await globalEval(`vm.selected.result += ${JSON.stringify(box.outputBuffer.result)};`);
-  await globalEval(`vm.selected.resultScript += ${JSON.stringify(box.outputBuffer.resultScript)};`);
-  await globalEval(`vm.selected.plotdiv = ${box.outputBuffer.plotdiv};`);
+/**
+ * flush the html output
+ */
+box.flushHTML=async function(){
+  //let jsonContent=globalThis.linkedom.toJSON(globalThis.document.body);
+  let html=globalThis.document.body.innerHTML;
+  if(html!==box.outputBuffer.result){
+    box.outputBuffer.result=html;
+    //let jsonContent=JSON.stringify(html);
+    //await globalEval(`vm.selected.result = ${jsonContent};`);
+    await workerhelperCall('setVmSelectedResult',html);
+  }
 }
+
+/**
+ * flush the output
+ */
+box.flushOutputBuffer=async function(){
+  await box.flushHTML();
+  await workerhelperCall('setVmSelectedResultScript',box.outputBuffer.resultScript);
+  //await globalEval(`vm.selected.resultScript = ${JSON.stringify(box.outputBuffer.resultScript)};`);
+}
+
+
+box.runtimeEnter=async function(){
+  await box.initOutputBuffer();
+}
+
+box.runtimeExit=async function(){
+  await box.stopAnimation();
+  await box.flushOutputBuffer();
+}
+
+/**
+ * async delay microseconds
+ * @param {number} durationMs 
+ * @returns 
+ */
+box.delay = function(durationMs) {
+      return new Promise(resolve => setTimeout(resolve, durationMs));
+};
 
 /**
  * Range generator
@@ -62,7 +102,7 @@ box.echo=function(...o){
   }
   str=str.replace(/</ig,'&lt;').replace(/>/ig,'&gt;')+'\n';
   str=`<pre><code>${str}</code></pre>`;
-  box.outputBuffer.result += str;
+  globalThis.document.body.append(document.createRange().createContextualFragment(str));
 };
 
 /**
@@ -74,7 +114,7 @@ box.echoHTML=function(...o){
   for(var i of o){
     str+=String(i);
   }
-  box.outputBuffer.result += str;
+  globalThis.document.body.append(document.createRange().createContextualFragment(str));
 };
 
 /**
@@ -103,9 +143,10 @@ box.plotly=function(data, layout, config, style){
   layout=JSON.stringify(layout);
   config=JSON.stringify(config);  
   let json=JSON.stringify(data); 
-  var div='divplot'+new Date().getTime()+'-'+ box.outputBuffer.plotdiv++;
+  var div='div-'+crypto.randomUUID();
   //console.log('Plotly div:',div);
-  box.outputBuffer.result += `<div class="plot" id="${div}" style="${style};"></div>`; 
+  let node=document.createRange().createContextualFragment(`<div class="plot" id="${div}" style="${style};"></div>`);
+  globalThis.document.body.append(node);
   let scr=`Plotly.react("${div}", ${json},${layout},${config});`;//newPlot
   box.outputBuffer.resultScript += scr;
 };
@@ -309,12 +350,13 @@ box.latex_style=''
 box.latex=function(...ex){
   let result=box.latexstr(...ex);
   let style=box.latex_style;
-  var div='divplot'+new Date().getTime()+'-'+ box.outputBuffer.plotdiv++;
+  var div='div-'+crypto.randomUUID();
   if(false){
     //box.outputBuffer.result+= '<div class="latex" id="'+div+'" style="'+style+'">'+MathJax.tex2svg(result, {em: 16, ex: 6, display: false}).outerHTML+'</div>';
   }else{
-    let json=JSON.stringify(result); 
-    box.outputBuffer.result+= '<div class="latex" id="'+div+'" style="'+style+'"></div>';
+    let json=JSON.stringify(result);
+    let node=document.createRange().createContextualFragment('<div class="latex" id="'+div+'" style="'+style+'"></div>')
+    globalThis.document.body.append(node);
     let scr='document.getElementById("'+div+'").appendChild(MathJax.tex2svg('+json+', {em: 16, ex: 6, display: true}));'
     box.outputBuffer.resultScript += scr;
   }
@@ -632,31 +674,38 @@ box.writeExcel=async function(data,type='json', fileName='output.xlsx',sheetName
   await box.saveExcel(wb,fileName);
 }
 
-/**
- * Load the linkedom library
- */
-box.loadLinkedom=async function(){
-  if(globalThis.linkedom){
-    return globalThis.linkedom;
+
+
+box.renderRafId = null;
+
+box.startAnimation=function() {
+  if (box.renderRafId) return;
+
+  function loop() {
+    box.flushHTML();
+    box.renderRafId = self.requestAnimationFrame(loop);
   }
-  //await importScripts('./3pty/linkedom-browser/dist/linkedom.browser.min.js');
 
-  globalThis.linkedom = await import('./3pty/linkedom.js');
-  let {document}= globalThis.linkedom.parseHTML('<html><body></body></html>');
-  window.document=document;
+  box.renderRafId = self.requestAnimationFrame(loop);
+};
 
-  return globalThis.linkedom;
-}
+box.stopAnimation=function() {
+  if (box.renderRafId) {
+    self.cancelAnimationFrame(box.renderRafId);
+    box.renderRafId = null;
+  }
+};
+
 
 /**
  * Load the d3 library with linkedom polyfill
+ * @param {boolean} enableAnimation enable Transition animition
  */
-box.loadD3=async function(){
-  await box.loadLinkedom();
-
-  if(globalThis.d3){
-    return;
+box.loadD3=async function(enableAnimation=false){
+  if(!globalThis.d3){
+    await importScripts('./3pty/d3@7.js');
   }
-
-  await importScripts('./3pty/d3@7.js')
+  if(enableAnimation){
+    box.startAnimation();
+  }
 }

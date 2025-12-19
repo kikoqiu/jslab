@@ -26968,7 +26968,7 @@
 - d3.js available as 'd3'
 - SheetJS available as 'XLSX'
 - bfjs available as 'bfjs' (a big number library for **floating point** javascript, usage: let a=bfjs.bf(string/number);let b=bfjs.sin(number);let c=a+b*12; c.toString(radix); c.toBigInt(); c.toNumber(); etc. Do NOT mix up bfjs BigFloat with native BigInt or Number types, use conversions explicitly)
-- browser web worker APIs (like fetch, import, importScripts etc. But **NOT** DOM APIs) 
+- browser web worker APIs (like fetch, import, importScripts etc. DOM api is also available, use document.body.append if you need, but echoHTML is suggested.) 
 - build in browser APIs (like console, BigInt, URL, URLSearchParams, TextEncoder, TextDecoder, btoa, atob etc.)
 All the code runs in an async function context, so you can use 'await' directly. Functions like readFile, writeFile must be awaited.
 Available functions:

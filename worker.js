@@ -1,5 +1,4 @@
 'use strict';
-
 globalThis.window=globalThis;
 
 // --- Library Initialization ---
@@ -11,9 +10,12 @@ const workerLibs = [
 ];
 async function loadLibs() {
     try {
+        globalThis.linkedom = await import('./3pty/linkedom.js');//'./3pty/linkedom-browser/dist/linkedom.browser.min.js'
+
         for (const lib of workerLibs) {
             importScripts(lib);            
         }
+
         let { _Op } = await import('./bpo.js');
         self._Op = _Op;
 
@@ -104,8 +106,10 @@ self.onmessage = async function (e) {
     switch (type) {
         case 'execute':
             try {
+                await box.runtimeEnter();
                 let eval1=eval;
                 const result = await eval1(payload.code);
+                await box.runtimeExit();
                 self.postMessage({ type: 'executionResult', payload: { result } });
             } catch (error) {
                 console.error(error);
