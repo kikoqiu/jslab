@@ -126,7 +126,7 @@ box.dumpJSON=function(...o){
   for(var i of o){
     str+=`<pre><code>${JSON.stringify(i)}</code></pre>`;
   }
-  box.outputBuffer.result += str;
+  globalThis.document.body.append(document.createRange().createContextualFragment(str));
 };
 
 /**
@@ -352,7 +352,8 @@ box.latex=function(...ex){
   let style=box.latex_style;
   var div='div-'+crypto.randomUUID();
   if(false){
-    //box.outputBuffer.result+= '<div class="latex" id="'+div+'" style="'+style+'">'+MathJax.tex2svg(result, {em: 16, ex: 6, display: false}).outerHTML+'</div>';
+    //let node=document.createRange().createContextualFragment('<div class="latex" id="'+div+'" style="'+style+'">'+MathJax.tex2svg(result, {em: 16, ex: 6, display: false}).outerHTML+'</div>');
+    //globalThis.document.body.append(node);
   }else{
     let json=JSON.stringify(result);
     let node=document.createRange().createContextualFragment('<div class="latex" id="'+div+'" style="'+style+'"></div>')
