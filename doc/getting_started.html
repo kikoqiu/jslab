@@ -1,5 +1,6 @@
 <h2>Getting Started with JSLab</h2>
 <p>Welcome to JSLab! This is an interactive JavaScript environment designed for numerical computing, data exploration, and powerful visualizations directly in your browser. With JSLab, you can easily perform complex calculations, generate data, and create dynamic plots.</p>
+<p>All the client codes run in a web worker, and the content of `document.body` is redirected to the output area.</p>
 <p>Here's a quick guide to some fundamental functionalities:</p>
 
 <h3>Printing Output: <code>echo()</code></h3>
@@ -8,6 +9,20 @@
 let myNumber = 42;
 echo('The answer is', myNumber);
 echo(`Current date: ${new Date().toLocaleDateString()}`);</code></pre>
+
+<h3>Output HTML content: <code>document.body</code></h3>
+<p>The <code>document.body</code> is delegated to the output area with linkedom lib. After the code is executed, the the content of `document.body` is appended to the output area.</p>
+<pre><code>echoHTML('<string>Hello JSLab!</string>');
+let div=document.createElement(`div`);
+document.body.append(div);
+
+//enable animation, when you want to flash the html content before the execution finished.
+box.startAnimation();
+for(let i=0;i&lt;5;++i){
+  div.innerHTML=""+new Date();
+  await delay(1000);
+}
+</code></pre>
 
 <h3>Working with Math: <code>latex()</code></h3>
 <p>JSLab integrates powerful mathematical capabilities through <code>math.js</code> and can render expressions beautifully using LaTeX. Use the <code>latex()</code> function to display mathematical formulas.</p>

@@ -1,0 +1,83 @@
+<h2>User Guide</h2>
+<p>This page contains instructions for JSLab's core functionalities, shortcuts, and advanced features.</p>
+
+<h3>Basic Usage</h3>
+<h4>UI Overview</h4>
+<p>The JSLab interface is composed of three main parts:</p>
+<ul>
+    <li><strong>Menu Bar:</strong> Located at the top, it provides functions for File, Edit, Run, and Help.</li>
+    <li><strong>Toolbar:</strong> Below the menu bar is a toolbar for quick access to common actions like save, cut, copy, paste, and run.</li>
+    <li><strong>Cells:</strong> The main work area, consisting of a series of cells. Each cell has an input area (In) and an output area (Out).</li>
+</ul>
+
+<h4>Code Execution & Shortcuts</h4>
+<p>You can write and execute JavaScript code in the input area of any cell.</p>
+<ul>
+    <li><strong>Run Cell:</strong>
+        <ul>
+            <li>Click the <i class="bi bi-play-fill"></i> (Run) button on the toolbar.</li>
+            <li>Use the shortcut <strong>Ctrl + Enter</strong>.</li>
+            <li>Select <strong>Run -> Run Selected</strong> from the menu bar.</li>
+        </ul>
+    </li>
+    <li><strong>Add Cell:</strong>
+        <ul>
+            <li>Click the <i class="bi-plus-lg"></i> (Insert Cell Below) button on the toolbar.</li>
+            <li>Use the shortcut <strong>Alt + Enter</strong> to create a new cell below the current one.</li>
+        </ul>
+    </li>
+</ul>
+
+<h4>Debugging Code</h4>
+<p>JSLab allows you to debug your code using your browser's built-in developer tools.</p>
+<ol>
+    <li>First, press the <strong>F12</strong> key to open your browser's developer tools and navigate to the "Sources" or "Debugger" tab.</li>
+    <li>In JSLab, select <strong>Run -> Debug Cell</strong> from the menu bar.</li>
+    <li>Execution will pause at the <code>debugger;</code> statement, and you can then inspect variables, step through code, and set breakpoints within the developer tools.</li>
+</ol>
+
+
+<h3>File Management & WebDAV Sync</h3>
+<p>JSLab provides a comprehensive file management system with optional remote synchronization via WebDAV.</p>
+
+<h4>File Explorer</h4>
+<p>You can access the File Explorer via <strong>File -> File Explorer</strong>. All your files are stored locally using the browser's <strong>File System Access API</strong>, which provides a sandboxed, high-performance virtual file system. To save space, all notebook files are automatically compressed using Gzip. This ensures that your work is saved securely and efficiently, even if you close the tab.</p>
+<p>The explorer allows you to:</p>
+<ul>
+    <li>Navigate through folders by double-clicking.</li>
+    <li>Open files (notebooks) by selecting them and clicking "Open" or by double-clicking.</li>
+    <li>Create new folders using the <i class="bi bi-folder-plus"></i> button.</li>
+    <li>Rename, move, and delete files and folders using the action buttons next to each item.</li>
+</ul>
+
+<h4>WebDAV Synchronization</h4>
+<p>WebDAV sync allows you to keep your local in-browser files synchronized with a remote server. This is useful for backing up your work and accessing it from different devices.</p>
+<ol>
+    <li>Open the File Explorer and click the <i class="bi bi-cloud-arrow-up"></i> icon to open the WebDAV Configuration.</li>
+    <li>Check "Enable WebDAV Sync" to turn the feature on.</li>
+    <li>Enter your WebDAV server URL, Username, and Password.</li>
+    <li><strong>Backup remote files:</strong> If checked, when a local change would overwrite or delete a file on the server, the server's version is first backed up into a <code>backup</code> directory on the server.</li>
+    <li>Click <strong>Save and Sync</strong> to apply the settings and trigger the first synchronization. You can also click the <i class="bi bi-arrow-clockwise"></i> icon at any time to trigger a manual sync.</li>
+</ol>
+
+<h3>AI Copilot</h3>
+<p>JSLab integrates an AI-powered code completion assistant to help you write code faster.</p>
+
+<h4>Configuration</h4>
+<p>Access the configuration dialog via <strong>File -> AI Copilot</strong>.</p>
+<ul>
+    <li><strong>Enable AI Copilot:</strong> Must be checked for the feature to work.</li>
+    <li><strong>API URL:</strong> The endpoint of the AI service. It should be compatible with the OpenAI Chat Completions API format.</li>
+    <li><strong>API Key:</strong> Your secret key for the AI service.</li>
+    <li><strong>Model:</strong> The name of the model to use (e.g., <code>gpt-4</code>, <code>gpt-3.5-turbo</code>).</li>
+    <li><strong>Hotkey:</strong> The feature is triggered by pressing <strong>Alt + i</strong> in the code editor.</li>
+    <li><strong>Replace Mode:</strong> A more advanced mode where the AI can suggest replacing existing lines of code around the cursor, not just inserting new code.</li>
+</ul>
+
+<h4>Usage</h4>
+<ol>
+    <li>Place your cursor in the code editor where you want an AI suggestion. You can write a comment describing what you want to do.</li>
+    <li>Press <strong>Alt + i</strong>.</li>
+    <li>The AI will analyze the code before and after your cursor and provide a suggestion, which will appear as gray "ghost text".</li>
+    <li>Press the <strong>Tab</strong> key to accept the suggestion.</li>
+</ol>

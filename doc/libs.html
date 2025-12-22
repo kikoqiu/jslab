@@ -50,41 +50,102 @@ math.evaluate('a * b', scope); // Returns 15</code></pre>
     </p>
     <h4>Basic Usage Examples:</h4>
     <pre><code>
-// Declare the chart dimensions and margins.
-const width = 640;
-const height = 400;
-const marginTop = 20;
-const marginRight = 20;
-const marginBottom = 30;
-const marginLeft = 40;
+//load d3 with animation (transition) support
+box.loadD3(true);
+const generateRandomData = (numMonths = 12, numValues = 3) => {
+  const data = [];
+  const startDate = new Date('2023-01');
+  
+  for (let i = 0; i &lt; numMonths; i++) {
+    const date = new Date(startDate);
+    date.setMonth(startDate.getMonth() + i);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const dateStr = `${year}-${month}`;
+    
+    const values = Array.from({length: numValues}, () => Math.floor(Math.random() * 100) + 1);
+    
+    data.push({ date: dateStr, values });
+  }
+  
+  return data;
+};
+let data = generateRandomData(12,10);
 
-// Declare the x (horizontal position) scale.
-const x = d3.scaleUtc()
-    .domain([new Date("2023-01-01"), new Date("2024-01-01")])
-    .range([marginLeft, width - marginRight]);
 
-// Declare the y (vertical position) scale.
+const margin = { top: 20, right: 30, bottom: 40, left: 40 };
+const width = 800 - margin.left - margin.right;
+const height = 400 - margin.top - margin.bottom;
+
+const svg = d3.select('body')
+  .append('svg')
+  .attr('width', width + margin.left + margin.right)
+  .attr('height', height + margin.top + margin.bottom)
+  .append('g')
+  .attr('transform', `translate(${margin.left},${margin.top})`);
+
+const x = d3.scaleBand()
+  .domain(data[0].values.map((_, i) => `Series ${i + 1}`))
+  .range([0, width])
+  .padding(0.1);
+
 const y = d3.scaleLinear()
-    .domain([0, 100])
-    .range([height - marginBottom, marginTop]);
+  .domain([0, d3.max(data.flatMap(d => d.values))])
+  .nice()
+  .range([height, 0]);
 
-// Create the SVG container.
-svg = d3.create("svg")
-    .attr("width", width)
-    .attr("height", height);
+const xAxis = svg.append('g')
+  .attr('transform', `translate(0,${height})`)
+  .call(d3.axisBottom(x));
 
-// Add the x-axis.
-svg.append("g")
-    .attr("transform", `translate(0,${height - marginBottom})`)
-    .call(d3.axisBottom(x));
+const yAxis = svg.append('g')
+  .call(d3.axisLeft(y));
 
-// Add the y-axis.
-svg.append("g")
-    .attr("transform", `translate(${marginLeft},0)`)
-    .call(d3.axisLeft(y));
+const title = svg.append('text')
+  .attr('x', width / 2)
+  .attr('y', -margin.top / 2)
+  .attr('text-anchor', 'middle')
+  .style('font-size', '16px')
+  .style('font-weight', 'bold');
 
-// Append the SVG element.
-echoHTML(svg.node().outerHTML);
+const bars = svg.selectAll('.bar')
+  .data(data[0].values)
+  .enter()
+  .append('rect')
+  .attr('class', 'bar')
+  .attr('x', (d, i) => x(`Series ${i + 1}`))
+  .attr('y', height)
+  .attr('width', x.bandwidth())
+  .attr('height', 0)
+  .attr('fill', 'steelblue');
+
+async function animate() {
+  for (let i = 0; i &lt; data.length; i++) {
+     const transition = svg.transition()
+        .duration(500)
+        .ease(d3.easeLinear);
+    
+    const currentData = data[i];
+    title.text(`Date: ${currentData.date}`);
+    
+    bars.data(currentData.values)
+    .join(
+      enter => enter.append("rect")
+        .attr("x", x(0))
+        .attr("y", d => y(d).rank),
+      update => update,
+      exit => exit.transition(transition).remove().attr("y", d => y(d).rank)
+    ).call(bar=>bar
+      .transition(transition)
+      .attr('y', d => y(d))
+      .attr('height', d => height - y(d))
+    );
+    
+    await transition.end();
+  }
+}
+
+await animate();
 </code></pre>
 </section>
 
@@ -94,8 +155,6 @@ echoHTML(svg.node().outerHTML);
     <ul>
         <li><strong>Plotly.js:</strong> Used for interactive plotting. Accessible via <code>box.plotly</code>, <code>box.plot</code>, and <code>box.plot3d</code>.</li>
         <li><strong>LibBF.js:</strong> Provides arbitrary-precision floating-point arithmetic. Accessible via <code>bfjs</code> global object.</li>
-        <li><strong>Babel:</strong> JavaScript compiler, used internally by JSLab for code transformation.</li>
-        <li><strong>CodeMirror:</strong> In-browser code editor, used for the interactive cells.</li>
     </ul>
     <p>More information about these and other libraries can be found by exploring their respective official documentation.</p>
 </section>

@@ -208,14 +208,3 @@ latex(deriv('x^3', 'x'));</code></pre>
 runcode("console.log('Hello from runcode!'); return 1+1;")
     .then(result => echo('Runcode result:', result));</code></pre>
 
-<h3><code>runcodeSync_(code, info)</code></h3>
-<p>Runs a piece of JavaScript code synchronously within the JSLab environment. This function handles Babel transformation and execution.</p>
-<ul>
-    <li><code>code</code>: The JavaScript code string to execute.</li>
-    <li><code>info</code>: (Optional) An object to receive compilation information (e.g., <code>compiled_code</code>).</li>
-</ul>
-<p>Returns the result of the code execution directly (not a Promise).</p>
-<pre><code>// Similar to runcode, but for synchronous execution.
-// Less commonly used directly by end-users.
-let syncResult = runcodeSync_("return 'Synchronous result: ' + (5 * 5);");
-echo(syncResult);</code></pre>
