@@ -83,9 +83,15 @@ function runCustomCompletions(context) {
 
     // --- Get properties from the resolved parent object ---
     if (parentObj) {
-        const props = new Set();
-        Object.getOwnPropertyNames(parentObj).forEach(prop => {
-            if (prop.toLowerCase().startsWith(memberPrefix.toLowerCase()) && !prop.startsWith('_')) {
+        //includes prototype
+        let propsTemp = [];
+        for(let prop in parentObj) {
+            propsTemp.push(prop);
+        }
+        //includs static
+        const props = new Set([...Object.getOwnPropertyNames(parentObj), ...propsTemp]);
+        for(let prop of props){
+            if(prop.toLowerCase().startsWith(memberPrefix.toLowerCase()) && !prop.startsWith('_') && prop !== "prototype") {
               let fullMatch = pathParts.length >= 1 ? pathParts.join('.') + '.' + prop : prop;
               try {
                   const val = parentObj[prop];
@@ -95,7 +101,7 @@ function runCustomCompletions(context) {
                   ret.push({ label: prop, fullMatch, type: 'property', boost:10 });
               }
             }
-        });
+        }
     }
     return ret;
 }
