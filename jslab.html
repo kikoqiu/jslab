@@ -72,7 +72,8 @@
            <div class="menu-item"> Run
              <div class="dropdown-content">
                <a href="#" @click.prevent="evalCode()" :class="{disabled: isExecuting}">Run Selected</a>
-               <a href="#" @click.prevent="runAll()" :class="{disabled: isExecuting}">Run All</a>
+               <a href="#" @click.prevent="runFrom(0)" :class="{disabled: isExecuting}">Run All</a>
+               <a href="#" @click.prevent="runFrom(this.selectedIndex)" :class="{disabled: isExecuting}">Run Below</a>
                <a href="#" @click.prevent="evalCode(true)" :class="{disabled: isExecuting}">Debug Cell</a>
              </div>
            </div>
@@ -460,7 +461,8 @@ const App = {
         this.timerInterval = null;
       }
     },
-    async runAll() {
+    async runFrom(startIndex) {
+      startIndex = startIndex === undefined ? 0 : startIndex;
       if (this.isExecuting) return;
       if(this.filename == '') {
         this.saveAsBlock();
@@ -475,8 +477,10 @@ const App = {
       }, 10);
 
       try {
-        this.maxeIndex = 0;
-        for (let i = 0; i < this.blocks.length; i++) {
+        if(startIndex === 0){
+          this.maxeIndex = 0;
+        }
+        for (let i = startIndex; i < this.blocks.length; i++) {
           this.selectedIndex = i;
           await this._evalCell(this.blocks[i], false); // always run in non-debug for runAll
         }
