@@ -394,8 +394,8 @@ const App = {
     formatError(source, e) {
       let pos = -1, match = null;
       let sk = e.stack.split('\n');
-      let reg = /at eval \(eval at box.runcode [^\)]*\), <anonymous>:([0-9]+):([0-9]+)\)/;
-      for (let i = sk.length - 1; i >= 0; --i) {
+      let reg = /at eval \(eval at self.onmessage [^\)]*\), <anonymous>:([0-9]+):([0-9]+)\)/;
+      for (let i = 0; i <= sk.length - 1; ++i) {
         if (pos === -1) { match = sk[i].match(reg); if (match) { pos = i; break; } }
       }
       if (pos === -1) pos = sk.length; else ++pos;
@@ -405,10 +405,10 @@ const App = {
         try {
           let line = parseInt(match[1]) - 1, col = parseInt(match[2]) - 1;
           let sourceline = source.split('\n')[line];
-          errorinfo = `<span style='color:red;'>Error At</span>[${line + 1},${col + 1}]: ${sourceline.substr(0, col)}<span style='color:red;font-weight:bold;'>&lt;--&gt</span>${sourceline.substr(col)}\n`;
+          errorinfo = `<span style='color:red;'>Error At </span> [${line - 2}, ${col + 1}]: ${sourceline.substr(0, col)}<span style='color:red;font-weight:bold;'>--&gt</span>${sourceline.substr(col)}\n`;
         } catch (err) { } 
       }
-      return `<pre>${errorinfo}<span style='color:red;'>Name</span>: ${e.name}\n<span style='color:red;'>Message</span>: ${e.message}\n<span style='color:red;'>Stack</span>:\n${stack}</pre>`;
+      return `<pre>${errorinfo}<span style='color:red;'>Name</span>: ${e.name}\n<span style='color:red;'>Message</span>: ${e.message}\n</pre>`;
     },
     delay(durationMs) {
       return new Promise(resolve => setTimeout(resolve, durationMs));

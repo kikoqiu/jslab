@@ -21,7 +21,7 @@ import {
   searchKeymap, highlightSelectionMatches
 } from "@codemirror/search"
 import {
-  autocompletion, completionKeymap, closeBrackets,
+  autocompletion, completionKeymap, closeBrackets, acceptCompletion,
   closeBracketsKeymap, snippet
 } from "@codemirror/autocomplete"
 import {lintKeymap} from "@codemirror/lint"
@@ -220,6 +220,69 @@ function generateTooltipHtmlForMathHelp(info) {
         </div>`;
 }
 
+
+
+/**
+ * Formats a JSDoc object into an HTML string.
+ * @private
+ * @param {object} doc - The JSDoc object for a single symbol.
+ * @returns {string} A formatted HTML string representing the documentation.
+ */
+function formatDocHTML(doc) {
+    let output = '<div class="cm-tooltip-doc noprewrap">';
+
+    // Header
+    output += `<h6>${doc.longname} <span>${doc.kind}</span></h6>`;
+
+    if(doc.description){
+        output += `<p >${doc.description }</p>`;
+    }    
+
+    if(doc.params && doc.params.length>0){
+        output += `<p><strong>Params:</strong></p>`;
+        output+= `<ul class="cm-tooltip-list">
+                ${doc.params.map(param => {
+                    const type = param.type ? `<span>{${param.type.names.join('|')}}</span>` : '';
+                    const optional = param.optional ? `<span>[optional]</span>` : '';
+                    const defaultValue = param.defaultvalue !== undefined ? `<span>(default: ${JSON.stringify(param.defaultvalue)})</span>` : '';
+                    return `<li>
+                        <strong>${param.name}</strong>
+                        ${type} ${optional} ${defaultValue}
+                        ${param.description ? `<p>${param.description}</p>` : ''}
+                    </li>`;
+                }).join('')}
+            </ul>
+        `;
+    }
+
+
+    // Returns
+    if (doc.returns && doc.returns.length > 0) {
+        output += `<p><strong>Returns:</strong></p>`;
+        output+= `<ul class="cm-tooltip-list">`;
+        for (const ret of doc.returns) {
+            const type = ret.type ? `<span class=>{${ret.type.names.join('|')}}</span>` : '';
+            output += `<li>${type} - ${ret.description || ''}</li>`;
+        }
+        output+= `</ul>`;
+    }
+    
+
+    // Examples
+    if (doc.examples) {
+        output += `<p><strong>Examples:</strong></p>`;   
+        output+= `<ul class="cm-tooltip-list">`;     
+        for (const example of doc.examples) {
+            output += `</li><pre><code>${example}</code></pre></li>`;
+        }        
+        output+= `</ul>`;
+    }
+
+    return output + "</div>";
+}
+
+
+
 const customCompletions = async (context) => {
     // This regex is more robust, capturing chains of properties.
     const match = context.matchBefore(/(?:[\w$]+\.)*[\w$]*/);
@@ -242,7 +305,7 @@ const customCompletions = async (context) => {
             apply: apply || label.split('(')[0],
             type,
             boost,
-            info: () => { // Lazily generate tooltip DOM
+            info: async () => { // Lazily generate tooltip DOM
               if(fullMatch && fullMatch.startsWith('math.')){
                 try{
                   const help=math.help(fullMatch.substring(5));
@@ -253,8 +316,8 @@ const customCompletions = async (context) => {
                 }catch(e){
                   return null;
                 }
-              }else{
-                if (!docString) return null;
+              }
+              if (docString){
                 const container = document.createElement('div');
                 container.className = 'cm-tooltip-doc';
                 const sig = docString.split('\n')[0];
@@ -269,6 +332,16 @@ const customCompletions = async (context) => {
                 }
                 return container;
               }
+              try{
+                let doc=await workerhelper.getDoc([fullMatch]);
+                if(doc && doc[0]){
+                  return document.createRange().createContextualFragment(formatDocHTML(doc[0]));
+                }
+              }catch(e){
+                console.log(e);
+              }
+              return null;
+            
             }
         });
     }
@@ -304,6 +377,9 @@ const customCompletions = async (context) => {
     // --- Get properties from the resolved parent object ---
     let result=await workerhelper.getCompletions(ctx);
     for(let item of result){
+      if(item['snippet']){
+        item.apply = snippet(item.snippet);
+      }
       addCompletion(item);
     }
 
@@ -355,6 +431,11 @@ const jshintLinter = linter(async view => {
     return diagnostics;
 });
 
+/*function acceptCompletionWithDot(view){
+  acceptCompletion(view);
+  //alway return false to pass the dot to the next
+  return false;
+}*/
 
 // --- VUE COMPONENT ---
 const CodeMirror6VueComponent = {
@@ -439,6 +520,7 @@ const CodeMirror6VueComponent = {
                 ...foldKeymap,
                 // Autocompletion keys
                 ...completionKeymap,
+                //{ key: ".", run: acceptCompletionWithDot },
                 // Keys related to the linter system
                 ...lintKeymap
             ])

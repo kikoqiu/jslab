@@ -710,3 +710,53 @@ box.loadD3=async function(enableAnimation=false){
     box.startAnimation();
   }
 }
+
+
+/**
+ * Load the NDArray library
+ */
+box.loadNDArray=async function(){
+  if(!globalThis.ndarray){
+    await importScripts("3pty/ndarray.browser.js");
+    ndarray.NDWasm.init('3pty/');
+
+    ndarray.NDArray.prototype.operatorAdd=ndarray.NDArray.prototype.add;
+    ndarray.NDArray.prototype.operatorSub=ndarray.NDArray.prototype.sub;
+    ndarray.NDArray.prototype.operatorMul=ndarray.NDArray.prototype.mul;
+    ndarray.NDArray.prototype.operatorDiv=ndarray.NDArray.prototype.div;
+    ndarray.NDArray.prototype.operatorPow=ndarray.NDArray.prototype.pow;
+    ndarray.NDArray.prototype.operatorBinaryAnd=ndarray.NDArray.prototype.bitwise_and;
+    ndarray.NDArray.prototype.operatorBinaryOr=ndarray.NDArray.prototype.bitwise_or;
+    ndarray.NDArray.prototype.operatorBinaryXor=ndarray.NDArray.prototype.bitwise_xor;
+    ndarray.NDArray.prototype.operatorBinaryLShift=ndarray.NDArray.prototype.bitwise_lshift;
+    ndarray.NDArray.prototype.operatorBinaryRShift=ndarray.NDArray.prototype.bitwise_rshift;
+    ndarray.NDArray.prototype.operatorLess=ndarray.NDArray.prototype.lt;
+    ndarray.NDArray.prototype.operatorGreater=ndarray.NDArray.prototype.gt;
+    ndarray.NDArray.prototype.operatorGreaterEqual=ndarray.NDArray.prototype.gte;
+    ndarray.NDArray.prototype.operatorLessEqual=ndarray.NDArray.prototype.lte;
+    ndarray.NDArray.prototype.operatorEqual=ndarray.NDArray.prototype.eq;
+    ndarray.NDArray.prototype.operatorNotEqual=ndarray.NDArray.prototype.ne;
+  }  
+  
+}
+
+
+/**
+ * show the image
+ * @param  {any} image NDArray | dataurl | image binary in Uint8Array
+ */
+box.showImage=function(image){
+  let str=null;
+  if(typeof image =="string"){
+    str=image;
+  }else {
+    if(image instanceof ndarray.NDArray){
+      image = ndarray.image.encodeJpeg(image);
+    }
+    if(image instanceof Uint8Array){      
+      image = ndarray.image.convertUint8ArrrayToDataurl(image);
+    }
+  }
+  let html=`<img src="${image}"/>`;
+  globalThis.document.body.append(document.createRange().createContextualFragment(html));
+};

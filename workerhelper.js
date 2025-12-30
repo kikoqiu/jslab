@@ -9,6 +9,7 @@ const worker = new Worker('worker.js');
 let workerReady = false;
 let executionPromise = null;
 let completionPromises = new Map();
+let docPromises = new Map();
 let getGlobalsPromises = new Map();
 
 // --- Worker Communication ---
@@ -41,6 +42,13 @@ worker.onmessage = function(e) {
             if (completionPromise) {
                 completionPromise.resolve(payload.result);
                 completionPromises.delete(payload.completionId);
+            }
+            break;
+        case 'docResult':
+            const docPromise = docPromises.get(payload.id);
+            if (docPromise) {
+                docPromise.resolve(payload.result);
+                docPromises.delete(payload.id);
             }
             break;
         case 'getGlobalsResult':
@@ -165,6 +173,26 @@ workerhelper.getCompletions = function (context) {
         payload: {
             context,
             completionId: completionId,
+        }
+    });
+
+    return promise;
+};
+
+// This function is called by CodeMirror. It delegates to the worker.
+workerhelper.getDoc = function (context) {
+    if (!workerReady) return Promise.resolve(null);
+    
+    const id = Date.now() + Math.random();
+    const promise = new Promise((resolve) => {
+        docPromises.set(id, { resolve });
+    });
+
+    worker.postMessage({
+        type: 'getDoc',
+        payload: {
+            context,
+            id,
         }
     });
 
