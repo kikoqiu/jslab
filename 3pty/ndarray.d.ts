@@ -26,6 +26,7 @@ declare module "ndarray_prob" {
         /**
          * Internal helper to get a Float64 between [0, 1) using crypto.
          * Generates high-quality uniform random floats.
+         * @private
          */
         function _cryptoUniform01(size: any): Float64Array<any>;
         /**
@@ -89,7 +90,6 @@ declare module "ndwasm_blas" {
         /**
          * Calculates the trace of a 2D square matrix (sum of diagonal elements).
          * Complexity: O(n)
-         * @memberof NDArray.prototype
          * @param {NDArray} a
          * @returns {number} The sum of the diagonal elements.
          * @throws {Error} If the array is not 2D or not a square matrix.
@@ -246,6 +246,24 @@ declare module "ndwasm_decomp" {
             sign: number;
             logAbsDet: number;
         };
+        /**
+         * Computes the eigenvalues and eigenvectors of a general square matrix.
+         * Eigenvalues and eigenvectors can be complex numbers.
+         * The results are returned in an interleaved format where each complex number (a + bi)
+         * is represented by two consecutive float64 values (a, b).
+         *
+         * @param {NDArray} a - Input square matrix of shape `[n, n]`. Must be float64.
+         * @returns {{values: NDArray, vectors: NDArray}} An object containing:
+         *   - `values`: Complex eigenvalues as an NDArray of shape `[n, 2]`, where `[i, 0]` is real and `[i, 1]` is imaginary.
+         *   - `vectors`: Complex right eigenvectors as an NDArray of shape `[n, n, 2]`, where `[i, j, 0]` is real and `[i, j, 1]` is imaginary.
+         *              (Note: these are column vectors, such that `A * v = lambda * v`).
+         * @throws {Error} If WASM runtime is not loaded, input is not a square matrix, or input dtype is not float64.
+         * @memberof NDWasmDecomp
+         */
+        function eigen(a: NDArray): {
+            values: NDArray;
+            vectors: NDArray;
+        };
     }
     import { NDArray } from "ndarray_core";
 }
@@ -253,69 +271,61 @@ declare module "ndwasm_signal" {
     export namespace NDWasmSignal {
         /**
          * 1D Complex-to-Complex Fast Fourier Transform.
+         * The input array must have its last dimension of size 2 (real and imaginary parts).
+         * The transform is performed in-place.
          * Complexity: O(n log n)
          * @memberof NDWasmSignal
-         * @param {NDArray} a - Real part of the input signal.
-         * @returns {{real: NDArray, imag: NDArray}} - Complex result.
+         * @param {NDArray} a - Complex input signal, with shape [..., 2].
+         * @returns {NDArray} - Complex result, with the same shape as input.
          */
-        function fft(a: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
+        function fft(a: NDArray): NDArray;
         /**
          * 1D Inverse Complex-to-Complex Fast Fourier Transform.
+         * The input array must have its last dimension of size 2 (real and imaginary parts).
+         * The transform is performed in-place.
          * Complexity: O(n log n)
          * @memberof NDWasmSignal
-         * @param {NDArray} real - Real part of the frequency domain signal.
-         * @param {NDArray} imag - Imaginary part of the frequency domain signal.
-         * @returns {{real: NDArray, imag: NDArray}} - Time domain result.
+         * @param {NDArray} a - Complex frequency-domain signal, with shape [..., 2].
+         * @returns {NDArray} - Complex time-domain result, with the same shape as input.
          */
-        function ifft(real: NDArray, imag: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
+        function ifft(a: NDArray): NDArray;
         /**
          * 1D Real-to-Complex Fast Fourier Transform (Optimized for real input).
+         * The output is a complex array with shape [n/2 + 1, 2].
          * Complexity: O(n log n)
          * @memberof NDWasmSignal
          * @param {NDArray} a - Real input signal.
-         * @returns {{real: NDArray, imag: NDArray}} - Result of length (n/2 + 1).
+         * @returns {NDArray} - Complex result of shape [n/2 + 1, 2].
          */
-        function rfft(a: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
+        function rfft(a: NDArray): NDArray;
         /**
          * 1D Complex-to-Real Inverse Fast Fourier Transform.
+         * The input must be a complex array of shape [k, 2], where k is n/2 + 1.
          * @memberof NDWasmSignal
-         * @param {NDArray} real - Real part of frequency signal (length n/2 + 1).
-         * @param {NDArray} imag - Imaginary part of frequency signal (length n/2 + 1).
+         * @param {NDArray} a - Complex frequency signal of shape [n/2 + 1, 2].
          * @param {number} n - Length of the original real signal.
          * @returns {NDArray} Real-valued time domain signal.
          */
-        function rifft(real: NDArray, imag: NDArray, n: number): NDArray;
+        function rifft(a: NDArray, n: number): NDArray;
         /**
          * 2D Complex-to-Complex Fast Fourier Transform.
+         * The input array must be 3D with shape [rows, cols, 2].
+         * The transform is performed in-place.
          * Complexity: O(rows * cols * log(rows * cols))
          * @memberof NDWasmSignal
-         * @param {NDArray} a - 2D Matrix (Real part).
-         * @returns {{real: NDArray, imag: NDArray}} - 2D Complex result.
+         * @param {NDArray} a - 2D Complex input signal, with shape [rows, cols, 2].
+         * @returns {NDArray} - 2D Complex result, with the same shape as input.
          */
-        function fft2(a: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
+        function fft2(a: NDArray): NDArray;
         /**
          * 2D Inverse Complex-to-Complex Fast Fourier Transform.
+         * The input array must be 3D with shape [rows, cols, 2].
+         * The transform is performed in-place.
          * @memberof NDWasmSignal
-         * @param {NDArray} real - Real part of the 2D frequency signal.
-         * @param {NDArray} imag - Imaginary part of the 2D frequency signal.
-         * @returns {{real: NDArray, imag: NDArray}} - Time domain result.
+         * @param {NDArray} a - 2D Complex frequency-domain signal, with shape [rows, cols, 2].
+         * @returns {NDArray} - 2D Complex time-domain result, with the same shape as input.
          */
-        function ifft2(real: NDArray, imag: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
+        function ifft2(a: NDArray): NDArray;
         /**
          * 1D Discrete Cosine Transform (Type II).
          * Complexity: O(n log n)
@@ -366,9 +376,12 @@ declare module "ndwasm_analysis" {
          * @param {NDArray} a - Input array.
          * @param {number} k - Number of elements to return.
          * @param {boolean} largest - If true, find max elements; else min.
-         * @returns {Object} {values: NDArray, indices: NDArray}
+         * @returns {{values: NDArray, indices: NDArray}}
          */
-        function topk(a: NDArray, k: number, largest?: boolean): Object;
+        function topk(a: NDArray, k: number, largest?: boolean): {
+            values: NDArray;
+            indices: NDArray;
+        };
         /**
          * Computes the covariance matrix for a dataset of shape [n_samples, n_features].
          * @memberof NDWasmAnalysis
@@ -412,9 +425,12 @@ declare module "ndwasm_analysis" {
          * @memberof NDWasmAnalysis
          * @param {NDArray} a - Symmetric square matrix.
          * @param {boolean} computeVectors - Whether to return eigenvectors.
-         * @returns {Object} {values: NDArray, vectors: NDArray|null}
+         * @returns {{values: NDArray, vectors: NDArray|null}}
          */
-        function eigenSym(a: NDArray, computeVectors?: boolean): Object;
+        function eigenSym(a: NDArray, computeVectors?: boolean): {
+            values: NDArray;
+            vectors: NDArray | null;
+        };
         /**
          * Computes pairwise Euclidean distances between two sets of vectors.
          * @memberof NDWasmAnalysis
@@ -447,7 +463,6 @@ declare module "ndwasm_analysis" {
 declare module "ndwasm" {
     /**
      * Static factory: Creates a new NDArray directly from WASM computation results.
-     * @memberof NDArray
      * @param {WasmBuffer} bridge - The WasmBuffer instance containing the result from WASM.
      * @param {Array<number>} shape - The shape of the new NDArray.
      * @param {string} [dtype] - The data type of the new NDArray. If not provided, uses bridge.dtype.
@@ -484,42 +499,37 @@ declare module "ndwasm" {
             sign: number;
             logAbsDet: number;
         };
+        eigen(a: NDArray): {
+            values: NDArray;
+            vectors: NDArray;
+        };
     };
     export const signal: {
-        fft(a: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
-        ifft(real: NDArray, imag: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
-        rfft(a: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
-        rifft(real: NDArray, imag: NDArray, n: number): NDArray;
-        fft2(a: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
-        ifft2(real: NDArray, imag: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
+        fft(a: NDArray): NDArray;
+        ifft(a: NDArray): NDArray;
+        rfft(a: NDArray): NDArray;
+        rifft(a: NDArray, n: number): NDArray;
+        fft2(a: NDArray): NDArray;
+        ifft2(a: NDArray): NDArray;
         dct(a: NDArray): NDArray;
         conv2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
         correlate2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
     };
     export const analysis: {
         argsort(a: NDArray): NDArray;
-        topk(a: NDArray, k: number, largest?: boolean): Object;
+        topk(a: NDArray, k: number, largest?: boolean): {
+            values: NDArray;
+            indices: NDArray;
+        };
         cov(a: NDArray): NDArray;
         corr(a: NDArray): NDArray;
         norm(a: NDArray, type?: number): number;
         rank(a: NDArray, tol?: number): number;
         cond(a: NDArray, norm?: number): number;
-        eigenSym(a: NDArray, computeVectors?: boolean): Object;
+        eigenSym(a: NDArray, computeVectors?: boolean): {
+            values: NDArray;
+            vectors: NDArray | null;
+        };
         pairwiseDist(a: NDArray, b: NDArray): NDArray;
         kmeans(data: NDArray, k: number, maxIter?: number): {
             centroids: NDArray;
@@ -544,6 +554,10 @@ declare module "ndwasm" {
         dtype: string;
         byteLength: number;
         ptr: any;
+        /**
+         * Refreshes the view into WASM memory.
+         */
+        refresh(): this;
         view: any;
         /** Synchronizes JS data into the WASM buffer. */
         push(typedArray: any): void;
@@ -581,17 +595,22 @@ declare module "ndwasm" {
          * @param {object} [options] - Optional configuration.
          * @param {string} [options.wasmUrl='./ndarray_plugin.wasm'] - Path or URL to the wasm file.
          * @param {string} [options.execUrl='./wasm_exec.js'] - Path to the wasm_exec.js file (Node.js only).
+         * @param {number} [options.initialMemoryPages] - Initial memory size in 64KiB pages.
+         * @param {number} [options.maximumMemoryPages] - Maximum memory size in 64KiB pages.
          * @param {string} [options.baseDir='.']
          */
         init(options?: {
             wasmUrl?: string | undefined;
             execUrl?: string | undefined;
+            initialMemoryPages?: number | undefined;
+            maximumMemoryPages?: number | undefined;
             baseDir?: string | undefined;
         }): Promise<void>;
         /**
          * Helper method: Gets the suffix for Go export function names based on type.
+         * @private
          */
-        _getSuffix(dtype: any): "_F64" | "_F32";
+        private _getSuffix;
         /**
          * Quickly allocates a buffer.
          * @returns {WasmBuffer}
@@ -692,6 +711,60 @@ declare module "ndarray_factory" {
      */
     export function array(source: any[] | TypedArray, dtype?: string): NDArray;
     /**
+     * Creates an NDArray from a regular array or TypedArray.
+     * @param {Array|TypedArray} source - The source data.
+     * @return {NDArray}
+     */
+    export function float64(source: any[] | TypedArray): NDArray;
+    /**
+     * Creates an NDArray from a regular array or TypedArray.
+     * @param {Array|TypedArray} source - The source data.
+     * @return {NDArray}
+     */
+    export function float32(source: any[] | TypedArray): NDArray;
+    /**
+     * Creates an NDArray from a regular array or TypedArray.
+     * @param {Array|TypedArray} source - The source data.
+     * @return {NDArray}
+     */
+    export function uint32(source: any[] | TypedArray): NDArray;
+    /**
+     * Creates an NDArray from a regular array or TypedArray.
+     * @param {Array|TypedArray} source - The source data.
+     * @return {NDArray}
+     */
+    export function int32(source: any[] | TypedArray): NDArray;
+    /**
+     * Creates an NDArray from a regular array or TypedArray.
+     * @param {Array|TypedArray} source - The source data.
+     * @return {NDArray}
+     */
+    export function int16(source: any[] | TypedArray): NDArray;
+    /**
+     * Creates an NDArray from a regular array or TypedArray.
+     * @param {Array|TypedArray} source - The source data.
+     * @return {NDArray}
+     */
+    export function uint16(source: any[] | TypedArray): NDArray;
+    /**
+     * Creates an NDArray from a regular array or TypedArray.
+     * @param {Array|TypedArray} source - The source data.
+     * @return {NDArray}
+     */
+    export function int8(source: any[] | TypedArray): NDArray;
+    /**
+     * Creates an NDArray from a regular array or TypedArray.
+     * @param {Array|TypedArray} source - The source data.
+     * @return {NDArray}
+     */
+    export function uint8(source: any[] | TypedArray): NDArray;
+    /**
+     * Creates an NDArray from a regular array or TypedArray.
+     * @param {Array|TypedArray} source - The source data.
+     * @return {NDArray}
+     */
+    export function uint8c(source: any[] | TypedArray): NDArray;
+    /**
      * Creates a new NDArray of the given shape, filled with zeros.
      * @param {Array<number>} shape - The shape of the new array.
      * @param {string} [dtype='float64'] - The data type of the new array.
@@ -753,7 +826,6 @@ declare module "ndarray_factory" {
      * The `stack` function creates a new dimension, whereas `concat` joins along an existing one.
      * All input arrays must have the same shape and dtype.
      *
-     * @static
      * @param {Array<NDArray>} arrays - The list of arrays to stack.
      * @param {number} [axis=0] - The axis in the result array along which the input arrays are stacked.
      * @returns {NDArray} A new NDArray.
@@ -761,13 +833,64 @@ declare module "ndarray_factory" {
     export function stack(arrays: Array<NDArray>, axis?: number): NDArray;
     /**
      * Creates a 2D identity matrix.
-     * @memberof NDArray
      * @param {number} n - Number of rows.
      * @param {number} [m] - Number of columns. Defaults to n if not provided.
      * @param {string} [dtype='float64'] - Data type of the array.
      * @returns {NDArray} A 2D NDArray with ones on the main diagonal.
      */
     export function eye(n: number, m?: number, dtype?: string): NDArray;
+    import { NDArray } from "ndarray_core";
+}
+declare module "ndwasm_optimize" {
+    export namespace NDWasmOptimize {
+        /**
+         * Provides Optimization capabilities by wrapping Go WASM functions.
+         * minimize cᵀ * x
+         * s.t      G * x <= h
+         * 	        A * x = b
+         *          lower <= x <= upper
+         * @param {NDArray} c - Coefficient vector for the objective function (1D NDArray of float64).
+         * @param {NDArray | null} G - Coefficient matrix for inequality constraints (2D NDArray of float64).
+         * @param {NDArray | null} h - Right-hand side vector for inequality constraints (1D NDArray of float64).
+         * @param {NDArray | null} A - Coefficient matrix for equality constraints (2D NDArray of float64).
+         * @param {NDArray | null} b - Right-hand side vector for equality constraints (1D NDArray of float64).
+         * @param {Array} bounds - Optional variable bounds as an array of [lower, upper] pairs. Use null for unbounded. [0, null] for all for default.
+         * @returns {{x: NDArray, fun: number, status: number, message: string}} - The optimization result.
+         * @throws {Error} If WASM runtime is not loaded or inputs are invalid.
+         */
+        function linprog(c: NDArray, G: NDArray | null, h: NDArray | null, A: NDArray | null, b: NDArray | null, bounds: any[]): {
+            x: NDArray;
+            fun: number;
+            status: number;
+            message: string;
+        };
+        /**
+         * Fits a simple linear regression model: Y = alpha + beta*X.
+         * @param {NDArray} x - The independent variable (1D NDArray of float64).
+         * @param {NDArray} y - The dependent variable (1D NDArray of float64).
+         * @returns {{alpha: number, beta: number}} - An object containing the intercept (alpha) and slope (beta) of the fitted line.
+         * @throws {Error} If WASM runtime is not loaded or inputs are invalid.
+         */
+        function linearRegression(x: NDArray, y: NDArray): {
+            alpha: number;
+            beta: number;
+        };
+        /**
+         * Finds the minimum of a scalar function of one or more variables using an L-BFGS optimizer.
+         * @param {Function} func - The objective function to be minimized. It must take a 1D `Float64Array` `x` (current point) and return a single number (the function value at `x`).
+         * @param {NDArray} x0 - The initial guess for the optimization (1D NDArray of float64).
+         * @param {Object} [options] - Optional parameters.
+         * @param {Function} [options.grad] - The gradient of the objective function. Must take `x` (a 1D `Float64Array`) and write the result into the second argument `grad_out` (a 1D `Float64Array`). This function should *not* return a value.
+         * @returns {{x: NDArray, success: boolean, message: string, ...stats}} The optimization result.
+         */
+        function minimize(func: Function, x0: NDArray, options?: {
+            grad?: Function | undefined;
+        }): {
+            x: NDArray;
+            success: boolean;
+            message: string;
+        };
+    }
     import { NDArray } from "ndarray_core";
 }
 declare module "ndwasmarray" {
@@ -805,8 +928,9 @@ declare module "ndwasmarray" {
         /**
          * Internal helper to prepare operands for WASM operations.
          * Ensures input is converted to NDWasmArray and tracks if it needs auto-disposal.
+         * @private
          */
-        _prepareOperand(operand: any): (boolean | NDWasmArray)[];
+        private _prepareOperand;
         /**
          * Matrix Multiplication: C = this * other
          * @param {NDWasmArray | NDArray} other
@@ -821,6 +945,54 @@ declare module "ndwasmarray" {
         matmulBatch(other: any): NDWasmArray;
     }
     import { NDArray } from "ndarray_core";
+}
+declare module "ndarray_jit" {
+    /**
+     * Generates a JIT-compiled unary kernel.
+     * Output is always contiguous, so ptrOut simply increments by 1.
+     * @private
+     */
+    export function _createUnaryKernel(cacheKey: any, shape: any, sIn: any, fnOrStr: any): any;
+    /**
+     * Generates a kernel with unrolled nested loops and cumulative pointer increments.
+     * @private
+     */
+    export function _createBinKernel(cacheKey: any, shape: any, sA: any, sB: any, sOut: any, opStr: any, isComparison: any): any;
+    /**
+         * Generates a JIT kernel using nested loops and pointer gaps.
+         * @private
+         */
+    export function _createReduceKernel(cacheKey: any, shape: any, strides: any, iterAxes: any, reduceAxes: any, reducer: any, finalFn: any): any;
+    /**
+     * Generates a JIT-compiled kernel for the set operation.
+     * Optimized for V8 by using incremental pointer arithmetic and static nesting.
+     *
+     * @param {string} cacheKey - Unique key for the specific array structure.
+     * @param {number} ndim - Number of dimensions of the target array.
+     * @param {Array} targetShape - The logical shape of the selection.
+     * @param {Int32Array} tStrides - Strides of the target NDArray.
+     * @param {Int32Array} sStrides - Pre-computed broadcasting strides for the source.
+     * @param {Uint8Array} hasPSet - Flags indicating if a dimension uses fancy indexing or scalar.
+     * @param {Array<boolean>} isDimReduced - Flags indicating if a dimension is collapsed by scalar indexing.
+     * @private
+     */
+    export function _createSetKernel(cacheKey: string, ndim: number, targetShape: any[], tStrides: Int32Array, sStrides: Int32Array, hasPSet: Uint8Array, isDimReduced: Array<boolean>): any;
+    /**
+     * Generates a JIT-compiled kernel for the pick operation.
+     * Optimized for V8 with incremental pointer arithmetic and contiguous output writes.
+     *
+     * @param {string} cacheKey - Unique key for the specific array structure.
+     * @param {number} ndim - Number of dimensions of the source array.
+     * @param {Int32Array} sStrides - Strides of the source NDArray.
+     * @param {Uint8Array} isFullSlice - Flags indicating if a dimension is a full ":" slice.
+     * @param {Array<boolean>} isDimReduced - Flags indicating if a dimension is collapsed by scalar indexing.
+     * @param {Int32Array} odometerShape - The lengths of the pick-sets for each dimension.
+     * @private
+     */
+    export function _createPickKernel(cacheKey: string, ndim: number, sStrides: Int32Array, isFullSlice: Uint8Array, isDimReduced: Array<boolean>, odometerShape: Int32Array): any;
+    export namespace Jit {
+        let debug: boolean;
+    }
 }
 declare module "ndarray_core" {
     export namespace DTYPE_MAP {
@@ -838,6 +1010,120 @@ declare module "ndarray_core" {
      * The NDArray class
      */
     export class NDArray {
+        static random: {
+            _cryptoUniform01(size: any): Float64Array<any>;
+            random(shape: any[], low?: number, high?: number, dtype?: string): NDArray;
+            normal(shape: any[], mean?: number, std?: number, dtype?: string): NDArray;
+            bernoulli(shape: any[], p?: number, dtype?: string): NDArray;
+            exponential(shape: any[], lambda?: number, dtype?: string): NDArray;
+            poisson(shape: any[], lambda?: number, dtype?: string): NDArray;
+            _cast(data: any, dtype: any): any;
+        };
+        static blas: {
+            trace(a: NDArray): number;
+            matmul(a: NDArray, b: NDArray): NDArray;
+            matPow(a: NDArray, k: any): NDArray;
+            matmulBatch(a: NDArray, b: NDArray): NDArray;
+            syrk(a: NDArray): NDArray;
+            trsm(a: NDArray, b: NDArray, lower?: boolean): NDArray;
+            matVecMul(a: NDArray, x: NDArray): NDArray;
+            ger(x: NDArray, y: NDArray): NDArray;
+        };
+        static decomp: {
+            solve(a: NDArray, b: NDArray): NDArray;
+            inv(a: NDArray): NDArray;
+            svd(a: NDArray): {
+                u: NDArray;
+                s: NDArray;
+                v: NDArray;
+            };
+            qr(a: NDArray): {
+                q: NDArray;
+                r: NDArray;
+            };
+            cholesky(a: NDArray): NDArray;
+            lu(a: NDArray): NDArray;
+            pinv(a: NDArray): NDArray;
+            det(a: NDArray): number;
+            logDet(a: NDArray): {
+                sign: number;
+                logAbsDet: number;
+            };
+            eigen(a: NDArray): {
+                values: NDArray;
+                vectors: NDArray;
+            };
+        };
+        static analysis: {
+            argsort(a: NDArray): NDArray;
+            topk(a: NDArray, k: number, largest?: boolean): {
+                values: NDArray;
+                indices: NDArray;
+            };
+            cov(a: NDArray): NDArray;
+            corr(a: NDArray): NDArray;
+            norm(a: NDArray, type?: number): number;
+            rank(a: NDArray, tol?: number): number;
+            cond(a: NDArray, norm?: number): number;
+            eigenSym(a: NDArray, computeVectors?: boolean): {
+                values: NDArray;
+                vectors: NDArray | null;
+            };
+            pairwiseDist(a: NDArray, b: NDArray): NDArray;
+            kmeans(data: NDArray, k: number, maxIter?: number): {
+                centroids: NDArray;
+                labels: NDArray;
+                iterations: number;
+            };
+            kronecker(a: any, b: any): NDArray;
+        };
+        static image: {
+            decode(imageBytes: Uint8Array): NDArray | null;
+            encode(ndarray: NDArray, { format, quality }?: {
+                format?: string | undefined;
+                quality?: number | undefined;
+            }): Uint8Array | null;
+            encodePng(ndarray: NDArray): Uint8Array | null;
+            encodeJpeg(ndarray: NDArray, options?: {
+                quality?: number | undefined;
+            }): Uint8Array | null;
+            convertUint8ArrrayToDataurl(uint8array: Uint8Array, mimeType?: string): string;
+        };
+        static signal: {
+            fft(a: NDArray): NDArray;
+            ifft(a: NDArray): NDArray;
+            rfft(a: NDArray): NDArray;
+            rifft(a: NDArray, n: number): NDArray;
+            fft2(a: NDArray): NDArray;
+            ifft2(a: NDArray): NDArray;
+            dct(a: NDArray): NDArray;
+            conv2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
+            correlate2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
+        };
+        /**
+         * Optimization module for linear programming, non-linear minimization, and linear regression.
+         * @memberof NDArray
+         * @type {NDWasmOptimize}
+         */
+        static optimize: {
+            linprog(c: NDArray, G: NDArray | null, h: NDArray | null, A: NDArray | null, b: NDArray | null, bounds: any[]): {
+                x: NDArray;
+                fun: number;
+                status: number;
+                message: string;
+            };
+            linearRegression(x: NDArray, y: NDArray): {
+                alpha: number;
+                beta: number;
+            };
+            minimize(func: Function, x0: NDArray, options?: {
+                grad?: Function | undefined;
+            }): {
+                x: NDArray;
+                success: boolean;
+                message: string;
+            };
+        };
         /**
          * @param {TypedArray} data - The underlying physical storage.
          * @param {Object} options
@@ -860,110 +1146,16 @@ declare module "ndarray_core" {
         size: number;
         strides: Int32Array<ArrayBufferLike>;
         isContiguous: boolean;
-        random: {
-            _cryptoUniform01(size: any): Float64Array<any>;
-            random(shape: any[], low?: number, high?: number, dtype?: string): NDArray;
-            normal(shape: any[], mean?: number, std?: number, dtype?: string): NDArray;
-            bernoulli(shape: any[], p?: number, dtype?: string): NDArray;
-            exponential(shape: any[], lambda?: number, dtype?: string): NDArray;
-            poisson(shape: any[], lambda?: number, dtype?: string): NDArray;
-            _cast(data: any, dtype: any): any;
-        };
-        blas: {
-            trace(a: NDArray): number;
-            matmul(a: NDArray, b: NDArray): NDArray;
-            matPow(a: NDArray, k: any): NDArray;
-            matmulBatch(a: NDArray, b: NDArray): NDArray;
-            syrk(a: NDArray): NDArray;
-            trsm(a: NDArray, b: NDArray, lower?: boolean): NDArray;
-            matVecMul(a: NDArray, x: NDArray): NDArray;
-            ger(x: NDArray, y: NDArray): NDArray;
-        };
-        decomp: {
-            solve(a: NDArray, b: NDArray): NDArray;
-            inv(a: NDArray): NDArray;
-            svd(a: NDArray): {
-                u: NDArray;
-                s: NDArray;
-                v: NDArray;
-            };
-            qr(a: NDArray): {
-                q: NDArray;
-                r: NDArray;
-            };
-            cholesky(a: NDArray): NDArray;
-            lu(a: NDArray): NDArray;
-            pinv(a: NDArray): NDArray;
-            det(a: NDArray): number;
-            logDet(a: NDArray): {
-                sign: number;
-                logAbsDet: number;
-            };
-        };
-        analysis: {
-            argsort(a: NDArray): NDArray;
-            topk(a: NDArray, k: number, largest?: boolean): Object;
-            cov(a: NDArray): NDArray;
-            corr(a: NDArray): NDArray;
-            norm(a: NDArray, type?: number): number;
-            rank(a: NDArray, tol?: number): number;
-            cond(a: NDArray, norm?: number): number;
-            eigenSym(a: NDArray, computeVectors?: boolean): Object;
-            pairwiseDist(a: NDArray, b: NDArray): NDArray;
-            kmeans(data: NDArray, k: number, maxIter?: number): {
-                centroids: NDArray;
-                labels: NDArray;
-                iterations: number;
-            };
-            kronecker(a: any, b: any): NDArray;
-        };
-        image: {
-            decode(imageBytes: Uint8Array): NDArray | null;
-            encode(ndarray: NDArray, { format, quality }?: {
-                format?: string | undefined;
-                quality?: number | undefined;
-            }): Uint8Array | null;
-            encodePng(ndarray: NDArray): Uint8Array | null;
-            encodeJpeg(ndarray: NDArray, options?: {
-                quality?: number | undefined;
-            }): Uint8Array | null;
-            convertUint8ArrrayToDataurl(uint8array: Uint8Array, mimeType?: string): string;
-        };
-        signal: {
-            fft(a: NDArray): {
-                real: NDArray;
-                imag: NDArray;
-            };
-            ifft(real: NDArray, imag: NDArray): {
-                real: NDArray;
-                imag: NDArray;
-            };
-            rfft(a: NDArray): {
-                real: NDArray;
-                imag: NDArray;
-            };
-            rifft(real: NDArray, imag: NDArray, n: number): NDArray;
-            fft2(a: NDArray): {
-                real: NDArray;
-                imag: NDArray;
-            };
-            ifft2(real: NDArray, imag: NDArray): {
-                real: NDArray;
-                imag: NDArray;
-            };
-            dct(a: NDArray): NDArray;
-            conv2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
-            correlate2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
-        };
         _determineDtype(data: any): string;
         _computeDefaultStrides(shape: any): Int32Array<ArrayBuffer>;
         _checkContiguity(): boolean;
         /**
          * High-performance addressing: converts multidimensional indices to a physical offset.
+         * @private
          * @param {Array|Int32Array} indices
          * @param {number}
          */
-        _getOffset(indices: any[] | Int32Array): number;
+        private _getOffset;
         /**
          * To JavaScript Array
          * @returns {Array|number} the array
@@ -976,16 +1168,16 @@ declare module "ndarray_core" {
          */
         toString(): string;
         /**
-        * High-performance element-wise mapping.
-        * @param {Function} fn - The function to apply to each element.
+        * High-performance element-wise mapping with jit compilation.
+        * @param {string | Function} fnOrStr - The function string to apply to each element, like 'Math.sqrt(${val})', or a lambda expression
         * @returns {NDArray} A new array with the results.
-        * @memberof NDArray.prototype
+        *
         */
-        map(fn: Function): NDArray;
+        map(fnOrStr: string | Function, dtype?: undefined): NDArray;
         /**
-         * Generic iterator that handles stride logic.
+         * Generic iterator that handles stride logic. It's slow. use map if you want to use jit.
          * @param {Function} callback - A function called with `(value, index, flatPhysicalIndex)`.
-         * @memberof NDArray.prototype
+         * @see NDArray#map
          */
         iterate(callback: Function): void;
         /**
@@ -993,7 +1185,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to add.
          * @returns {NDArray} A new array containing the results.
-         * @memberof NDArray.prototype
+         *
          */
         add(other: NDArray | number): NDArray;
         /**
@@ -1001,7 +1193,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to subtract.
          * @returns {NDArray} A new array containing the results.
-         * @memberof NDArray.prototype
+         *
          */
         sub(other: NDArray | number): NDArray;
         /**
@@ -1009,7 +1201,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to multiply by.
          * @returns {NDArray} A new array containing the results.
-         * @memberof NDArray.prototype
+         *
          */
         mul(other: NDArray | number): NDArray;
         /**
@@ -1017,7 +1209,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to divide by.
          * @returns {NDArray} A new array containing the results.
-         * @memberof NDArray.prototype
+         *
          */
         div(other: NDArray | number): NDArray;
         /**
@@ -1025,7 +1217,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar exponent.
          * @returns {NDArray} A new array containing the results.
-         * @memberof NDArray.prototype
+         *
          */
         pow(other: NDArray | number): NDArray;
         /**
@@ -1033,7 +1225,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar divisor.
          * @returns {NDArray} A new array containing the results.
-         * @memberof NDArray.prototype
+         *
          */
         mod(other: NDArray | number): NDArray;
         /**
@@ -1041,7 +1233,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to add.
          * @returns {NDArray} The modified array (`this`).
-         * @memberof NDArray.prototype
+         *
          */
         iadd(other: NDArray | number): NDArray;
         /**
@@ -1049,7 +1241,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to subtract.
          * @returns {NDArray} The modified array (`this`).
-         * @memberof NDArray.prototype
+         *
          */
         isub(other: NDArray | number): NDArray;
         /**
@@ -1057,7 +1249,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to multiply by.
          * @returns {NDArray} The modified array (`this`).
-         * @memberof NDArray.prototype
+         *
          */
         imul(other: NDArray | number): NDArray;
         /**
@@ -1065,7 +1257,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to divide by.
          * @returns {NDArray} The modified array (`this`).
-         * @memberof NDArray.prototype
+         *
          */
         idiv(other: NDArray | number): NDArray;
         /**
@@ -1073,7 +1265,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar exponent.
          * @returns {NDArray} The modified array (`this`).
-         * @memberof NDArray.prototype
+         *
          */
         ipow(other: NDArray | number): NDArray;
         /**
@@ -1081,7 +1273,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar divisor.
          * @returns {NDArray} The modified array (`this`).
-         * @memberof NDArray.prototype
+         *
          */
         imod(other: NDArray | number): NDArray;
         /**
@@ -1089,7 +1281,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to perform the operation with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         bitwise_and(other: NDArray | number): NDArray;
         /**
@@ -1097,7 +1289,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to perform the operation with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         bitwise_or(other: NDArray | number): NDArray;
         /**
@@ -1105,7 +1297,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to perform the operation with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         bitwise_xor(other: NDArray | number): NDArray;
         /**
@@ -1113,7 +1305,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to perform the operation with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         bitwise_lshift(other: NDArray | number): NDArray;
         /**
@@ -1121,91 +1313,91 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to perform the operation with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         bitwise_rshift(other: NDArray | number): NDArray;
         /**
          * bitwise NOT. Returns a new array.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         bitwise_not(): NDArray;
         /**
          * Returns a new array with the numeric negation of each element.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         neg(): NDArray;
         /**
          * Returns a new array with the absolute value of each element.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         abs(): NDArray;
         /**
          * Returns a new array with `e` raised to the power of each element.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         exp(): NDArray;
         /**
          * Returns a new array with the square root of each element.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         sqrt(): NDArray;
         /**
         * Returns a new array with the sine of each element.
         * @function
         * @returns {NDArray}
-        * @memberof NDArray.prototype
+        *
         */
         sin(): NDArray;
         /**
          * Returns a new array with the cosine of each element.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         cos(): NDArray;
         /**
          * Returns a new array with the tangent of each element.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         tan(): NDArray;
         /**
          * Returns a new array with the natural logarithm (base e) of each element.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         log(): NDArray;
         /**
          * Returns a new array with the smallest integer greater than or equal to each element.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         ceil(): NDArray;
         /**
          * Returns a new array with the largest integer less than or equal to each element.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         floor(): NDArray;
         /**
          * Returns a new array with the value of each element rounded to the nearest integer.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         round(): NDArray;
         /**
@@ -1213,7 +1405,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to compare with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         eq(other: NDArray | number): NDArray;
         /**
@@ -1221,7 +1413,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to compare with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         neq(other: NDArray | number): NDArray;
         /**
@@ -1229,7 +1421,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to compare with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         gt(other: NDArray | number): NDArray;
         /**
@@ -1237,7 +1429,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to compare with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         gte(other: NDArray | number): NDArray;
         /**
@@ -1245,7 +1437,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to compare with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         lt(other: NDArray | number): NDArray;
         /**
@@ -1253,7 +1445,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to compare with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         lte(other: NDArray | number): NDArray;
         /**
@@ -1261,7 +1453,7 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to perform the operation with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         logical_and(other: NDArray | number): NDArray;
         /**
@@ -1269,47 +1461,47 @@ declare module "ndarray_core" {
          * @function
          * @param {NDArray|number} other - The array or scalar to perform the operation with.
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         logical_or(other: NDArray | number): NDArray;
         /**
          * Element-wise logical NOT. Returns a new boolean (uint8) array.
          * @function
          * @returns {NDArray}
-         * @memberof NDArray.prototype
+         *
          */
         logical_not(): NDArray;
         /**
          * Computes the sum of elements along the specified axis.
-         * @memberof NDArray.prototype
+         *
          * @param {number|null} [axis=null]
          * @returns {NDArray|number}
          */
         sum(axis?: number | null): NDArray | number;
         /**
          * Computes the cumprod of elements along the specified axis.
-         * @memberof NDArray.prototype
+         *
          * @param {number|null} [axis=null]
          * @returns {NDArray|number}
          */
         cumprod(axis?: number | null): NDArray | number;
         /**
          * Computes the arithmetic mean along the specified axis.
-         * @memberof NDArray.prototype
+         *
          * @param {number|null} [axis=null]
          * @returns {NDArray|number}
          */
         mean(axis?: number | null): NDArray | number;
         /**
          * Returns the maximum value along the specified axis.
-         * @memberof NDArray.prototype
+         *
          * @param {number|null} [axis=null]
          * @returns {NDArray|number}
          */
         max(axis?: number | null): NDArray | number;
         /**
          * Returns the minimum value along the specified axis.
-         * @memberof NDArray.prototype
+         *
          * @param {number|null} [axis=null]
          * @returns {NDArray|number}
          */
@@ -1318,7 +1510,7 @@ declare module "ndarray_core" {
          * Computes the variance along the specified axis.
          * Note: This implementation uses a two-pass approach (mean first, then squared differences).
          * Ensure that the `sub` method supports broadcasting if `axis` is not null.
-         * @memberof NDArray.prototype
+         *
          *
          * @param {number|null} [axis=null] - The axis to reduce.
          * @returns {NDArray|number}
@@ -1326,7 +1518,7 @@ declare module "ndarray_core" {
         var(axis?: number | null): NDArray | number;
         /**
          * Computes the standard deviation along the specified axis.
-         * @memberof NDArray.prototype
+         *
          *
          * @param {number|null} [axis=null] - The axis to reduce.
          * @returns {NDArray|number}
@@ -1346,39 +1538,39 @@ declare module "ndarray_core" {
         /**
          * Returns the index of the maximum value in a flattened array.
          * @returns {number}
-         * @memberof NDArray.prototype
+         *
          */
         argmax(): number;
         /**
          * Returns the index of the minimum value in a flattened array.
          * @returns {number}
-         * @memberof NDArray.prototype
+         *
          */
         argmin(): number;
         /**
          * Checks if all elements in the array are truthy.
          * @returns {boolean}
-         * @memberof NDArray.prototype
+         *
          */
         all(): boolean;
         /**
          * Checks if any element in the array is truthy.
          * @returns {boolean}
-         * @memberof NDArray.prototype
+         *
          */
         any(): boolean;
         /**
          * Returns a new array with a new shape, without changing data. O(1) operation.
          * This only works for contiguous arrays. If the array is not contiguous,
          * you must call .copy() first.
-         * @memberof NDArray.prototype
+         *
          * @param {...number} newShape - The new shape.
          * @returns {NDArray} NDArray view.
          */
         reshape(...newShape: number[]): NDArray;
         /**
          * Returns a new view of the array with axes transposed. O(1) operation.
-         * @memberof NDArray.prototype
+         *
          * @param {...number} axes - The new order of axes, e.g., [1, 0] for a matrix transpose. If not specified, reverses the order of the axes.
          * @returns {NDArray} NDArray view.
          */
@@ -1386,7 +1578,7 @@ declare module "ndarray_core" {
         /**
           * Returns a new view of the array sliced along each dimension.
           * This implementation strictly follows NumPy's basic slicing logic.
-          * @memberof NDArray.prototype
+          *
           *
           * @param {...(Array|number|null|undefined)} specs - Slice parameters for each dimension.
           * - number: Scalar indexing. Picks a single element and reduces dimensionality (e.g., arr[0]).
@@ -1400,7 +1592,7 @@ declare module "ndarray_core" {
         /**
          * Returns a 1D view of the i-th row.
          * Only applicable to 2D arrays.
-         * @memberof NDArray.prototype
+         *
          * @param {number} i - The row index.
          * @returns {NDArray} A 1D NDArray view.
          */
@@ -1408,14 +1600,14 @@ declare module "ndarray_core" {
         /**
          * Returns a 1D view of the j-th column.
          * Only applicable to 2D arrays.
-         * @memberof NDArray.prototype
+         *
          * @param {number} j - The column index.
          * @returns {NDArray} A 1D NDArray view.
          */
         colview(j: number): NDArray;
         /**
          * Remove axes of length one from the shape. O(1) operation.
-         * @memberof NDArray.prototype
+         *
          * @param {number|null} axis - The axis to squeeze. If null, all axes of length 1 are removed.
          * @returns {NDArray} NDArray view.
          */
@@ -1423,7 +1615,7 @@ declare module "ndarray_core" {
         /**
          * Returns a new, contiguous array with the same data. O(n) operation.
          * This converts any view (transposed, sliced) into a new array with a standard C-style memory layout.
-         * @memberof NDArray.prototype
+         *
          * @param {string | undefined} the target dtype
          * @returns {NDArray} NDArray view.
          */
@@ -1432,45 +1624,42 @@ declare module "ndarray_core" {
          * Ensures the returned array has a contiguous memory layout.
          * If the array is already contiguous, it returns itself. Otherwise, it returns a copy.
          * Often used as a pre-processing step before calling WASM or other libraries.
-         * @memberof NDArray.prototype
+         *
          * @returns {NDArray} NDArray view.
          */
         asContiguous(): NDArray;
         /**
          * Gets a single element from the array.
          * Note: This has higher overhead than batch operations. Use with care in performance-critical code.
-         * @memberof NDArray.prototype
+         *
          * @param {...number} indices - The indices of the element to get.
          * @returns {number}
          */
         get(...indices: number[]): number;
         /**
-         * Sets value(s) in the array using a unified, high-performance traversal engine.
-         * Supports scalar, advanced (fancy), and bulk assignment with NumPy-style broadcasting.
-         * Note: unlike numpy, for advanced (fancy) indexing, output shape won't be reordered.
-         * Dim for 1-element advanced indexing won't be removed, either.
-         * @memberof NDArray.prototype
-         * @param {number|Array|NDArray} value - The source value(s) to assign.
-         * @param {...(number|Array|null)} indices - Index specs for each dimension.
-         * @returns {NDArray}
-         */
+        * Sets value(s) in the array using a unified, JIT-optimized engine.
+        * Supports scalar indexing, fancy (array) indexing, and NumPy-style broadcasting.
+        *
+        * @param {number|Array|NDArray} value - The source data to assign.
+        * @param {...(number|Array|null)} indices - Indices for each dimension.
+        * @returns {NDArray}
+        */
         set(value: number | any[] | NDArray, ...indices: (number | any[] | null)[]): NDArray;
         /**
          * Advanced Indexing (Fancy Indexing).
-         * Returns a physical COPY of the selected data using incremental pointer updates.
+         * Returns a physical COPY of the selected data using a JIT-compiled engine.
          * Picks elements along each dimension.
          * Note: unlike numpy, for advanced (fancy) indexing, output shape won't be reordered.
          * Dim for 1-element advanced indexing won't be removed, either.
-         * @memberof NDArray.prototype
+         *
          * @param {...(number[]|TypedArray|number|null|undefined)} specs - Index selectors. null/undefined means select all
-         * @returns {NDArray} A new contiguous NDArray (Copy).
          */
         pick(...specs: (number[] | TypedArray | number | null | undefined)[]): NDArray;
         /**
          * Responsibility: Implements element-wise filtering.
          * Returns a NEW 1D contiguous NDArray (Copy).
          * Filters elements based on a predicate function or a boolean mask.
-         * @memberof NDArray.prototype
+         *
          *
          * @param {Function|Array|NDArray} predicateOrMask - A function returning boolean,
          *        or an array/NDArray of the same shape/size containing truthy/falsy values.
@@ -1483,7 +1672,7 @@ declare module "ndarray_core" {
         flatten(): NDArray;
         /**
          * Projects the current ndarray to a WASM proxy (WasmBuffer).
-         * @memberof NDArray.prototype
+         *
          * @param {WasmRuntime} runtime
          * @returns {WasmBuffer} A WasmBuffer instance representing the NDArray in WASM memory.
          */
@@ -1496,7 +1685,7 @@ declare module "ndarray_core" {
         /**
          * Calculates the trace of a 2D square matrix (sum of diagonal elements).
          * Complexity: O(n)
-         * @memberof NDArray.prototype
+         *
          * @returns {number} The sum of the diagonal elements.
          * @throws {Error} If the array is not 2D or not a square matrix.
          */
@@ -1506,7 +1695,7 @@ declare module "ndarray_core" {
          * @param {NDArray} other The right-hand side matrix.
          * @returns {NDArray} The result of the matrix multiplication.
          * @see NDWasmBlas.matmul
-         * @memberof NDArray.prototype
+         *
          */
         matmul(other: NDArray): NDArray;
         /**
@@ -1514,7 +1703,7 @@ declare module "ndarray_core" {
          * @param {number} k The exponent.
          * @returns {NDArray} The result of the matrix power.
          * @see NDWasmBlas.matPow
-         * @memberof NDArray.prototype
+         *
          */
         matPow(k: number): NDArray;
         /**
@@ -1522,7 +1711,7 @@ declare module "ndarray_core" {
          * @param {NDArray} other The right-hand side batch of matrices.
          * @returns {NDArray} The result of the batched matrix multiplication.
          * @see NDWasmBlas.matmulBatch
-         * @memberof NDArray.prototype
+         *
          */
         matmulBatch(other: NDArray): NDArray;
         /**
@@ -1530,14 +1719,14 @@ declare module "ndarray_core" {
          * @param {NDArray} vec The vector to multiply by.
          * @returns {NDArray} The resulting vector.
          * @see NDWasmBlas.matVecMul
-         * @memberof NDArray.prototype
+         *
          */
         matVecMul(vec: NDArray): NDArray;
         /**
          * Performs a symmetric rank-k update. This is a wrapper around `NDWasmBlas.syrk`.
          * @returns {NDArray} The resulting symmetric matrix.
          * @see NDWasmBlas.syrk
-         * @memberof NDArray.prototype
+         *
          */
         syrk(): NDArray;
         /**
@@ -1545,7 +1734,7 @@ declare module "ndarray_core" {
          * @param {NDArray} other The other vector.
          * @returns {NDArray} The resulting matrix.
          * @see NDWasmBlas.ger
-         * @memberof NDArray.prototype
+         *
          */
         ger(other: NDArray): NDArray;
         /**
@@ -1553,7 +1742,7 @@ declare module "ndarray_core" {
          * @param {NDArray} other The other matrix.
          * @returns {NDArray} The result of the Kronecker product.
          * @see NDWasmAnalysis.kronecker
-         * @memberof NDArray.prototype
+         *
          */
         kronecker(other: NDArray): NDArray;
         /**
@@ -1561,42 +1750,45 @@ declare module "ndarray_core" {
          * @param {NDArray} b The right-hand side matrix or vector.
          * @returns {NDArray} The solution matrix.
          * @see NDWasmDecomp.solve
-         * @memberof NDArray.prototype
+         *
          */
         solve(b: NDArray): NDArray;
         /**
          * Computes the multiplicative inverse of the matrix. This is a wrapper around `NDWasmDecomp.inv`.
          * @returns {NDArray} The inverted matrix.
          * @see NDWasmDecomp.inv
-         * @memberof NDArray.prototype
+         *
          */
         inv(): NDArray;
         /**
          * Computes the Moore-Penrose pseudo-inverse of the matrix. This is a wrapper around `NDWasmDecomp.pinv`.
          * @returns {NDArray} The pseudo-inverted matrix.
          * @see NDWasmDecomp.pinv
-         * @memberof NDArray.prototype
+         *
          */
         pinv(): NDArray;
         /**
          * Computes the Singular Value Decomposition (SVD). This is a wrapper around `NDWasmDecomp.svd`.
-         * @returns {{{q: NDArray, r: NDArray}}} An object containing the U, S, and V matrices.
+         * @returns {{q: NDArray, r: NDArray}} An object containing the U, S, and V matrices.
          * @see NDWasmDecomp.svd
-         * @memberof NDArray.prototype
+         *
          */
-        svd(): {};
+        svd(): {
+            q: NDArray;
+            r: NDArray;
+        };
         /**
          * Computes the QR decomposition. This is a wrapper around `NDWasmDecomp.qr`.
          * @returns {Object} An object containing the Q and R matrices.
          * @see NDWasmDecomp.qr
-         * @memberof NDArray.prototype
+         *
          */
         qr(): Object;
         /**
          * Computes the Cholesky decomposition. This is a wrapper around `NDWasmDecomp.cholesky`.
          * @returns {NDArray} The lower triangular matrix L.
          * @see NDWasmDecomp.cholesky
-         * @memberof NDArray.prototype
+         *
          */
         cholesky(): NDArray;
         /**
@@ -1608,64 +1800,87 @@ declare module "ndarray_core" {
         det(): number;
         /**
          * Computes the log-determinant of the matrix. This is a wrapper around `NDWasmDecomp.logDet`.
-         * @returns {{{sign: number, logAbsDet: number}}} An object containing the sign and log-absolute-determinant.
+         * @returns {{sign: number, logAbsDet: number}} An object containing the sign and log-absolute-determinant.
          * @see NDWasmDecomp.logDet
          * @memberof NDWasmDecomp.prototype
          */
-        logDet(): {};
+        logDet(): {
+            sign: number;
+            logAbsDet: number;
+        };
         /**
          * Computes the LU decomposition. This is a wrapper around `NDWasmDecomp.lu`.
          * @returns {NDArray} The LU matrix.
          * @see NDWasmDecomp.lu
-         * @memberof NDArray.prototype
+         *
          */
         lu(): NDArray;
         /**
-         * Computes the 1D Fast Fourier Transform. This is a wrapper around `NDWasmSignal.fft`.
-         * @returns {{real: NDArray, imag: NDArray}} An object containing the real and imaginary parts of the transform.
-         * @see NDWasmSignal.fft
-         * @memberof NDArray.prototype
+         * Computes the eigenvalues and eigenvectors of a general square matrix.
+         * @returns {{values: NDArray, vectors: NDArray}} An object containing eigenvalues and eigenvectors.
+         * @see NDWasmDecomp.eigen
          */
-        fft(): {
-            real: NDArray;
-            imag: NDArray;
+        eigen(): {
+            values: NDArray;
+            vectors: NDArray;
         };
+        /**
+         * Computes the 1D Fast Fourier Transform. This is a wrapper around `NDWasmSignal.fft`.
+         * @this {NDArray} Complex array with shape [..., 2].
+         * @returns {NDArray} Complex result with shape [..., 2].
+         * @see NDWasmSignal.fft
+         *
+         */
+        fft(this: NDArray): NDArray;
         /**
          * Computes the 1D Inverse Fast Fourier Transform. This is a wrapper around `NDWasmSignal.ifft`.
-         * @param {NDArray} imag The imaginary part of the frequency domain signal.
-         * @returns {{real: NDArray, imag: NDArray}} An object containing the real and imaginary parts of the resulting time-domain signal.
+         * @this {NDArray} Complex array with shape [..., 2].
+         * @returns {NDArray} Complex result with shape [..., 2].
          * @see NDWasmSignal.ifft
-         * @memberof NDArray.prototype
+         *
          */
-        ifft(imag: NDArray): {
-            real: NDArray;
-            imag: NDArray;
-        };
+        ifft(this: NDArray): NDArray;
         /**
          * Computes the 1D Real-to-Complex Fast Fourier Transform. This is a wrapper around `NDWasmSignal.rfft`.
-         * @returns {{real: NDArray, imag: NDArray}} An object containing the real and imaginary parts of the transform.
+         * @this {NDArray} real input array.
+         * @returns {NDArray} Complex result with shape [..., 2].
          * @see NDWasmSignal.rfft
-         * @memberof NDArray.prototype
+         *
          */
-        rfft(): {
-            real: NDArray;
-            imag: NDArray;
-        };
+        rfft(this: NDArray): NDArray;
         /**
-         * Computes the 2D Fast Fourier Transform. This is a wrapper around `NDWasmSignal.fft2`.
-         * @returns {{real: NDArray, imag: NDArray}} An object containing the real and imaginary parts of the transform.
-         * @see NDWasmSignal.fft2
-         * @memberof NDArray.prototype
+         * 1D Complex-to-Real Inverse Fast Fourier Transform.
+         * The input must be a complex array of shape [k, 2], where k is n/2 + 1. This is a wrapper around `NDWasmSignal.rifft`.
+        *  @returns {NDArray} Real-valued time domain signal.
+         * @this {NDArray} Complex frequency signal of shape [n/2 + 1, 2]
+         * @param {number} n - Length of the original real signal.
+         * @see NDWasmSignal.rifft
+         *
          */
-        fft2(): {
-            real: NDArray;
-            imag: NDArray;
-        };
+        rifft(this: NDArray, n: number): NDArray;
+        /**
+         * Computes the 2D Fast Fourier Transform. The input array must be 3D with shape [rows, cols, 2].
+         * This is a wrapper around `NDWasmSignal.fft2`.
+         * @returns {NDArray} 2D Complex result, with the same shape as input.
+         * @see NDWasmSignal.fft2
+         *
+         */
+        fft2(): NDArray;
+        /**
+         * 2D Inverse Complex-to-Complex Fast Fourier Transform.
+         * The input array must be 3D with shape [rows, cols, 2].
+         * The transform is performed in-place.
+         * This is a wrapper around `NDWasmSignal.ifft2`.
+         * @returns {NDArray} 2D Complex result, with the same shape as input.
+         * @see NDWasmSignal.ifft2
+         *
+         */
+        ifft2(): NDArray;
         /**
          * Computes the 1D Discrete Cosine Transform. This is a wrapper around `NDWasmSignal.dct`.
          * @returns {NDArray} The result of the DCT.
          * @see NDWasmSignal.dct
-         * @memberof NDArray.prototype
+         *
          */
         dct(): NDArray;
         /**
@@ -1675,7 +1890,7 @@ declare module "ndarray_core" {
          * @param {number} padding The padding.
          * @returns {NDArray} The convolved array.
          * @see NDWasmSignal.conv2d
-         * @memberof NDArray.prototype
+         *
          */
         conv2d(kernel: NDArray, stride: number, padding: number): NDArray;
         /**
@@ -1685,14 +1900,14 @@ declare module "ndarray_core" {
          * @param {number} padding The padding.
          * @returns {NDArray} The correlated array.
          * @see NDWasmSignal.correlate2d
-         * @memberof NDArray.prototype
+         *
          */
         correlate2d(kernel: NDArray, stride: number, padding: number): NDArray;
         /**
          * Returns the indices that would sort the array. This is a wrapper around `NDWasmAnalysis.argsort`.
          * @returns {NDArray} An array of indices.
          * @see NDWasmAnalysis.argsort
-         * @memberof NDArray.prototype
+         *
          */
         argsort(): NDArray;
         /**
@@ -1701,7 +1916,7 @@ declare module "ndarray_core" {
          * @param {boolean} largest Whether to find the largest or smallest elements.
          * @returns {{values: NDArray, indices: NDArray}} An object containing the values and indices of the top K elements.
          * @see NDWasmAnalysis.topk
-         * @memberof NDArray.prototype
+         *
          */
         topk(k: number, largest: boolean): {
             values: NDArray;
@@ -1711,7 +1926,7 @@ declare module "ndarray_core" {
          * Computes the covariance matrix. This is a wrapper around `NDWasmAnalysis.cov`.
          * @returns {NDArray} The covariance matrix.
          * @see NDWasmAnalysis.cov
-         * @memberof NDArray.prototype
+         *
          */
         cov(): NDArray;
         /**
@@ -1719,7 +1934,7 @@ declare module "ndarray_core" {
          * @param {number} type The type of norm to compute.
          * @returns {number} The norm of the matrix.
          * @see NDWasmAnalysis.norm
-         * @memberof NDArray.prototype
+         *
          */
         norm(type: number): number;
         /**
@@ -1727,7 +1942,7 @@ declare module "ndarray_core" {
          * @param {number} tol The tolerance for singular values.
          * @returns {number} The rank of the matrix.
          * @see NDWasmAnalysis.rank
-         * @memberof NDArray.prototype
+         *
          */
         rank(tol: number): number;
         /**
@@ -1735,7 +1950,7 @@ declare module "ndarray_core" {
          * @param {boolean} vectors Whether to compute the eigenvectors.
          * @returns {{values: NDArray, vectors: NDArray|null}} An object containing the eigenvalues and eigenvectors.
          * @see NDWasmAnalysis.eigenSym
-         * @memberof NDArray.prototype
+         *
          */
         eigenSym(vectors: boolean): {
             values: NDArray;
@@ -1746,7 +1961,7 @@ declare module "ndarray_core" {
          * @param {number} norm The norm type.
          * @returns {number} The reciprocal condition number.
          * @see NDWasmAnalysis.cond
-         * @memberof NDArray.prototype
+         *
          */
         cond(norm?: number): number;
         /**
@@ -1754,7 +1969,7 @@ declare module "ndarray_core" {
          * @param {NDArray} other The other set of vectors.
          * @returns {NDArray} The distance matrix.
          * @see NDWasmAnalysis.pairwiseDist
-         * @memberof NDArray.prototype
+         *
          */
         pairwiseDist(other: NDArray): NDArray;
         /**
@@ -1763,34 +1978,20 @@ declare module "ndarray_core" {
          * @param {number} maxIter The maximum number of iterations.
          * @returns {{centroids: NDArray,labels: NDArray,iterations: number}} An object containing the centroids, labels, and number of iterations.
          * @see NDWasmAnalysis.kmeans
-         * @memberof NDArray.prototype
+         *
          */
         kmeans(k: number, maxIter: number): {
             centroids: NDArray;
             labels: NDArray;
             iterations: number;
         };
-        /**
-         * perform binary operations (e.g., add, subtract).
-         * @private
-         * @param {any} other
-         * @param {Function} opFn - The function to apply element-wise (e.g., (a, b) => a + b).
-         * @param {boolean} [isInplace=false] - If true, modifies the original array.
-         * @returns {function(): NDArray} the function object
-         */
-        private _binaryOp;
-        /**
-         * perform comparison operators (e.g., equals, greater than).
-         * These return a mask array of dtype 'uint8'.
-         * @private
-         * @returns {function(): NDArray}
-         */
-        private _comparisonOp;
+        _binaryOp(other: any, opFn: any, isInplace?: boolean): NDArray;
+        _comparisonOp(other: any, compFn: any): NDArray;
     }
     import { WasmRuntime } from "ndwasm";
     import { NDWasmArray } from "ndwasmarray";
 }
-declare module "index" {
+declare module "ndarray" {
     export function init(baseDir?: string): Promise<void>;
     export const random: {
         _cryptoUniform01(size: any): Float64Array<any>;
@@ -1813,19 +2014,108 @@ declare module "index" {
         }): Uint8Array | null;
         convertUint8ArrrayToDataurl(uint8array: Uint8Array, mimeType?: string): string;
     };
+    export const optimize: {
+        linprog(c: NDArray, G: NDArray | null, h: NDArray | null, A: NDArray | null, b: NDArray | null, bounds: any[]): {
+            x: NDArray;
+            fun: number;
+            status: number;
+            message: string;
+        };
+        linearRegression(x: NDArray, y: NDArray): {
+            alpha: number;
+            beta: number;
+        };
+        minimize(func: Function, x0: NDArray, options?: {
+            grad?: Function | undefined;
+        }): {
+            x: NDArray;
+            success: boolean;
+            message: string;
+        };
+    };
+    export const decomp: {
+        solve(a: NDArray, b: NDArray): NDArray;
+        inv(a: NDArray): NDArray;
+        svd(a: NDArray): {
+            u: NDArray;
+            s: NDArray;
+            v: NDArray;
+        };
+        qr(a: NDArray): {
+            q: NDArray;
+            r: NDArray;
+        };
+        cholesky(a: NDArray): NDArray;
+        lu(a: NDArray): NDArray;
+        pinv(a: NDArray): NDArray;
+        det(a: NDArray): number;
+        logDet(a: NDArray): {
+            sign: number;
+            logAbsDet: number;
+        };
+        eigen(a: NDArray): {
+            values: NDArray;
+            vectors: NDArray;
+        };
+    };
+    export const analysis: {
+        argsort(a: NDArray): NDArray;
+        topk(a: NDArray, k: number, largest?: boolean): {
+            values: NDArray;
+            indices: NDArray;
+        };
+        cov(a: NDArray): NDArray;
+        corr(a: NDArray): NDArray;
+        norm(a: NDArray, type?: number): number;
+        rank(a: NDArray, tol?: number): number;
+        cond(a: NDArray, norm?: number): number;
+        eigenSym(a: NDArray, computeVectors?: boolean): {
+            values: NDArray;
+            vectors: NDArray | null;
+        };
+        pairwiseDist(a: NDArray, b: NDArray): NDArray;
+        kmeans(data: NDArray, k: number, maxIter?: number): {
+            centroids: NDArray;
+            labels: NDArray;
+            iterations: number;
+        };
+        kronecker(a: any, b: any): NDArray;
+    };
+    export const blas: {
+        trace(a: NDArray): number;
+        matmul(a: NDArray, b: NDArray): NDArray;
+        matPow(a: NDArray, k: any): NDArray;
+        matmulBatch(a: NDArray, b: NDArray): NDArray;
+        syrk(a: NDArray): NDArray;
+        trsm(a: NDArray, b: NDArray, lower?: boolean): NDArray;
+        matVecMul(a: NDArray, x: NDArray): NDArray;
+        ger(x: NDArray, y: NDArray): NDArray;
+    };
+    export const signal: {
+        fft(a: NDArray): NDArray;
+        ifft(a: NDArray): NDArray;
+        rfft(a: NDArray): NDArray;
+        rifft(a: NDArray, n: number): NDArray;
+        fft2(a: NDArray): NDArray;
+        ifft2(a: NDArray): NDArray;
+        dct(a: NDArray): NDArray;
+        conv2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
+        correlate2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
+    };
+    export { Jit } from "./ndarray_jit.js";
     export * from "ndwasm";
     export * from "ndarray_factory";
-    export * from "ndwasm";
     export default NDArray;
     import { help } from "help";
-    import { NDArray } from "ndarray_core";
     import { NDProb } from "ndarray_prob";
     import { NDWasmDecomp } from "ndwasm_decomp";
     import { NDWasmAnalysis } from "ndwasm_analysis";
     import { NDWasmBlas } from "ndwasm_blas";
     import { NDWasmSignal } from "ndwasm_signal";
     import { NDWasmImage } from "ndwasm_image";
+    import { NDWasmOptimize } from "ndwasm_optimize";
+    import { NDArray } from "ndarray_core";
     import { DTYPE_MAP } from "ndarray_core";
     import { NDWasmArray } from "ndwasmarray";
-    export { help, NDProb, NDWasmDecomp, NDWasmAnalysis, NDWasmBlas, NDWasmSignal, NDWasmImage, NDArray, DTYPE_MAP, NDWasmArray };
+    export { help, NDProb, NDWasmDecomp, NDWasmAnalysis, NDWasmBlas, NDWasmSignal, NDWasmImage, NDWasmOptimize, NDArray, DTYPE_MAP, NDWasmArray };
 }
