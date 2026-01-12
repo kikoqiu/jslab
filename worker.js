@@ -5,7 +5,7 @@ globalThis.window=globalThis;
 const workerLibs = [
     'libbf.js/libbf.js',
     'libbf.js/bf.js',
-    'math.15.1.0.js',
+    '3pty/math.15.1.0.js',
     'box.js',
 ];
 async function loadLibs() {
