@@ -419,7 +419,7 @@ const App = {
       await this.$nextTick();
       await this.delay(20); // Allow UI to update
       try {
-        cur.result = ''; cur.resultScript = '';
+        //cur.result = ''; cur.resultScript = '';
         let codeToRun = cur.code;
         if (debug) codeToRun = "debugger;\n" + codeToRun;
         let evalresult = workerhelper.runcode(codeToRun, info);
@@ -427,6 +427,7 @@ const App = {
         if (evalresult !== undefined) cur.result += `<pre>${String(evalresult)}</pre>`;
       } catch (e) {
         cur.result = this.formatError(info.compiled_code, e);
+        cur.resultScript = '';
         console.error(e);
       } finally {
         cur.eindex = this.maxeIndex++;
