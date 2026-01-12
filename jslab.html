@@ -419,7 +419,8 @@ const App = {
       await this.$nextTick();
       await this.delay(20); // Allow UI to update
       try {
-        //cur.result = ''; cur.resultScript = '';
+        //cur.result = ''; 
+        cur.resultScript = '';
         let codeToRun = cur.code;
         if (debug) codeToRun = "debugger;\n" + codeToRun;
         let evalresult = workerhelper.runcode(codeToRun, info);
@@ -431,12 +432,12 @@ const App = {
         console.error(e);
       } finally {
         cur.eindex = this.maxeIndex++;
-        if (!debug) {
+        /*if (!debug) {
             this.serialize(async (cnt) => {
                 await this.vfs.saveFile(this.filename, cnt);
                 await this.vfs.setLastFile(this.filename);
             });
-        }
+        }*/
       }
     },
     async evalCode(debug = false) {
