@@ -27086,6 +27086,53 @@ The returned result is directly inserted into the javascript code, any markdown 
         return inlineCopilot({ onSuggestionRequest, delay: 0, acceptOnClick: true, hotkey: "Alt-i", maxPrefix: 10000, maxSuffix: 10000 });
     }
 
+    // --- CONFIGURATION ---
+    let staticCompletionPromises = new Map();
+    let lspWorker = new Worker('lsp_worker.js');
+    // Handle messages from the LSP worker
+    lspWorker.onmessage = function (e) {
+        const { type, payload } = e.data;
+        if (type === 'staticCompletionResult') {
+            const promise = staticCompletionPromises.get(payload.completionId);
+            if (promise) {
+                promise.resolve(payload.result);
+                staticCompletionPromises.delete(payload.completionId);
+            }
+        }
+        else if (type === 'error') {
+            console.error('LSP Worker error:', payload.message);
+        }
+    };
+    lspWorker.onerror = function (error) {
+        console.error("An error occurred in lsp_worker.js:", error);
+        for (const promise of staticCompletionPromises.values()) {
+            promise.reject(new Error("LSP Worker failed."));
+        }
+        staticCompletionPromises.clear();
+    };
+    /**
+     * Gets static completions. Executes in a worker.
+     * @param {object} context - The completion context from CodeMirror.
+     * @returns {Promise<Array>} A promise that resolves to an array of completion items.
+     */
+    function getStaticCompletions(context) {
+        const completionId = Date.now() + Math.random();
+        const promise = new Promise((resolve, reject) => {
+            staticCompletionPromises.set(completionId, { resolve, reject });
+        });
+        lspWorker.postMessage({
+            type: 'getStaticCompletions',
+            payload: { context, completionId }
+        });
+        setTimeout(() => {
+            if (staticCompletionPromises.has(completionId)) {
+                staticCompletionPromises.get(completionId).reject(new Error("LSP completion request timed out."));
+                staticCompletionPromises.delete(completionId);
+            }
+        }, 5000);
+        return promise;
+    }
+
     const basicNormalize = typeof String.prototype.normalize == "function"
         ? x => x.normalize("NFKD") : x => x;
     /**
@@ -28522,7 +28569,7 @@ The returned result is directly inserted into the javascript code, any markdown 
             output += `</ul>`;
         }
         // Examples
-        if (doc.examples) {
+        if (doc.examples && doc.examples.length > 0) {
             output += `<p><strong>Examples:</strong></p>`;
             output += `<ul class="cm-tooltip-list">`;
             for (const example of doc.examples) {
@@ -28533,8 +28580,13 @@ The returned result is directly inserted into the javascript code, any markdown 
         return output + "</div>";
     }
     const customCompletions = async (context) => {
-        // This regex is more robust, capturing chains of properties.
-        const match = context.matchBefore(/(?:[\w$]+\.)*[\w$]*/);
+        // Regex updated to allow function calls in the chain (e.g., func().prop).
+        // It captures:
+        // 1. Identifiers: [\w$]+
+        // 2. Optional arguments: (?:\( ... \))?
+        // 3. Argument content: (?:[^();\n]|\([^();\n]*\))* 
+        //    - Matches non-special chars, or one level of nested parentheses, excluding ';', '\n'.
+        const match = context.matchBefore(/(?:[\w$]+(?:\((?:[^();\n]|\([^();\n]*\))*\))?\.)*[\w$]*/);
         if (!match || (match.from === match.to && !context.explicit)) {
             return null;
         }
@@ -28583,6 +28635,14 @@ The returned result is directly inserted into the javascript code, any markdown 
                         return container;
                     }
                     try {
+                        if (options.jsdoc) {
+                            return document.createRange().createContextualFragment(formatDocHTML(options.jsdoc));
+                        }
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    try {
                         let doc = await workerhelper.getDoc([fullMatch]);
                         if (doc && doc[0]) {
                             return document.createRange().createContextualFragment(formatDocHTML(doc[0]));
@@ -28617,21 +28677,46 @@ The returned result is directly inserted into the javascript code, any markdown 
                 return { from: match.from + 4, options: found, validFor: /^\w*$/ };
             }
         }
-        let ctx = { text, memberPrefix, pathParts };
-        // --- Get properties from the resolved parent object ---
-        let result = await workerhelper.getCompletions(ctx);
-        for (let item of result) {
-            if (item['snippet']) {
-                item.apply = snippet(item.snippet);
+        let ctx = {
+            text,
+            memberPrefix,
+            pathParts,
+            fulltext: context.state.doc.toString(),
+            pos: context.pos
+        };
+        const staticCompletions = getStaticCompletions(ctx);
+        // --- Get properties ---
+        // Only invoke dynamic completion if there are no function calls (parentheses) in the chain.
+        // Dynamic completion supports full property chains but not function return types.
+        let dynamicResults = null;
+        if (text.indexOf('(') === -1) {
+            dynamicResults = await workerhelper.getCompletions(ctx);
+        }
+        // Process and add completions from both sources
+        if (dynamicResults) {
+            for (let item of dynamicResults) {
+                if (item['snippet']) {
+                    item.apply = snippet(item.snippet);
+                }
+                addCompletion(item);
             }
-            addCompletion(item);
+        }
+        const staticResults = await staticCompletions;
+        if (staticResults) {
+            for (let item of staticResults) {
+                if (item['snippet']) {
+                    item.apply = snippet(item.snippet);
+                }
+                addCompletion(item);
+            }
         }
         if (found.length === 0)
             return null;
         return {
             from: fromPos,
             options: found,
-            validFor: /^(?:[\w$]+\.)*[\w$]+?$/
+            // Updated validFor to match the regex logic used in matchBefore
+            validFor: /^(?:[\w$]+(?:\((?:[^();\n]|\([^();\n]*\))*\))?\.)*[\w$]+?$/
         };
     };
     // --- LINTING LOGIC ---

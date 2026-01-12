@@ -3,6 +3,7 @@ import { javascript, javascriptLanguage } from "@codemirror/lang-javascript";
 import { indentWithTab } from "@codemirror/commands";
 import { linter, lintGutter } from "@codemirror/lint";
 import { createCopilotExtension } from "./aiCopilot.mjs";
+import { getStaticCompletions } from "./lsp_helper.mjs";
 
 import { EditorState} from "@codemirror/state"
 import {
@@ -269,7 +270,7 @@ function formatDocHTML(doc) {
     
 
     // Examples
-    if (doc.examples) {
+    if (doc.examples && doc.examples.length > 0) {
         output += `<p><strong>Examples:</strong></p>`;   
         output+= `<ul class="cm-tooltip-list">`;     
         for (const example of doc.examples) {
@@ -284,8 +285,13 @@ function formatDocHTML(doc) {
 
 
 const customCompletions = async (context) => {
-    // This regex is more robust, capturing chains of properties.
-    const match = context.matchBefore(/(?:[\w$]+\.)*[\w$]*/);
+    // Regex updated to allow function calls in the chain (e.g., func().prop).
+    // It captures:
+    // 1. Identifiers: [\w$]+
+    // 2. Optional arguments: (?:\( ... \))?
+    // 3. Argument content: (?:[^();\n]|\([^();\n]*\))* 
+    //    - Matches non-special chars, or one level of nested parentheses, excluding ';', '\n'.
+    const match = context.matchBefore(/(?:[\w$]+(?:\((?:[^();\n]|\([^();\n]*\))*\))?\.)*[\w$]*/);
     if (!match || (match.from === match.to && !context.explicit)) {
         return null;
     }
@@ -333,6 +339,13 @@ const customCompletions = async (context) => {
                 return container;
               }
               try{
+                if(options.jsdoc){
+                  return document.createRange().createContextualFragment(formatDocHTML(options.jsdoc));
+                }
+              }catch(e){
+                console.log(e);
+              }
+              try{
                 let doc=await workerhelper.getDoc([fullMatch]);
                 if(doc && doc[0]){
                   return document.createRange().createContextualFragment(formatDocHTML(doc[0]));
@@ -372,15 +385,38 @@ const customCompletions = async (context) => {
           return { from: match.from + 4, options: found, validFor: /^\w*$/ };
         }
     }
-    let ctx = {text,memberPrefix,pathParts};
-
-    // --- Get properties from the resolved parent object ---
-    let result=await workerhelper.getCompletions(ctx);
-    for(let item of result){
-      if(item['snippet']){
-        item.apply = snippet(item.snippet);
-      }
-      addCompletion(item);
+    let ctx = {
+        text,
+        memberPrefix,
+        pathParts,
+        fulltext: context.state.doc.toString(),
+        pos: context.pos
+    };
+    const staticCompletions = getStaticCompletions(ctx);    
+    // --- Get properties ---
+    // Only invoke dynamic completion if there are no function calls (parentheses) in the chain.
+    // Dynamic completion supports full property chains but not function return types.
+    let dynamicResults = null;
+    if (text.indexOf('(') === -1) {
+        dynamicResults = await workerhelper.getCompletions(ctx);
+    }
+    // Process and add completions from both sources
+    if (dynamicResults) {
+        for (let item of dynamicResults) {
+            if (item['snippet']) {
+                item.apply = snippet(item.snippet);
+            }
+            addCompletion(item);
+        }
+    }
+    const staticResults = await staticCompletions;
+    if (staticResults) {
+        for (let item of staticResults) {
+            if (item['snippet']) {
+                item.apply = snippet(item.snippet);
+            }
+            addCompletion(item);
+        }
     }
 
     if (found.length === 0) return null;
@@ -388,7 +424,8 @@ const customCompletions = async (context) => {
     return {
         from: fromPos,
         options: found,
-        validFor: /^(?:[\w$]+\.)*[\w$]+?$/
+        // Updated validFor to match the regex logic used in matchBefore
+        validFor: /^(?:[\w$]+(?:\((?:[^();\n]|\([^();\n]*\))*\))?\.)*[\w$]+?$/
     };
 };
 
