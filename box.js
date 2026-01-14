@@ -130,26 +130,42 @@ box.dumpJSON=function(...o){
 };
 
 /**
- * Plot with plotly.js. General plot function. Parameters are passed to plotly
+ * Plot with plotly.js. General plot function. Parameters are passed to plotly.
  * @param {*} data data arrays
- * @param {*} layout 
- * @param {*} config 
+ * @param {*} layout the plotly layout
+ * @param {*} config the plotly config
  * @param {*} style Extra plot html div css style
+ * @param {*} frames the plotly frames
+ * @returns the plotly div id
  */
-box.plotly=function(data, layout, config, style){
+box.plotly=function(data, layout, config, style, frames){
   if(!style){
     style=''
   }
-  layout=JSON.stringify(layout);
-  config=JSON.stringify(config);  
-  let json=JSON.stringify(data); 
+  let obj={config:config,layout:layout,frames:frames,data:data};
+  let json=JSON.stringify(obj); 
+
   var div='div-'+crypto.randomUUID();
-  //console.log('Plotly div:',div);
   let node=document.createRange().createContextualFragment(`<div class="plot" id="${div}" style="${style};"></div>`);
   globalThis.document.body.append(node);
-  let scr=`Plotly.react("${div}", ${json},${layout},${config});`;//newPlot
+
+  let scr=`Plotly.react("${div}", ${json});\n`;//newPlot
   box.outputBuffer.resultScript += scr;
+  return div;
 };
+
+
+/**
+ * add animation to a plotly div
+ * @param {*} div the plotly div id
+ * @param {*} frameOrGroupNameOrFrameList frame name or group name or list of frames
+ * @param {*} animationAttributes animation attributes , eg. {transition: {duration: 500, easing: 'linear-in-out'}, frame: {duration: 500} }
+ */
+box.plotlyAnimate=function(div, frameOrGroupNameOrFrameList, animationAttributes){
+  let script=`Plotly.animate(${JSON.stringify(div)}, ${JSON.stringify(frameOrGroupNameOrFrameList)}, ${JSON.stringify(animationAttributes)});\n`;  
+  box.outputBuffer.resultScript += script;
+};
+
 
 /**
  * Unpace array of objects to get array of properties
@@ -169,6 +185,7 @@ box.unpack=function(data,...props){
 /**
  * Plot a line figure
  * @param  {...any} xPoints_yPoints x-points,y-points,[x-point,y-point...],[{labels,style,layout,config}] 
+ * @returns the plotly div id
  */
 box.plot=function(...xPoints_yPoints){
   let args=xPoints_yPoints;
@@ -205,12 +222,13 @@ box.plot=function(...xPoints_yPoints){
       
     }
   }
-  box.plotly(data,layout,config,style);
+  return box.plotly(data,layout,config,style);
 };
 
 /**
  * Plot a 3d line figure
  * @param  {...any} xPoints_yPoints_zPoints x-points,y-points,z-points,[x-point,y-point,z-points...],[{labels,style,layout,config}] 
+ * @returns the plotly div id
  */
 box.plot3d=function(...xPoints_yPoints_zPoints){
   let args=xPoints_yPoints_zPoints;
@@ -242,7 +260,7 @@ box.plot3d=function(...xPoints_yPoints_zPoints){
       config=dic['config'];
     }    
   }
-  box.plotly(data,layout,config,style || 'height:600px;');
+  return box.plotly(data,layout,config,style || 'height:600px;');
 };
 
 
