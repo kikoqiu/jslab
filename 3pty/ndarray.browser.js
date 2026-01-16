@@ -7076,6 +7076,7 @@ var ndarray = (() => {
       params: [
         {
           name: "start",
+          description: "the starting value of the sequence.",
           type: {
             names: [
               "number"
@@ -7084,6 +7085,7 @@ var ndarray = (() => {
         },
         {
           name: "stop",
+          description: "the end value of the sequence.",
           type: {
             names: [
               "number",
@@ -7093,18 +7095,33 @@ var ndarray = (() => {
         },
         {
           name: "step",
+          description: "the spacing between values.",
           type: {
             names: [
               "number",
               "null"
             ]
-          }
+          },
+          optional: true,
+          defaultvalue: 1
         },
         {
           name: "dtype",
+          description: "the data type of the resulting array.",
           type: {
             names: [
               "string"
+            ]
+          },
+          optional: true,
+          defaultvalue: "'float64'"
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
             ]
           }
         }
@@ -7117,6 +7134,7 @@ var ndarray = (() => {
       params: [
         {
           name: "start",
+          description: "the starting value of the sequence.",
           type: {
             names: [
               "number"
@@ -7125,6 +7143,7 @@ var ndarray = (() => {
         },
         {
           name: "stop",
+          description: "the end value of the sequence.",
           type: {
             names: [
               "number",
@@ -7134,19 +7153,25 @@ var ndarray = (() => {
         },
         {
           name: "num",
+          description: "the number of samples to generate.",
           type: {
             names: [
               "number"
             ]
-          }
+          },
+          optional: true,
+          defaultvalue: 50
         },
         {
           name: "dtype",
+          description: "the data type of the resulting array.",
           type: {
             names: [
               "string"
             ]
-          }
+          },
+          optional: true,
+          defaultvalue: "'float64'"
         }
       ],
       returns: [

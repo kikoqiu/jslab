@@ -788,18 +788,19 @@ declare module "ndarray_factory" {
     export function full(shape: Array<number>, value: any, dtype?: string): NDArray;
     /**
      * Like Python's arange: [start, stop)
-     * @param {number} start
-     * @param {number | null} stop
-     * @param {number | null} step
-     * @param {string} dtype
+     * @param {number} start the starting value of the sequence.
+     * @param {number | null} stop the end value of the sequence.
+     * @param {number | null} [step=1] the spacing between values.
+     * @param {string} [dtype='float64'] the data type of the resulting array.
+     * @returns {NDArray}
      */
     export function arange(start: number, stop?: number | null, step?: number | null, dtype?: string): NDArray;
     /**
      * Linearly spaced points.
-     * @param {number} start
-     * @param {number | null} stop
-     * @param {number} num
-     * @param {string} dtype
+     * @param {number} start the starting value of the sequence.
+     * @param {number | null} stop the end value of the sequence.
+     * @param {number} [num=50] the number of samples to generate.
+     * @param {string} [dtype='float64'] the data type of the resulting array.
      * @returns {NDArray}
      */
     export function linspace(start: number, stop: number | null, num?: number, dtype?: string): NDArray;

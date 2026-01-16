@@ -11144,7 +11144,7 @@
             img.setAttribute("aria-hidden", "true");
             super(img, 0, flags);
         }
-        get isHidden() { return false; }
+        get isHidden() { return true; }
         get overrideDOMText() { return Text.empty; }
         coordsIn(pos) { return this.dom.getBoundingClientRect(); }
     }
@@ -11299,6 +11299,9 @@
                 }
                 this.cache.reused.set(mark, 2 /* Reused.DOM */);
             }
+            let oldTile = Tile.get(composition.text);
+            if (oldTile)
+                this.cache.reused.set(oldTile, 2 /* Reused.DOM */);
             let text = new TextTile(composition.text, composition.text.nodeValue);
             text.flags |= 8 /* TileFlag.Composition */;
             head.append(text);
@@ -11533,10 +11536,14 @@
                         widgets.splice(i, 1);
                         if (i < this.index[0])
                             this.index[0]--;
-                        this.reused.set(tile, 1 /* Reused.Full */);
-                        tile.length = length;
-                        tile.flags = (tile.flags & -498) | flags;
-                        return tile;
+                        if (tile.widget == widget && tile.length == length && (tile.flags & (496 /* TileFlag.Widget */ | 1 /* TileFlag.BreakAfter */)) == flags) {
+                            this.reused.set(tile, 1 /* Reused.Full */);
+                            return tile;
+                        }
+                        else {
+                            this.reused.set(tile, 2 /* Reused.DOM */);
+                            return new WidgetTile(tile.dom, length, widget, (tile.flags & -498) | flags);
+                        }
                     }
                 }
         }
@@ -11549,6 +11556,10 @@
                 return undefined;
             this.reused.set(tile, type);
             return tile.dom;
+        }
+        clear() {
+            for (let i = 0; i < this.buckets.length; i++)
+                this.buckets[i].length = this.index[i] = 0;
         }
     }
     // This class organizes a pass over the document, guided by the array
@@ -11568,6 +11579,16 @@
             this.builder = new TileBuilder(this.cache, new DocTile(view, view.contentDOM), RangeSet.iter(blockWrappers));
             this.cache.reused.set(old, 2 /* Reused.DOM */);
             this.old = new TilePointer(old);
+            this.reuseWalker = {
+                skip: (tile, from, to) => {
+                    this.cache.add(tile);
+                    if (tile.isComposite())
+                        return false;
+                },
+                enter: tile => this.cache.add(tile),
+                leave: () => { },
+                break: () => { }
+            };
         }
         run(changes, composition) {
             let compositionContext = composition && this.getCompositionContext(composition.text);
@@ -11582,16 +11603,20 @@
                 }
                 if (!next)
                     break;
-                this.forward(next.fromA, next.toA);
                 // Compositions need to be handled specially, forcing the
                 // focused text node and its parent nodes to remain stable at
                 // that point in the document.
                 if (composition && next.fromA <= composition.range.fromA && next.toA >= composition.range.toA) {
+                    this.forward(next.fromA, composition.range.fromA, composition.range.fromA < composition.range.toA ? 1 : -1);
                     this.emit(posB, composition.range.fromB);
+                    this.cache.clear(); // Must not reuse DOM across composition
                     this.builder.addComposition(composition, compositionContext);
+                    this.text.skip(composition.range.toB - composition.range.fromB);
+                    this.forward(composition.range.fromA, next.toA);
                     this.emit(composition.range.toB, next.toB);
                 }
                 else {
+                    this.forward(next.fromA, next.toA);
                     this.emit(posB, next.toB);
                 }
                 posB = next.toB;
@@ -11741,16 +11766,15 @@
             this.openWidget = openEnd > markCount;
             this.openMarks = openEnd;
         }
-        forward(from, to) {
-            this.old.advance(to - from, 1, {
-                skip: (tile, from, to) => {
-                    if (tile.isText() || to == tile.length)
-                        this.cache.add(tile);
-                },
-                enter: tile => this.cache.add(tile),
-                leave: () => { },
-                break: () => { }
-            });
+        forward(from, to, side = 1) {
+            if (to - from <= 10) {
+                this.old.advance(to - from, side, this.reuseWalker);
+            }
+            else {
+                this.old.advance(5, -1, this.reuseWalker);
+                this.old.advance(to - from - 10, -1);
+                this.old.advance(5, side, this.reuseWalker);
+            }
         }
         getCompositionContext(text) {
             let marks = [], line = null;
@@ -12645,11 +12669,8 @@
         }
         let resolvedGoal = rect.left + goal;
         let dist = distance !== null && distance !== void 0 ? distance : (view.viewState.heightOracle.textHeight >> 1);
-        for (let extra = 0;; extra += 10) {
-            let curY = startY + (dist + extra) * dir;
-            let pos = posAtCoords(view, { x: resolvedGoal, y: curY }, false, dir);
-            return EditorSelection.cursor(pos.pos, pos.assoc, undefined, goal);
-        }
+        let pos = posAtCoords(view, { x: resolvedGoal, y: startY + dist * dir }, false, dir);
+        return EditorSelection.cursor(pos.pos, pos.assoc, undefined, goal);
     }
     function skipAtomicRanges(atoms, pos, bias) {
         for (;;) {
@@ -12822,10 +12843,11 @@
 
     const LineBreakPlaceholder = "\uffff";
     class DOMReader {
-        constructor(points, state) {
+        constructor(points, view) {
             this.points = points;
+            this.view = view;
             this.text = "";
-            this.lineSeparator = state.facet(EditorState.lineSeparator);
+            this.lineSeparator = view.state.facet(EditorState.lineSeparator);
         }
         append(text) {
             this.text += text;
@@ -12843,7 +12865,7 @@
                 this.readNode(cur);
                 let tile = Tile.get(cur), next = cur.nextSibling;
                 if (next == end) {
-                    if ((tile === null || tile === void 0 ? void 0 : tile.breakAfter) && !next)
+                    if ((tile === null || tile === void 0 ? void 0 : tile.breakAfter) && !next && parent != this.view.contentDOM)
                         this.lineBreak();
                     break;
                 }
@@ -12968,7 +12990,7 @@
             }
             else if (start > -1 && (this.bounds = domBoundsAround(view.docView.tile, start, end, 0))) {
                 let selPoints = iHead || iAnchor ? [] : selectionPoints(view);
-                let reader = new DOMReader(selPoints, view.state);
+                let reader = new DOMReader(selPoints, view);
                 reader.readRange(this.bounds.startDOM, this.bounds.endDOM);
                 this.text = reader.text;
                 this.newSel = selectionFromPoints(selPoints, this.bounds.from);
@@ -13058,7 +13080,7 @@
                     insert: Text.of(domChange.text.slice(diff.from, diff.toB).split(LineBreakPlaceholder)) };
             }
         }
-        else if (newSel && (!view.hasFocus && view.state.facet(editable) || newSel.main.eq(sel))) {
+        else if (newSel && (!view.hasFocus && view.state.facet(editable) || sameSelPos(newSel, sel))) {
             newSel = null;
         }
         if (!change && !newSel)
@@ -13110,7 +13132,7 @@
         if (change) {
             return applyDOMChangeInner(view, change, newSel, lastKey);
         }
-        else if (newSel && !newSel.main.eq(sel)) {
+        else if (newSel && !sameSelPos(newSel, sel)) {
             let scrollIntoView = false, userEvent = "select";
             if (view.inputState.lastSelectionTime > Date.now() - 50) {
                 if (view.inputState.lastSelectionOrigin == "select")
@@ -13280,6 +13302,9 @@
             return null;
         let anchor = points[0].pos, head = points.length == 2 ? points[1].pos : anchor;
         return anchor > -1 && head > -1 ? EditorSelection.single(anchor + base, head + base) : null;
+    }
+    function sameSelPos(selection, range) {
+        return range.head == selection.main.head && range.anchor == selection.main.anchor;
     }
 
     class InputState {
@@ -13963,6 +13988,14 @@
     }
     let lastLinewiseCopy = null;
     handlers.copy = handlers.cut = (view, event) => {
+        // If the DOM selection is outside this editor, don't intercept.
+        // This happens when a parent editor (like ProseMirror) selects content that
+        // spans multiple elements including this CodeMirror. The copy event may
+        // bubble through CodeMirror (e.g. when CodeMirror is the first or the last
+        // element in the selection), but we should let the parent handle it.
+        let domSel = getSelection(view.root);
+        if (domSel && !hasSelection(view.contentDOM, domSel))
+            return false;
         let { text, ranges, linewise } = copiedRange(view.state);
         if (!text && !linewise)
             return false;
@@ -14170,7 +14203,8 @@
         }
         refresh(whiteSpace, lineHeight, charWidth, textHeight, lineLength, knownHeights) {
             let lineWrapping = wrappingWhiteSpace.indexOf(whiteSpace) > -1;
-            let changed = Math.round(lineHeight) != Math.round(this.lineHeight) || this.lineWrapping != lineWrapping;
+            let changed = Math.abs(lineHeight - this.lineHeight) > 0.3 || this.lineWrapping != lineWrapping ||
+                Math.abs(charWidth - this.charWidth) > 0.1;
             this.lineWrapping = lineWrapping;
             this.lineHeight = lineHeight;
             this.charWidth = charWidth;
@@ -15003,7 +15037,7 @@
             this.mustEnforceCursorAssoc = false;
             let guessWrapping = state.facet(contentAttributes).some(v => typeof v != "function" && v.class == "cm-lineWrapping");
             this.heightOracle = new HeightOracle(guessWrapping);
-            this.stateDeco = state.facet(decorations).filter(d => typeof d != "function");
+            this.stateDeco = staticDeco(state);
             this.heightMap = HeightMap.empty().applyChanges(this.stateDeco, Text.empty, this.heightOracle.setDoc(state.doc), [new ChangedRange(0, 0, 0, state.doc.length)]);
             for (let i = 0; i < 2; i++) {
                 this.viewport = this.getViewport(0, null);
@@ -15042,7 +15076,7 @@
         update(update, scrollTarget = null) {
             this.state = update.state;
             let prevDeco = this.stateDeco;
-            this.stateDeco = this.state.facet(decorations).filter(d => typeof d != "function");
+            this.stateDeco = staticDeco(this.state);
             let contentChanges = update.changedRanges;
             let heightChanges = ChangedRange.extendWithRanges(contentChanges, heightRelevantDecoChanges(prevDeco, this.stateDeco, update ? update.changes : ChangeSet.empty(this.state.doc.length)));
             let prevHeight = this.heightMap.height;
@@ -15073,7 +15107,7 @@
             update.flags |= this.computeVisibleRanges(update.changes);
             if (scrollTarget)
                 this.scrollTarget = scrollTarget;
-            if (!this.mustEnforceCursorAssoc && update.selectionSet && update.view.lineWrapping &&
+            if (!this.mustEnforceCursorAssoc && (update.selectionSet || update.focusChanged) && update.view.lineWrapping &&
                 update.state.selection.main.empty && update.state.selection.main.assoc &&
                 !update.state.facet(nativeSelectionHidden))
                 this.mustEnforceCursorAssoc = true;
@@ -15083,7 +15117,7 @@
             let oracle = this.heightOracle;
             let whiteSpace = style.whiteSpace;
             this.defaultTextDirection = style.direction == "rtl" ? Direction.RTL : Direction.LTR;
-            let refresh = this.heightOracle.mustRefreshForWrapping(whiteSpace);
+            let refresh = this.heightOracle.mustRefreshForWrapping(whiteSpace) || this.mustMeasureContent;
             let domRect = dom.getBoundingClientRect();
             let measureContent = refresh || this.mustMeasureContent || this.contentDOMHeight != domRect.height;
             this.contentDOMHeight = domRect.height;
@@ -15471,6 +15505,13 @@
         scale: 1,
         eq(other) { return other == this; }
     };
+    function staticDeco(state) {
+        let deco = state.facet(decorations).filter(d => typeof d != "function");
+        let outer = state.facet(outerDecorations).filter(d => typeof d != "function");
+        if (outer.length)
+            deco.push(RangeSet.join(outer));
+        return deco;
+    }
     // When the height is too big (> VP.MaxDOMHeight), scale down the
     // regions outside the viewports so that the total height is
     // VP.MaxDOMHeight.
@@ -16187,7 +16228,7 @@
             let handled = applyDOMChange(this.view, domChange);
             // The view wasn't updated but DOM/selection changes were seen. Reset the view.
             if (this.view.state == startState &&
-                (domChange.domChanged || domChange.newSel && !domChange.newSel.main.eq(this.view.state.selection.main)))
+                (domChange.domChanged || domChange.newSel && !sameSelPos(this.view.state.selection, domChange.newSel.main)))
                 this.view.update([]);
             return handled;
         }
@@ -16351,7 +16392,7 @@
                 // Edit contexts sometimes fire empty changes
                 if (!diff) {
                     let newSel = EditorSelection.single(this.toEditorPos(e.selectionStart), this.toEditorPos(e.selectionEnd));
-                    if (!newSel.main.eq(main))
+                    if (!sameSelPos(newSel, main))
                         view.dispatch({ selection: newSel, userEvent: "select" });
                     return;
                 }
@@ -16652,7 +16693,10 @@
             this.updateState = 0 /* UpdateState.Idle */;
             this.requestMeasure();
             if ((_a = document.fonts) === null || _a === void 0 ? void 0 : _a.ready)
-                document.fonts.ready.then(() => this.requestMeasure());
+                document.fonts.ready.then(() => {
+                    this.viewState.mustMeasureContent = true;
+                    this.requestMeasure();
+                });
         }
         dispatch(...input) {
             let trs = input.length == 1 && input[0] instanceof Transaction ? input
@@ -19411,6 +19455,7 @@
         }
         destroy() {
             clearTimeout(this.hoverTimeout);
+            clearTimeout(this.restartTimeout);
             this.view.dom.removeEventListener("mouseleave", this.mouseleave);
             this.view.dom.removeEventListener("mousemove", this.mousemove);
         }

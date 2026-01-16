@@ -188,7 +188,7 @@ self.onmessage = async function (e) {
         case 'getGlobals':
             const globalsForJshint = {};
             Object.keys(self).forEach(k => globalsForJshint[k] = true);
-            let readonlyGlobals=["console", "box", "math", "d3", "bfjs"];
+            let readonlyGlobals=["console", "box", "math", "d3", "bfjs", "ndarray"];
             readonlyGlobals.forEach(k => globalsForJshint[k] = false);
             ["self", "thisGlobal"].forEach(k => globalsForJshint[k] = true);
             self.postMessage({ type: 'getGlobalsResult', payload: { globals: globalsForJshint, id: payload.id } });

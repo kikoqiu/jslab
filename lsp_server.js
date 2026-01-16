@@ -421,7 +421,7 @@ lspServer.runStaticCompletions = function(context) {
                         details.tags.forEach(tag => {
                             if (tag.name === 'param') {
                                 // Extract name and description from tag text usually format: "argName - description"
-                                const text = tag.text ? tag.text.map(t => t.text).join('\n').trim() : '';
+                                const text = tag.text ? tag.text.map(t => t.text).join(' ').trim() : '';
                                 // Simple regex to split first word (param name) from description
                                 const match = text.match(/^(\S+)\s+(?:-\s+)?(.*)$/);
                                 if (match) {
@@ -437,13 +437,13 @@ lspServer.runStaticCompletions = function(context) {
                                     jsdoc.params.push({ name: '', description: text });
                                 }
                             } else if (tag.name === 'return' || tag.name === 'returns') {
-                                const text = tag.text ? tag.text.map(t => t.text).join('\n').trim() : '';
+                                const text = tag.text ? tag.text.map(t => t.text).join(' ').trim() : '';
                                 jsdoc.returns.push({
                                     description: text,
                                     type: null
                                 });
                             } else if (tag.name === 'example') {
-                                const text = tag.text ? tag.text.map(t => t.text).join('\n').trim() : '';
+                                const text = tag.text ? tag.text.map(t => t.text).join(' ').trim() : '';
                                 jsdoc.examples.push(text);
                             }
                         });

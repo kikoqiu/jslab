@@ -118,13 +118,46 @@ box.echoHTML=function(...o){
 };
 
 /**
+ * JSON highlight
+ * @param {*} json JSON object or string
+ * @returns {string} highlighted HTML string
+ */
+box.jsonHighlight=function(json) {
+  if (typeof json != 'string') {
+    const replacer=(key, value) => {
+      if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
+        return Array.from(value);
+      }
+      return value;
+    }
+    json = JSON.stringify(json, replacer, 2);
+  }
+  json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+    var cls = 'json-number';
+    if (/^"/.test(match)) {
+        if (/:$/.test(match)) {
+            cls = 'json-key';
+        } else {
+            cls = 'json-string';
+        }
+    } else if (/true|false/.test(match)) {
+        cls = 'json-boolean';
+    } else if (/null/.test(match)) {
+        cls = 'json-null';
+    }
+    return '<span class="' + cls + '">' + match + '</span>';
+  });
+}
+
+/**
  * dump object to JSON to output
  * @param  {...any} o output 
  */
 box.dumpJSON=function(...o){
   let str='';
   for(var i of o){
-    str+=`<pre><code>${JSON.stringify(i)}</code></pre>`;
+    str+=`<pre><code>${box.jsonHighlight(i)}</code></pre>`;
   }
   globalThis.document.body.append(document.createRange().createContextualFragment(str));
 };
@@ -736,7 +769,7 @@ box.loadD3=async function(enableAnimation=false){
 box.loadNDArray=async function(){
   if(!globalThis.ndarray){
     await importScripts("3pty/ndarray.browser.js");
-    ndarray.NDWasm.init('3pty/');
+    await ndarray.NDWasm.init('3pty/');
 
     ndarray.NDArray.prototype.operatorAdd=ndarray.NDArray.prototype.add;
     ndarray.NDArray.prototype.operatorSub=ndarray.NDArray.prototype.sub;
