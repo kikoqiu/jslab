@@ -375,7 +375,11 @@ lspServer.runStaticCompletions = function(context) {
                 );
 
                 if (details) {
-                    // --- 1. Generate Snippet for Functions/Methods ---
+                    // Store extracted types from displayParts signature
+                    const paramTypes = {};
+                    let returnTypeStr = null;
+
+                    // --- 1. Generate Snippet & Extract Types ---
                     const isFunction = 
                         entry.kind === ts.ScriptElementKind.functionElement ||
                         entry.kind === ts.ScriptElementKind.memberFunctionElement ||
@@ -384,11 +388,17 @@ lspServer.runStaticCompletions = function(context) {
 
                     if (isFunction && details.displayParts) {
                         const params = [];
-                        // Extract parameter names from displayParts
+                        let currentParamName = null;
+
+                        // Iterate parts to build snippet AND extract types
                         for (let i = 0; i < details.displayParts.length; i++) {
                             const part = details.displayParts[i];
+                            
                             if (part.kind === 'parameterName') {
-                                // Check if the next part indicates optionality (e.g. "?")
+                                currentParamName = part.text;
+                                paramTypes[currentParamName] = {"names":[""]}; // Init type string
+
+                                // Snippet Logic: Check optionality
                                 const nextPart = details.displayParts[i + 1];
                                 const isOptional = nextPart && nextPart.text === '?';
 
@@ -396,8 +406,24 @@ lspServer.runStaticCompletions = function(context) {
                                 if (part.text != "this" && !isOptional) {
                                     params.push(part.text);
                                 }
+                            } else if (currentParamName) {
+                                // Type Extraction Logic
+                                if (part.text === ',' || part.text === ')') {
+                                    currentParamName = null; // End of this param
+                                } else if (part.text !== ':' && part.text !== '?' && part.text.trim() !== '') {
+                                    // Accumulate type text (skips punctuation usually)
+                                    paramTypes[currentParamName].names[0]+=part.text;
+                                }
                             }
                         }
+
+                        // Rough extraction of return type (everything after the last "):")
+                        const fullSig = ts.displayPartsToString(details.displayParts);
+                        const retSplit = fullSig.split('):');
+                        if (retSplit.length > 1) {
+                            returnTypeStr = retSplit.pop().trim();
+                        }
+
                         if(params.length === 0){
                             result.snippet = `${entry.name}()\${0}`;
                         }else{
@@ -423,18 +449,17 @@ lspServer.runStaticCompletions = function(context) {
                                 // Extract name and description from tag text usually format: "argName - description"
                                 const text = tag.text ? tag.text.map(t => t.text).join(' ').trim() : '';
                                 // Simple regex to split first word (param name) from description
-                                const match = text.match(/^(\S+)\s+(?:-\s+)?(.*)$/);
+                                const match = text.match(/^(\S+)(?:\s*-?\s*)(.*)$/s);
                                 if (match) {
                                     jsdoc.params.push({
                                         name: match[1],
                                         description: match[2],
-                                        // Type extraction from tags is complex in LSP, leaving empty 
-                                        // allows formatDocHTML to handle it gracefully.
-                                        type: null 
+                                        // Match JSDoc param name with TS extracted type
+                                        type: paramTypes[match[1]] || null 
                                     });
                                 } else {
                                     // Fallback if format is weird
-                                    jsdoc.params.push({ name: '', description: text });
+                                    jsdoc.params.push({ name: '', description: text, type: paramTypes[match[1]] || null });
                                 }
                             } else if (tag.name === 'return' || tag.name === 'returns') {
                                 const text = tag.text ? tag.text.map(t => t.text).join(' ').trim() : '';
@@ -447,6 +472,16 @@ lspServer.runStaticCompletions = function(context) {
                                 jsdoc.examples.push(text);
                             }
                         });
+                    }
+
+                    
+                    if (returnTypeStr) {
+                        if(jsdoc.returns.length === 0){
+                            // Fallback: If no @return tag but we parsed a return type, add it
+                            jsdoc.returns.push({ description: '', type: { names : [ returnTypeStr ] }});
+                        }else{
+                            jsdoc.returns[0].type = { names : [ returnTypeStr ] };
+                        }
                     }
 
                     result.jsdoc = jsdoc;
