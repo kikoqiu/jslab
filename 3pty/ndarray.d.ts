@@ -103,7 +103,7 @@ declare module "ndwasm_blas" {
          * @param {NDArray} b - Right matrix of shape [n, k].
          * @returns {NDArray} Result matrix of shape [m, k].
          */
-        function matmul(a: NDArray, b: NDArray): NDArray;
+        function matMul(a: NDArray, b: NDArray): NDArray;
         /**
          * matPow computes A^k (Matrix Power).
          * Matrix Functions (O(n^3))
@@ -121,7 +121,7 @@ declare module "ndwasm_blas" {
          * @param {NDArray} b - Batch of matrices of shape [batch, n, k].
          * @returns {NDArray} Result batch of shape [batch, m, k].
          */
-        function matmulBatch(a: NDArray, b: NDArray): NDArray;
+        function matMulBatch(a: NDArray, b: NDArray): NDArray;
         /**
          * Symmetric Rank-K Update: C = alpha * A * A^T + beta * C.
          * Used for efficiently computing covariance matrices or Gram matrices.
@@ -471,9 +471,9 @@ declare module "ndwasm" {
     export function fromWasm(bridge: WasmBuffer, shape: Array<number>, dtype?: string): NDArray;
     export const blas: {
         trace(a: NDArray): number;
-        matmul(a: NDArray, b: NDArray): NDArray;
+        matMul(a: NDArray, b: NDArray): NDArray;
         matPow(a: NDArray, k: any): NDArray;
-        matmulBatch(a: NDArray, b: NDArray): NDArray;
+        matMulBatch(a: NDArray, b: NDArray): NDArray;
         syrk(a: NDArray): NDArray;
         trsm(a: NDArray, b: NDArray, lower?: boolean): NDArray;
         matVecMul(a: NDArray, x: NDArray): NDArray;
@@ -937,13 +937,13 @@ declare module "ndwasmarray" {
          * @param {NDWasmArray | NDArray} other
          * @returns {NDWasmArray}
          */
-        matmul(other: NDWasmArray | NDArray): NDWasmArray;
+        matMul(other: NDWasmArray | NDArray): NDWasmArray;
         /**
          * Batched Matrix Multiplication: C[i] = this[i] * other[i]
          * @param {NDWasmArray | NDArray}
          * @returns {NDWasmArray}
          */
-        matmulBatch(other: any): NDWasmArray;
+        matMulBatch(other: any): NDWasmArray;
     }
     import { NDArray } from "ndarray_core";
 }
@@ -1022,9 +1022,9 @@ declare module "ndarray_core" {
         };
         static blas: {
             trace(a: NDArray): number;
-            matmul(a: NDArray, b: NDArray): NDArray;
+            matMul(a: NDArray, b: NDArray): NDArray;
             matPow(a: NDArray, k: any): NDArray;
-            matmulBatch(a: NDArray, b: NDArray): NDArray;
+            matMulBatch(a: NDArray, b: NDArray): NDArray;
             syrk(a: NDArray): NDArray;
             trsm(a: NDArray, b: NDArray, lower?: boolean): NDArray;
             matVecMul(a: NDArray, x: NDArray): NDArray;
@@ -1176,8 +1176,8 @@ declare module "ndarray_core" {
         */
         map(fnOrStr: string | Function, dtype?: undefined): NDArray;
         /**
-         * Generic iterator that handles stride logic. It's slow. use map if you want to use jit.
-         * @param {Function} callback - A function called with `(value, index, flatPhysicalIndex)`.
+         * Generic iterator that handles stride logic. It's slow. use map/reduce if you want to use jit.
+         * @param {Function} callback - A function called with `(value, index, flatPhysicalIndex)`, return true to exit early
          * @see NDArray#map
          */
         iterate(callback: Function): void;
@@ -1672,6 +1672,34 @@ declare module "ndarray_core" {
          */
         flatten(): NDArray;
         /**
+         * Dot Product (Scalar Inner Product).
+         * Supports 1D arrays (vectors) only.
+         * @param {NDArray} other
+         * @returns {number} Scalar result.
+         */
+        dot(other: NDArray): number;
+        /**
+         * Cross Product.
+         * Only valid for 1D vectors of length 3.
+         * @param {NDArray} other
+         * @returns {NDArray} New NDArray of size 3.
+         */
+        cross(other: NDArray): NDArray;
+        /**
+         * Matrix Multiplication in js.
+         * Operations: (M, K) @ (K, N) -> (M, N)
+         * @param {NDArray} other
+         * @returns {NDArray} New NDArray.
+         */
+        jsMatMul(other: NDArray): NDArray;
+        /**
+         * Matrix-Vector Multiplication in js.
+         * Operation: (M, K) @ (K,) -> (M,)
+         * @param {NDArray} vec
+         * @returns {NDArray} New NDArray (Vector).
+         */
+        jsMatVecMul(vec: NDArray): NDArray;
+        /**
          * Projects the current ndarray to a WASM proxy (WasmBuffer).
          *
          * @param {WasmRuntime} runtime
@@ -1692,13 +1720,13 @@ declare module "ndarray_core" {
          */
         trace(): number;
         /**
-         * Performs matrix multiplication. This is a wrapper around `NDWasmBlas.matmul`.
+         * Performs matrix multiplication. This is a wrapper around `NDWasmBlas.matMul`.
          * @param {NDArray} other The right-hand side matrix.
          * @returns {NDArray} The result of the matrix multiplication.
-         * @see NDWasmBlas.matmul
+         * @see NDWasmBlas.matMul
          *
          */
-        matmul(other: NDArray): NDArray;
+        matMul(other: NDArray): NDArray;
         /**
          * Computes the matrix power. This is a wrapper around `NDWasmBlas.matPow`.
          * @param {number} k The exponent.
@@ -1708,13 +1736,13 @@ declare module "ndarray_core" {
          */
         matPow(k: number): NDArray;
         /**
-         * Performs batched matrix multiplication. This is a wrapper around `NDWasmBlas.matmulBatch`.
+         * Performs batched matrix multiplication. This is a wrapper around `NDWasmBlas.matMulBatch`.
          * @param {NDArray} other The right-hand side batch of matrices.
          * @returns {NDArray} The result of the batched matrix multiplication.
-         * @see NDWasmBlas.matmulBatch
+         * @see NDWasmBlas.matMulBatch
          *
          */
-        matmulBatch(other: NDArray): NDArray;
+        matMulBatch(other: NDArray): NDArray;
         /**
          * Performs matrix-vector multiplication. This is a wrapper around `NDWasmBlas.matVecMul`.
          * @param {NDArray} vec The vector to multiply by.
@@ -1992,6 +2020,196 @@ declare module "ndarray_core" {
     import { WasmRuntime } from "ndwasm";
     import { NDWasmArray } from "ndwasmarray";
 }
+declare module "ndarray_helpers" {
+    /**
+     * Element-wise addition. Supports broadcasting.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#add}
+     */
+    export function add(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Element-wise subtraction. Supports broadcasting.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#sub}
+     */
+    export function sub(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Element-wise multiplication. Supports broadcasting.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#mul}
+     */
+    export function mul(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Element-wise division. Supports broadcasting.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#div}
+     */
+    export function div(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Element-wise exponentiation. Supports broadcasting.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#pow}
+     */
+    export function pow(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Element-wise modulo. Supports broadcasting.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#mod}
+     */
+    export function mod(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Bitwise AND.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#bitwise_and}
+     */
+    export function bitwise_and(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Bitwise OR.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#bitwise_or}
+     */
+    export function bitwise_or(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Bitwise XOR.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#bitwise_xor}
+     */
+    export function bitwise_xor(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Bitwise left shift.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#bitwise_lshift}
+     */
+    export function bitwise_lshift(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Bitwise (logical) right shift.
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray|number} r
+     * @return {NDArray}
+     * @see {NDArray#bitwise_rshift}
+     */
+    export function bitwise_rshift(l: any[] | TypedArray, r: any[] | TypedArray | number): NDArray;
+    /**
+     * Bitwise NOT.
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#bitwise_not}
+     */
+    export function bitwise_not(x: any[] | TypedArray): NDArray;
+    /**
+     * Numeric negation.
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#neg}
+     */
+    export function neg(x: any[] | TypedArray): NDArray;
+    /**
+     * Absolute value.
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#abs}
+     */
+    export function abs(x: any[] | TypedArray): NDArray;
+    /**
+     * Exponential function (e^x).
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#exp}
+     */
+    export function exp(x: any[] | TypedArray): NDArray;
+    /**
+     * Square root.
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#sqrt}
+     */
+    export function sqrt(x: any[] | TypedArray): NDArray;
+    /**
+     * Sine.
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#sin}
+     */
+    export function sin(x: any[] | TypedArray): NDArray;
+    /**
+     * Cosine.
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#cos}
+     */
+    export function cos(x: any[] | TypedArray): NDArray;
+    /**
+     * Tangent.
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#tan}
+     */
+    export function tan(x: any[] | TypedArray): NDArray;
+    /**
+     * Natural logarithm (base e).
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#log}
+     */
+    export function log(x: any[] | TypedArray): NDArray;
+    /**
+     * Ceiling (round up).
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#ceil}
+     */
+    export function ceil(x: any[] | TypedArray): NDArray;
+    /**
+     * Floor (round down).
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#floor}
+     */
+    export function floor(x: any[] | TypedArray): NDArray;
+    /**
+     * Round to nearest integer.
+     * @param {Array|TypedArray} x
+     * @return {NDArray}
+     * @see {NDArray#round}
+     */
+    export function round(x: any[] | TypedArray): NDArray;
+    /**
+     * Dot Product
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray} r
+     * @return {NDArray}
+     * @see {NDArray#dot}
+     */
+    export function dot(l: any[] | TypedArray, r: any[] | TypedArray): NDArray;
+    /**
+     * Cross Product
+     * @param {Array|TypedArray} l
+     * @param {Array|TypedArray} r
+     * @return {NDArray#cross}
+     */
+    export function cross(l: any[] | TypedArray, r: any[] | TypedArray): NDArray;
+    import { NDArray } from "ndarray_core";
+}
 declare module "ndarray" {
     export function init(baseDir?: string): Promise<void>;
     export const random: {
@@ -2084,9 +2302,9 @@ declare module "ndarray" {
     };
     export const blas: {
         trace(a: NDArray): number;
-        matmul(a: NDArray, b: NDArray): NDArray;
+        matMul(a: NDArray, b: NDArray): NDArray;
         matPow(a: NDArray, k: any): NDArray;
-        matmulBatch(a: NDArray, b: NDArray): NDArray;
+        matMulBatch(a: NDArray, b: NDArray): NDArray;
         syrk(a: NDArray): NDArray;
         trsm(a: NDArray, b: NDArray, lower?: boolean): NDArray;
         matVecMul(a: NDArray, x: NDArray): NDArray;
@@ -2106,6 +2324,7 @@ declare module "ndarray" {
     export { Jit } from "./ndarray_jit.js";
     export * from "ndwasm";
     export * from "ndarray_factory";
+    export * from "ndarray_helpers";
     export default NDArray;
     import { help } from "help";
     import { NDProb } from "ndarray_prob";

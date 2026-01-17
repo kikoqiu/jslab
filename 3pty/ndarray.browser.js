@@ -22,7 +22,7 @@ var ndarray = (() => {
     }
     return to;
   };
-  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+  var __toCommonJS = (mod2) => __copyProps(__defProp({}, "__esModule", { value: true }), mod2);
 
   // src/ndarray.js
   var ndarray_exports = {};
@@ -41,16 +41,31 @@ var ndarray = (() => {
     NDWasmSignal: () => NDWasmSignal,
     WasmBuffer: () => WasmBuffer,
     WasmRuntime: () => WasmRuntime,
+    abs: () => abs,
+    add: () => add,
     analysis: () => analysis2,
     arange: () => arange,
     array: () => array,
+    bitwise_and: () => bitwise_and,
+    bitwise_lshift: () => bitwise_lshift,
+    bitwise_not: () => bitwise_not,
+    bitwise_or: () => bitwise_or,
+    bitwise_rshift: () => bitwise_rshift,
+    bitwise_xor: () => bitwise_xor,
     blas: () => blas2,
+    ceil: () => ceil,
     concat: () => concat,
+    cos: () => cos,
+    cross: () => cross,
     decomp: () => decomp2,
     default: () => ndarray_default,
+    div: () => div,
+    dot: () => dot,
+    exp: () => exp,
     eye: () => eye,
     float32: () => float32,
     float64: () => float64,
+    floor: () => floor,
     fromWasm: () => fromWasm,
     full: () => full,
     help: () => help,
@@ -60,11 +75,21 @@ var ndarray = (() => {
     int32: () => int32,
     int8: () => int8,
     linspace: () => linspace,
+    log: () => log,
+    mod: () => mod,
+    mul: () => mul,
+    neg: () => neg,
     ones: () => ones,
     optimize: () => optimize,
+    pow: () => pow,
     random: () => random,
+    round: () => round,
     signal: () => signal2,
+    sin: () => sin,
+    sqrt: () => sqrt,
     stack: () => stack,
+    sub: () => sub,
+    tan: () => tan,
     uint16: () => uint16,
     uint32: () => uint32,
     uint8: () => uint8,
@@ -259,7 +284,7 @@ var ndarray = (() => {
      * @param {NDArray} b - Right matrix of shape [n, k].
      * @returns {NDArray} Result matrix of shape [m, k].
      */
-    matmul(a, b) {
+    matMul(a, b) {
       if (a.shape[1] !== b.shape[0]) {
         throw new Error(`Matrix inner dimensions must match: ${a.shape[1]} != ${b.shape[0]}`);
       }
@@ -302,7 +327,7 @@ var ndarray = (() => {
      * @param {NDArray} b - Batch of matrices of shape [batch, n, k].
      * @returns {NDArray} Result batch of shape [batch, m, k].
      */
-    matmulBatch(a, b) {
+    matMulBatch(a, b) {
       if (a.ndim !== 3 || b.ndim !== 3 || a.shape[0] !== b.shape[0]) {
         throw new Error("Input must be 3D batches with same batch size.");
       }
@@ -1418,14 +1443,14 @@ var ndarray = (() => {
       if (isTyped(v)) return [v.length];
       if (!Array.isArray(v)) return [];
       if (v.length === 0) throw new Error("Input array cannot be empty.");
-      const sub = getShape(v[0]);
-      const subStr = sub.join(",");
+      const sub2 = getShape(v[0]);
+      const subStr = sub2.join(",");
       for (let i = 1; i < v.length; i++) {
         if (getShape(v[i]).join(",") !== subStr) {
           throw new Error(`Jagged array detected at index ${i}.`);
         }
       }
-      return [v.length, ...sub];
+      return [v.length, ...sub2];
     };
     const shape = getShape(source);
     const size = shape.reduce((a, b) => a * b, 1);
@@ -1954,7 +1979,7 @@ var ndarray = (() => {
      * @param {NDWasmArray | NDArray} other
      * @returns {NDWasmArray}
      */
-    matmul(other) {
+    matMul(other) {
       const [right, shouldDispose] = this._prepareOperand(other);
       try {
         if (this.shape[1] !== right.shape[0]) {
@@ -1984,7 +2009,7 @@ var ndarray = (() => {
      * @param {NDWasmArray | NDArray}
      * @returns {NDWasmArray}
      */
-    matmulBatch(other) {
+    matMulBatch(other) {
       const [right, shouldDispose] = this._prepareOperand(other);
       try {
         if (this.ndim !== 3 || right.ndim !== 3 || this.shape[0] !== right.shape[0]) {
@@ -2455,15 +2480,18 @@ var ndarray = (() => {
       return result;
     }
     /**
-     * Generic iterator that handles stride logic. It's slow. use map if you want to use jit.
-     * @param {Function} callback - A function called with `(value, index, flatPhysicalIndex)`.
+     * Generic iterator that handles stride logic. It's slow. use map/reduce if you want to use jit.
+     * @param {Function} callback - A function called with `(value, index, flatPhysicalIndex)`, return true to exit early
      * @see NDArray#map
      */
     iterate(callback) {
       const currentIdx = new Int32Array(this.ndim);
       for (let i = 0; i < this.size; i++) {
         const ptr = this._getOffset(currentIdx);
-        callback(this.data[ptr], i, ptr);
+        let earlyExit = callback(this.data[ptr], i, ptr);
+        if (earlyExit === true) {
+          return;
+        }
         for (let d = this.ndim - 1; d >= 0; d--) {
           if (++currentIdx[d] < this.shape[d]) break;
           currentIdx[d] = 0;
@@ -2968,13 +2996,15 @@ var ndarray = (() => {
      * 
      */
     argmax() {
+      let flatten = this.asContiguous().flatten();
       let maxV = -Infinity, maxIdx = -1;
-      this.iterate((v, i) => {
+      for (let i = 0; i < flatten.size; ++i) {
+        const v = flatten.data[flatten.offset + i];
         if (v > maxV) {
           maxV = v;
           maxIdx = i;
         }
-      });
+      }
       return maxIdx;
     }
     /**
@@ -2983,13 +3013,15 @@ var ndarray = (() => {
      * 
      */
     argmin() {
+      let flatten = this.asContiguous().flatten();
       let minV = Infinity, minIdx = -1;
-      this.iterate((v, i) => {
+      for (let i = 0; i < flatten.size; ++i) {
+        const v = flatten.data[flatten.offset + i];
         if (v < minV) {
           minV = v;
           minIdx = i;
         }
-      });
+      }
       return minIdx;
     }
     // --- Logical tools ---
@@ -2999,13 +3031,14 @@ var ndarray = (() => {
      * 
      */
     all() {
-      let result = true;
-      this.iterate((v) => {
+      let flatten = this.asContiguous().flatten();
+      for (let i = 0; i < flatten.size; ++i) {
+        const v = flatten.data[flatten.offset + i];
         if (!v) {
-          result = false;
+          return false;
         }
-      });
-      return result;
+      }
+      return true;
     }
     /**
      * Checks if any element in the array is truthy.
@@ -3013,13 +3046,14 @@ var ndarray = (() => {
      * 
      */
     any() {
-      let result = false;
-      this.iterate((v) => {
+      let flatten = this.asContiguous().flatten();
+      for (let i = 0; i < flatten.size; ++i) {
+        const v = flatten.data[flatten.offset + i];
         if (v) {
-          result = true;
+          return true;
         }
-      });
-      return result;
+      }
+      return false;
     }
     //------------view functions------------- 
     /**
@@ -3431,7 +3465,144 @@ var ndarray = (() => {
      * @return {NDArray} - new flatten view to the array
      */
     flatten() {
-      return this.slice().reshape(this.size);
+      return this.reshape(this.size);
+    }
+    //------blas-------
+    /**
+     * Dot Product (Scalar Inner Product).
+     * Supports 1D arrays (vectors) only.
+     * @param {NDArray} other 
+     * @returns {number} Scalar result.
+     */
+    dot(other) {
+      if (this.ndim !== 1 || other.ndim !== 1) {
+        throw new Error(`Dot product supports 1D arrays only. Shapes: ${this.shape} vs ${other.shape}`);
+      }
+      if (this.shape[0] !== other.shape[0]) {
+        throw new Error(`Shapes must match for dot product: ${this.shape[0]} vs ${other.shape[0]}`);
+      }
+      const len = this.shape[0];
+      let sum = 0;
+      const dataA = this.data;
+      const dataB = other.data;
+      const offA = this.offset;
+      const offB = other.offset;
+      const strA = this.strides[0];
+      const strB = other.strides[0];
+      for (let i = 0; i < len; i++) {
+        sum += dataA[offA + i * strA] * dataB[offB + i * strB];
+      }
+      return sum;
+    }
+    /**
+     * Cross Product.
+     * Only valid for 1D vectors of length 3.
+     * @param {NDArray} other 
+     * @returns {NDArray} New NDArray of size 3.
+     */
+    cross(other) {
+      if (this.ndim !== 1 || other.ndim !== 1) {
+        throw new Error("Cross product requires 1D arrays.");
+      }
+      if (this.shape[0] !== 3 || other.shape[0] !== 3) {
+        throw new Error("Cross product is only defined for vectors of length 3.");
+      }
+      const dataA = this.data;
+      const dataB = other.data;
+      const idxA0 = this.offset;
+      const idxA1 = this.offset + this.strides[0];
+      const idxA2 = this.offset + 2 * this.strides[0];
+      const idxB0 = other.offset;
+      const idxB1 = other.offset + other.strides[0];
+      const idxB2 = other.offset + 2 * other.strides[0];
+      const ax = dataA[idxA0], ay = dataA[idxA1], az = dataA[idxA2];
+      const bx = dataB[idxB0], by = dataB[idxB1], bz = dataB[idxB2];
+      const Ctor = DTYPE_MAP[this.dtype];
+      const resData = new Ctor([
+        ay * bz - az * by,
+        az * bx - ax * bz,
+        ax * by - ay * bx
+      ]);
+      return new _NDArray(resData, { shape: [3], dtype: this.dtype });
+    }
+    /**
+     * Matrix Multiplication in js.
+     * Operations: (M, K) @ (K, N) -> (M, N)
+     * @param {NDArray} other 
+     * @returns {NDArray} New NDArray.
+     */
+    jsMatMul(other) {
+      if (this.ndim !== 2 || other.ndim !== 2) {
+        throw new Error(`jsMatMul requires 2D arrays. Got ${this.ndim}D and ${other.ndim}D.`);
+      }
+      const [M, K] = this.shape;
+      const [K2, N] = other.shape;
+      if (K !== K2) {
+        throw new Error(`inner dimensions must match: (${M}, ${K}) vs (${K2}, ${N})`);
+      }
+      const Ctor = DTYPE_MAP[this.dtype];
+      const outData = new Ctor(M * N);
+      const dataA = this.data;
+      const dataB = other.data;
+      const offA = this.offset;
+      const offB = other.offset;
+      const strA0 = this.strides[0];
+      const strA1 = this.strides[1];
+      const strB0 = other.strides[0];
+      const strB1 = other.strides[1];
+      for (let i = 0; i < M; i++) {
+        const rowAStart = offA + i * strA0;
+        for (let j = 0; j < N; j++) {
+          const colBStart = offB + j * strB1;
+          let sum = 0;
+          for (let k = 0; k < K; k++) {
+            const valA = dataA[rowAStart + k * strA1];
+            const valB = dataB[colBStart + k * strB0];
+            sum += valA * valB;
+          }
+          outData[i * N + j] = sum;
+        }
+      }
+      return new _NDArray(outData, { shape: [M, N], dtype: this.dtype });
+    }
+    /**
+     * Matrix-Vector Multiplication in js.
+     * Operation: (M, K) @ (K,) -> (M,)
+     * @param {NDArray} vec 
+     * @returns {NDArray} New NDArray (Vector).
+     */
+    jsMatVecMul(vec) {
+      if (this.ndim !== 2) {
+        throw new Error(`jsMatVecMul expects matrix as 'this' (2D). Got ${this.ndim}D.`);
+      }
+      if (vec.ndim !== 1) {
+        throw new Error(`jsMatVecMul expects vector as argument (1D). Got ${vec.ndim}D.`);
+      }
+      const [M, K] = this.shape;
+      const K2 = vec.shape[0];
+      if (K !== K2) {
+        throw new Error(`Shapes not aligned: Matrix(${M}, ${K}) vs Vector(${K2})`);
+      }
+      const Ctor = DTYPE_MAP[this.dtype];
+      const outData = new Ctor(M);
+      const dataA = this.data;
+      const dataV = vec.data;
+      const offA = this.offset;
+      const offV = vec.offset;
+      const strA0 = this.strides[0];
+      const strA1 = this.strides[1];
+      const strV = vec.strides[0];
+      for (let i = 0; i < M; i++) {
+        const rowAStart = offA + i * strA0;
+        let sum = 0;
+        for (let k = 0; k < K; k++) {
+          const valA = dataA[rowAStart + k * strA1];
+          const valV = dataV[offV + k * strV];
+          sum += valA * valV;
+        }
+        outData[i] = sum;
+      }
+      return new _NDArray(outData, { shape: [M], dtype: this.dtype });
     }
     //--------------------NDWasm---------------------
     /**
@@ -3472,14 +3643,14 @@ var ndarray = (() => {
       return NDWasmBlas.trace(this);
     }
     /**
-     * Performs matrix multiplication. This is a wrapper around `NDWasmBlas.matmul`.
+     * Performs matrix multiplication. This is a wrapper around `NDWasmBlas.matMul`.
      * @param {NDArray} other The right-hand side matrix.
      * @returns {NDArray} The result of the matrix multiplication.
-     * @see NDWasmBlas.matmul
+     * @see NDWasmBlas.matMul
      * 
      */
-    matmul(other) {
-      return NDWasmBlas.matmul(this, other);
+    matMul(other) {
+      return NDWasmBlas.matMul(this, other);
     }
     /**
      * Computes the matrix power. This is a wrapper around `NDWasmBlas.matPow`.
@@ -3492,14 +3663,14 @@ var ndarray = (() => {
       return NDWasmBlas.matPow(this, k);
     }
     /**
-     * Performs batched matrix multiplication. This is a wrapper around `NDWasmBlas.matmulBatch`.
+     * Performs batched matrix multiplication. This is a wrapper around `NDWasmBlas.matMulBatch`.
      * @param {NDArray} other The right-hand side batch of matrices.
      * @returns {NDArray} The result of the batched matrix multiplication.
-     * @see NDWasmBlas.matmulBatch
+     * @see NDWasmBlas.matMulBatch
      * 
      */
-    matmulBatch(other) {
-      return NDWasmBlas.matmulBatch(this, other);
+    matMulBatch(other) {
+      return NDWasmBlas.matMulBatch(this, other);
     }
     /**
      * Performs matrix-vector multiplication. This is a wrapper around `NDWasmBlas.matVecMul`.
@@ -3872,6 +4043,225 @@ var ndarray = (() => {
       }
     }
     return { outShape, strideA, strideB };
+  }
+
+  // src/ndarray_helpers.js
+  var ndarray_helpers_exports = {};
+  __export(ndarray_helpers_exports, {
+    abs: () => abs,
+    add: () => add,
+    bitwise_and: () => bitwise_and,
+    bitwise_lshift: () => bitwise_lshift,
+    bitwise_not: () => bitwise_not,
+    bitwise_or: () => bitwise_or,
+    bitwise_rshift: () => bitwise_rshift,
+    bitwise_xor: () => bitwise_xor,
+    ceil: () => ceil,
+    cos: () => cos,
+    cross: () => cross,
+    div: () => div,
+    dot: () => dot,
+    exp: () => exp,
+    floor: () => floor,
+    log: () => log,
+    mod: () => mod,
+    mul: () => mul,
+    neg: () => neg,
+    pow: () => pow,
+    round: () => round,
+    sin: () => sin,
+    sqrt: () => sqrt,
+    sub: () => sub,
+    tan: () => tan
+  });
+  function add(l, r) {
+    if (l instanceof Array) {
+      l = array(l);
+    }
+    if (r instanceof Array) {
+      r = array(r);
+    }
+    return l.add(r);
+  }
+  function sub(l, r) {
+    if (l instanceof Array) {
+      l = array(l);
+    }
+    if (r instanceof Array) {
+      r = array(r);
+    }
+    return l.sub(r);
+  }
+  function mul(l, r) {
+    if (l instanceof Array) {
+      l = array(l);
+    }
+    if (r instanceof Array) {
+      r = array(r);
+    }
+    return l.mul(r);
+  }
+  function div(l, r) {
+    if (l instanceof Array) {
+      l = array(l);
+    }
+    if (r instanceof Array) {
+      r = array(r);
+    }
+    return l.div(r);
+  }
+  function pow(l, r) {
+    if (l instanceof Array) {
+      l = array(l);
+    }
+    if (r instanceof Array) {
+      r = array(r);
+    }
+    return l.pow(r);
+  }
+  function mod(l, r) {
+    if (l instanceof Array) {
+      l = array(l);
+    }
+    if (r instanceof Array) {
+      r = array(r);
+    }
+    return l.mod(r);
+  }
+  function bitwise_and(l, r) {
+    if (l instanceof Array) {
+      l = array(l, "uint32");
+    }
+    if (r instanceof Array) {
+      r = array(r, "uint32");
+    }
+    return l.bitwise_and(r);
+  }
+  function bitwise_or(l, r) {
+    if (l instanceof Array) {
+      l = array(l, "uint32");
+    }
+    if (r instanceof Array) {
+      r = array(r, "uint32");
+    }
+    return l.bitwise_or(r);
+  }
+  function bitwise_xor(l, r) {
+    if (l instanceof Array) {
+      l = array(l), "uint32";
+    }
+    if (r instanceof Array) {
+      r = array(r, "uint32");
+    }
+    return l.bitwise_xor(r);
+  }
+  function bitwise_lshift(l, r) {
+    if (l instanceof Array) {
+      l = array(l, "uint32");
+    }
+    if (r instanceof Array) {
+      r = array(r, "uint32");
+    }
+    return l.bitwise_lshift(r);
+  }
+  function bitwise_rshift(l, r) {
+    if (l instanceof Array) {
+      l = array(l, "uint32");
+    }
+    if (r instanceof Array) {
+      r = array(r, "uint32");
+    }
+    return l.bitwise_rshift(r);
+  }
+  function bitwise_not(x) {
+    if (x instanceof Array) {
+      x = array(x, "uint32");
+    }
+    return x.bitwise_not();
+  }
+  function neg(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.neg();
+  }
+  function abs(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.abs();
+  }
+  function exp(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.exp();
+  }
+  function sqrt(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.sqrt();
+  }
+  function sin(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.sin();
+  }
+  function cos(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.cos();
+  }
+  function tan(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.tan();
+  }
+  function log(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.log();
+  }
+  function ceil(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.ceil();
+  }
+  function floor(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.floor();
+  }
+  function round(x) {
+    if (x instanceof Array) {
+      x = array(x);
+    }
+    return x.round();
+  }
+  function dot(l, r) {
+    if (l instanceof Array) {
+      l = array(l);
+    }
+    if (r instanceof Array) {
+      r = array(r);
+    }
+    return l.dot(r);
+  }
+  function cross(l, r) {
+    if (l instanceof Array) {
+      l = array(l);
+    }
+    if (r instanceof Array) {
+      r = array(r);
+    }
+    return l.cross(r);
   }
 
   // src/docs.json
@@ -4292,11 +4682,11 @@ var ndarray = (() => {
     "NDArray.prototype.iterate": {
       longname: "NDArray#iterate",
       kind: "function",
-      description: "Generic iterator that handles stride logic. It's slow. use map if you want to use jit.",
+      description: "Generic iterator that handles stride logic. It's slow. use map/reduce if you want to use jit.",
       params: [
         {
           name: "callback",
-          description: "A function called with `(value, index, flatPhysicalIndex)`.",
+          description: "A function called with `(value, index, flatPhysicalIndex)`, return true to exit early",
           type: {
             names: [
               "function"
@@ -5806,6 +6196,106 @@ var ndarray = (() => {
         }
       ]
     },
+    "NDArray.prototype.dot": {
+      longname: "NDArray#dot",
+      kind: "function",
+      description: "Dot Product (Scalar Inner Product).\rSupports 1D arrays (vectors) only.",
+      params: [
+        {
+          name: "other",
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "number"
+            ]
+          },
+          description: "Scalar result."
+        }
+      ]
+    },
+    "NDArray.prototype.cross": {
+      longname: "NDArray#cross",
+      kind: "function",
+      description: "Cross Product.\rOnly valid for 1D vectors of length 3.",
+      params: [
+        {
+          name: "other",
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          },
+          description: "New NDArray of size 3."
+        }
+      ]
+    },
+    "NDArray.prototype.jsMatMul": {
+      longname: "NDArray#jsMatMul",
+      kind: "function",
+      description: "Matrix Multiplication in js.\rOperations: (M, K) @ (K, N) -> (M, N)",
+      params: [
+        {
+          name: "other",
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          },
+          description: "New NDArray."
+        }
+      ]
+    },
+    "NDArray.prototype.jsMatVecMul": {
+      longname: "NDArray#jsMatVecMul",
+      kind: "function",
+      description: "Matrix-Vector Multiplication in js.\rOperation: (M, K) @ (K,) -> (M,)",
+      params: [
+        {
+          name: "vec",
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          },
+          description: "New NDArray (Vector)."
+        }
+      ]
+    },
     "NDArray.prototype.toWasm": {
       longname: "NDArray#toWasm",
       kind: "function",
@@ -5862,10 +6352,10 @@ var ndarray = (() => {
         }
       ]
     },
-    "NDArray.prototype.matmul": {
-      longname: "NDArray#matmul",
+    "NDArray.prototype.matMul": {
+      longname: "NDArray#matMul",
       kind: "function",
-      description: "Performs matrix multiplication. This is a wrapper around `NDWasmBlas.matmul`.",
+      description: "Performs matrix multiplication. This is a wrapper around `NDWasmBlas.matMul`.",
       params: [
         {
           name: "other",
@@ -5914,10 +6404,10 @@ var ndarray = (() => {
         }
       ]
     },
-    "NDArray.prototype.matmulBatch": {
-      longname: "NDArray#matmulBatch",
+    "NDArray.prototype.matMulBatch": {
+      longname: "NDArray#matMulBatch",
       kind: "function",
-      description: "Performs batched matrix multiplication. This is a wrapper around `NDWasmBlas.matmulBatch`.",
+      description: "Performs batched matrix multiplication. This is a wrapper around `NDWasmBlas.matMulBatch`.",
       params: [
         {
           name: "other",
@@ -7361,6 +7851,759 @@ var ndarray = (() => {
         }
       ]
     },
+    add: {
+      longname: "add",
+      kind: "function",
+      description: "Element-wise addition. Supports broadcasting.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    sub: {
+      longname: "sub",
+      kind: "function",
+      description: "Element-wise subtraction. Supports broadcasting.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    mul: {
+      longname: "mul",
+      kind: "function",
+      description: "Element-wise multiplication. Supports broadcasting.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    div: {
+      longname: "div",
+      kind: "function",
+      description: "Element-wise division. Supports broadcasting.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    pow: {
+      longname: "pow",
+      kind: "function",
+      description: "Element-wise exponentiation. Supports broadcasting.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    mod: {
+      longname: "mod",
+      kind: "function",
+      description: "Element-wise modulo. Supports broadcasting.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    bitwise_and: {
+      longname: "bitwise_and",
+      kind: "function",
+      description: "Bitwise AND.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    bitwise_or: {
+      longname: "bitwise_or",
+      kind: "function",
+      description: "Bitwise OR.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    bitwise_xor: {
+      longname: "bitwise_xor",
+      kind: "function",
+      description: "Bitwise XOR.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    bitwise_lshift: {
+      longname: "bitwise_lshift",
+      kind: "function",
+      description: "Bitwise left shift.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    bitwise_rshift: {
+      longname: "bitwise_rshift",
+      kind: "function",
+      description: "Bitwise (logical) right shift.",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    bitwise_not: {
+      longname: "bitwise_not",
+      kind: "function",
+      description: "Bitwise NOT.",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    neg: {
+      longname: "neg",
+      kind: "function",
+      description: "Numeric negation.",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    abs: {
+      longname: "abs",
+      kind: "function",
+      description: "Absolute value.",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    exp: {
+      longname: "exp",
+      kind: "function",
+      description: "Exponential function (e^x).",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    sqrt: {
+      longname: "sqrt",
+      kind: "function",
+      description: "Square root.",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    sin: {
+      longname: "sin",
+      kind: "function",
+      description: "Sine.",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    cos: {
+      longname: "cos",
+      kind: "function",
+      description: "Cosine.",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    tan: {
+      longname: "tan",
+      kind: "function",
+      description: "Tangent.",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    log: {
+      longname: "log",
+      kind: "function",
+      description: "Natural logarithm (base e).",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    ceil: {
+      longname: "ceil",
+      kind: "function",
+      description: "Ceiling (round up).",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    floor: {
+      longname: "floor",
+      kind: "function",
+      description: "Floor (round down).",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    round: {
+      longname: "round",
+      kind: "function",
+      description: "Round to nearest integer.",
+      params: [
+        {
+          name: "x",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    dot: {
+      longname: "dot",
+      kind: "function",
+      description: "Dot Product",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        }
+      ]
+    },
+    cross: {
+      longname: "cross",
+      kind: "function",
+      description: "Cross Product",
+      params: [
+        {
+          name: "l",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        },
+        {
+          name: "r",
+          type: {
+            names: [
+              "Array",
+              "TypedArray"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray#cross"
+            ]
+          }
+        }
+      ]
+    },
     _createUnaryKernel: {
       longname: "_createUnaryKernel",
       kind: "function",
@@ -8190,8 +9433,8 @@ var ndarray = (() => {
       description: "Internal helper to prepare operands for WASM operations.\rEnsures input is converted to NDWasmArray and tracks if it needs auto-disposal.",
       params: []
     },
-    "NDWasmArray.prototype.matmul": {
-      longname: "NDWasmArray#matmul",
+    "NDWasmArray.prototype.matMul": {
+      longname: "NDWasmArray#matMul",
       kind: "function",
       description: "Matrix Multiplication: C = this * other",
       params: [
@@ -8215,8 +9458,8 @@ var ndarray = (() => {
         }
       ]
     },
-    "NDWasmArray.prototype.matmulBatch": {
-      longname: "NDWasmArray#matmulBatch",
+    "NDWasmArray.prototype.matMulBatch": {
+      longname: "NDWasmArray#matMulBatch",
       kind: "function",
       description: "Batched Matrix Multiplication: C[i] = this[i] * other[i]",
       params: [
@@ -8618,8 +9861,8 @@ var ndarray = (() => {
         }
       ]
     },
-    "NDWasmBlas.matmul": {
-      longname: "NDWasmBlas.matmul",
+    "NDWasmBlas.matMul": {
+      longname: "NDWasmBlas.matMul",
       kind: "function",
       description: "General Matrix Multiplication (GEMM): C = A * B.\rComplexity: O(m * n * k)",
       params: [
@@ -8679,8 +9922,8 @@ var ndarray = (() => {
         }
       ]
     },
-    "NDWasmBlas.matmulBatch": {
-      longname: "NDWasmBlas.matmulBatch",
+    "NDWasmBlas.matMulBatch": {
+      longname: "NDWasmBlas.matMulBatch",
       kind: "function",
       description: "Batched Matrix Multiplication: C[i] = A[i] * B[i].\rCommon in deep learning inference.\rComplexity: O(batch * m * n * k)",
       params: [
@@ -9969,7 +11212,8 @@ var ndarray = (() => {
       NDWasmSignal,
       NDWasmImage,
       NDWasmOptimize,
-      ...ndarray_factory_exports
+      ...ndarray_factory_exports,
+      ...ndarray_helpers_exports
     };
     for (const name in docs_default) {
       const parts = name.split(".");

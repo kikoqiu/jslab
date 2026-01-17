@@ -162,6 +162,28 @@ box.dumpJSON=function(...o){
   globalThis.document.body.append(document.createRange().createContextualFragment(str));
 };
 
+function _convertToArrayProps(arr) {
+  if (!Array.isArray(arr)) return arr;
+
+  return arr.map(item => {
+    if (typeof item !== 'object' || item === null) {
+      return item;
+    }
+
+    const newItem = { ...item };
+
+    Object.keys(newItem).forEach(key => {
+      const value = newItem[key];
+
+      if (value && typeof value.toArray === 'function') {
+        newItem[key] = value.toArray();
+      }
+    });
+
+    return newItem;
+  });
+}
+
 /**
  * Plot with plotly.js. General plot function. Parameters are passed to plotly.
  * @param {*} data data arrays
@@ -175,6 +197,7 @@ box.plotly=function(data, layout, config, style, frames){
   if(!style){
     style=''
   }
+  data = _convertToArrayProps(data);
   let obj={config:config,layout:layout,frames:frames,data:data};
   let json=JSON.stringify(obj); 
 
@@ -227,7 +250,7 @@ box.plot=function(...xPoints_yPoints){
   let layout=null;
   let config=null;
   if(args.length==1){
-    let x=range(0,args[0].length);
+    let x=range(0,args[0].length??args[0].size);
     let y=args[0];
     data.push({x,y,type: 'scatter',mode:'lines',line:{width:1}});
   }else{
