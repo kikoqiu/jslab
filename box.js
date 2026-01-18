@@ -198,14 +198,17 @@ box.plotly=function(data, layout, config, style, frames){
     style=''
   }
   data = _convertToArrayProps(data);
-  let obj={config:config,layout:layout,frames:frames,data:data};
+  let obj={config:config,layout:{autosize: true,...layout},frames:frames,data:data};
   let json=JSON.stringify(obj); 
 
   var div='div-'+crypto.randomUUID();
-  let node=document.createRange().createContextualFragment(`<div class="plot" id="${div}" style="${style};"></div>`);
+  let node=document.createRange().createContextualFragment(`<div class="plot" id="${div}" style="${style};resize:both;overflow:auto;"></div>`);
   globalThis.document.body.append(node);
 
-  let scr=`Plotly.react("${div}", ${json});\n`;//newPlot
+  let scr=
+`Plotly.react("${div}", ${json});
+(new ResizeObserver(entries => Plotly.Plots.resize("${div}"))).observe(document.getElementById('${div}'));
+`;//newPlot
   box.outputBuffer.resultScript += scr;
   return div;
 };
