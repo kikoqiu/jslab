@@ -441,10 +441,10 @@ const jshintLinter = linter(async view => {
     let diagnostics = [];
     try {
         // Get the execution context's globals from the worker
-        const globalsForJshint = await workerhelper.getWorkerGlobals();
+        //const globalsForJshint = await workerhelper.getWorkerGlobals();
 
         let code="async function _noname(){\n"+view.state.doc.toString()+"\n}"
-        JSHINT(code, { esversion: 11, asi: true, /*undef: true,*/ browser: true, devel: true, typed: true, globals: globalsForJshint });
+        JSHINT(code, { esversion: 11, asi: true, /*undef: true,*/ browser: true, devel: true, typed: true/*, globals: globalsForJshint*/ });
         const errors = JSHINT.data()?.errors;
         
         if (errors) {
