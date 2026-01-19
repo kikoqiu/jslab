@@ -153,13 +153,39 @@ self.onmessage = async function (e) {
         case 'execute':
             try {
                 await box.runtimeEnter();
+                // Make the cell_uuid available to the execution context
+                box.cell_uuid = payload.cell_uuid; 
+                // Clear any callbacks that were registered by this cell in a previous run
+                box.clear_cell_callbacks(payload.cell_uuid); 
+                
                 let eval1=eval;
                 const result = await eval1(payload.code);
+
                 await box.runtimeExit();
                 self.postMessage({ type: 'executionResult', payload: { result } });
             } catch (error) {
                 console.error(error);
                 self.postMessage({ type: 'executionResult', payload: { error: { message: `${error.name}: ${error.message}\n${error.stack}` } } });
+            } finally {
+                // Clean up the cell_uuid from the box scope
+                delete box.cell_uuid;
+            }
+            break;
+        case 'callUiCallback':
+            {
+                const { callback_uuid, args, call_id } = payload;
+                const callback_info = box.ui_callbacks[callback_uuid];
+                
+                if (callback_info && typeof callback_info.func === 'function') {
+                    try {
+                        const result = await callback_info.func(...args);
+                        self.postMessage({ type: 'uiCallbackResult', payload: { call_id, result } });
+                    } catch (error) {
+                        self.postMessage({ type: 'uiCallbackResult', payload: { call_id, error: { message: error.message, name: error.name } } });
+                    }
+                } else {
+                    self.postMessage({ type: 'uiCallbackResult', payload: { call_id, error: { notExist:true, message: `Callback with UUID ${callback_uuid} not found or is not a function.`} } });
+                }
             }
             break;
         case 'proxyResult':

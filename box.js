@@ -2,6 +2,11 @@ var box=globalThis;
 
 box.outputBuffer={'result':null,'resultScript':''};
 
+// a map for callback_uuid -> { func, cell_uuid }
+box.ui_callbacks = {}; 
+// a map for cell_uuid -> [callback_uuid, ...]
+box.cell_to_callbacks = {}; 
+
 box.document = globalThis.linkedom.parseHTML('<html><body></body></html>');
 
 box.initOutputBuffer=async function(){
@@ -9,6 +14,45 @@ box.initOutputBuffer=async function(){
   let {document} = globalThis.linkedom.parseHTML('<html><body></body></html>');
   globalThis.document=document;
 }
+
+/**
+ * Register a function to be called from the UI.
+ * @param {Function} func The function to register.
+ * @param {string} cell_uuid The UUID of the cell this function is associated with.
+ * @returns {string|null} The UUID for the registered callback, or null if no cell_uuid is provided.
+ */
+box.registerUiCallback = function(func, cell_uuid) {
+    if (!cell_uuid || typeof func !== 'function') {
+        console.error("Failed to register callback: cell_uuid and a valid function are required.");
+        return null;
+    }
+    const callback_uuid = `cb-${crypto.randomUUID()}`;
+    
+    // Store the callback details
+    box.ui_callbacks[callback_uuid] = { func: func, cell_uuid: cell_uuid };
+
+    // Index for easy cleanup
+    if (!box.cell_to_callbacks[cell_uuid]) {
+        box.cell_to_callbacks[cell_uuid] = [];
+    }
+    box.cell_to_callbacks[cell_uuid].push(callback_uuid);
+
+    return callback_uuid;
+};
+
+/**
+ * Clears all registered UI callbacks for a specific cell.
+ * @param {string} cell_uuid The UUID of the cell to clear callbacks for.
+ */
+box.clear_cell_callbacks = function(cell_uuid) {
+    if (cell_uuid && box.cell_to_callbacks[cell_uuid]) {
+        const callback_uuids = box.cell_to_callbacks[cell_uuid];
+        for (const callback_uuid of callback_uuids) {
+            delete box.ui_callbacks[callback_uuid];
+        }
+        delete box.cell_to_callbacks[cell_uuid];
+    }
+};
 
 /**
  * flush the html output
@@ -207,11 +251,307 @@ box.plotly=function(data, layout, config, style, frames){
 
   let scr=
 `Plotly.react("${div}", ${json});
-(new ResizeObserver(entries => Plotly.Plots.resize("${div}"))).observe(document.getElementById('${div}'));
+(function(){
+const ob=new ResizeObserver(entries => {
+  if(document.getElementById('${div}')){
+    Plotly.Plots.resize("${div}");
+  }else{
+    ob.disconnect();
+  }
+});
+ob.observe(document.getElementById('${div}'));
+})();
 `;//newPlot
   box.outputBuffer.resultScript += scr;
   return div;
 };
+
+
+/**
+ * Generates data for one or more functions and sets up the plot environment.
+ * Supports single function, array of functions, or array of configuration objects.
+ *
+ * @param {Function|Function[]|Object[]} plotSpec - The function(s) or configuration object(s) to plot.
+ * @param {Object} layout - Plotly layout configuration.
+ * @param {Object} config - Plotly config options.
+ * @param {String} style - CSS style for the container.
+ */
+box.plotFunction = function(plotSpec, layout, config, style) {
+  // Normalize input to an array of specification objects
+  let specs = [];
+  if (typeof plotSpec === "function") {
+    specs = [{ func: plotSpec }];
+  } else if (Array.isArray(plotSpec)) {
+    specs = plotSpec.map(s => (typeof s === "function" ? { func: s } : s));
+  } else {
+    specs = [plotSpec];
+  }
+
+  // Determine the maximum dimension among all datasets to decide the global plot type
+  let maxNdim = 1;
+  
+  // Process each spec to apply defaults
+  const normalizedSpecs = specs.map(spec => {
+    if (typeof spec.func !== 'function') {
+      box.echo("Error: plotSpec.func must be a function.");
+      return null;
+    }
+
+    const ndim = spec.ndim || 1;
+    if (ndim > maxNdim) maxNdim = ndim;
+
+    // Default ranges and samples based on dimension
+    const defaultRanges = [[-10, 10], [-10, 10], [-10, 10]];
+    let defaultSamples;
+    if (ndim == 1) {
+      defaultSamples = [4000];
+    } else if (ndim == 2) {
+      defaultSamples = [500, 500];
+    } else {
+      defaultSamples = [100, 100, 50];
+    }
+
+    const range = [];
+    const samples = [];
+    const userRange = spec.range;
+    const userSamples = spec.samples;
+
+    for (let i = 0; i < ndim; i++) {
+      if (userRange && userRange[i] && Array.isArray(userRange[i]) && userRange[i].length === 2) {
+        range.push(userRange[i]);
+      } else {
+        range.push(defaultRanges[i]);
+      }
+
+      if (userSamples && typeof userSamples[i] === 'number') {
+        samples.push(userSamples[i]);
+      } else {
+        samples.push(defaultSamples[i]);
+      }
+    }
+
+    return {
+      ...spec,
+      ndim,
+      range,
+      samples,
+      vectorized: spec.vectorized || false,
+      supersample: spec.supersample || 8
+    };
+  }).filter(s => s !== null);
+
+  if (normalizedSpecs.length === 0) return;
+
+  /**
+   * Internal helper to calculate data for a single specification.
+   * reused from the original logic but encapsulated.
+   */
+  const calculateSingleSpec = (spec, currentRange) => {
+    const { func, ndim, samples, vectorized, supersample, name } = spec;
+
+    // Use currentRange if available (from zoom), otherwise use spec default.
+    // Ensure we only take dimensions relevant to this spec.
+    const activeRange = (currentRange && currentRange.length >= ndim) 
+      ? currentRange.slice(0, ndim) 
+      : spec.range;
+
+    const ssFactor = (ndim === 1 && supersample > 1) ? Math.floor(supersample) : 1;
+    const isSupersampling = ssFactor > 1;
+
+    const nx = (ndim === 1 && isSupersampling) ? Math.floor(samples[0] * ssFactor) : samples[0];
+    const ny = (ndim >= 2) ? samples[1] : 1;
+    const nz = (ndim >= 3) ? samples[2] : 1;
+    const totalPoints = nx * ny * nz;
+
+    const fillLinspace = (outArray, start, end, n) => {
+      if (n <= 1) {
+        outArray[0] = start;
+        return;
+      }
+      const step = (end - start) / (n - 1);
+      for (let i = 0; i < n; i++) {
+        outArray[i] = start + i * step;
+      }
+    };
+
+    const xAxis = new Float64Array(nx);
+    fillLinspace(xAxis, activeRange[0][0], activeRange[0][1], nx);
+
+    let yAxis, zAxis;
+    if (ndim >= 2) {
+      yAxis = new Float64Array(ny);
+      fillLinspace(yAxis, activeRange[1][0], activeRange[1][1], ny);
+    }
+    if (ndim >= 3) {
+      zAxis = new Float64Array(nz);
+      fillLinspace(zAxis, activeRange[2][0], activeRange[2][1], nz);
+    }
+
+    let resultFlat;
+
+    if (vectorized) {
+      const xMesh = new Float64Array(totalPoints);
+      let yMesh, zMesh;
+      if (ndim >= 2) yMesh = new Float64Array(totalPoints);
+      if (ndim >= 3) zMesh = new Float64Array(totalPoints);
+
+      let ptr = 0;
+      for (let k = 0; k < nz; k++) {
+        const zVal = (ndim >= 3) ? zAxis[k] : 0;
+        for (let j = 0; j < ny; j++) {
+          const yVal = (ndim >= 2) ? yAxis[j] : 0;
+          xMesh.set(xAxis, ptr);
+          if (ndim >= 2) {
+            for (let i = 0; i < nx; i++) {
+              yMesh[ptr + i] = yVal;
+              if (ndim >= 3) zMesh[ptr + i] = zVal;
+            }
+          }
+          ptr += nx;
+        }
+      }
+
+      if (ndim === 1) resultFlat = func(xMesh);
+      else if (ndim === 2) resultFlat = func(xMesh, yMesh);
+      else resultFlat = func(xMesh, yMesh, zMesh);
+
+      if (!(resultFlat instanceof Float64Array)) {
+        resultFlat = new Float64Array(resultFlat);
+      }
+    } else {
+      resultFlat = new Float64Array(totalPoints);
+      let ptr = 0;
+      if (ndim === 1) {
+        for (let i = 0; i < nx; i++) {
+          resultFlat[i] = func(xAxis[i]);
+        }
+      } else if (ndim === 2) {
+        for (let j = 0; j < ny; j++) {
+          const yVal = yAxis[j];
+          for (let i = 0; i < nx; i++) {
+            resultFlat[ptr++] = func(xAxis[i], yVal);
+          }
+        }
+      } else {
+        for (let k = 0; k < nz; k++) {
+          const zVal = zAxis[k];
+          for (let j = 0; j < ny; j++) {
+            const yVal = yAxis[j];
+            for (let i = 0; i < nx; i++) {
+              resultFlat[ptr++] = func(xAxis[i], yVal, zVal);
+            }
+          }
+        }
+      }
+    }
+
+    // 1D Supersampling Decimation
+    if (ndim === 1 && isSupersampling) {
+      const outputCount = samples[0];
+      const finalCount = outputCount * 2;
+      const finalX = new Float64Array(finalCount);
+      const finalY = new Float64Array(finalCount);
+      const yLen = resultFlat.length;
+      let outPtr = 0;
+
+      for (let i = 0; i < outputCount; i++) {
+        const startIdx = i * ssFactor;
+        let endIdx = startIdx + ssFactor;
+        if (endIdx > yLen) endIdx = yLen;
+        if (startIdx >= endIdx) break;
+
+        let minVal = Infinity;
+        let maxVal = -Infinity;
+        for (let k = startIdx; k < endIdx; k++) {
+          const val = resultFlat[k];
+          if (val < minVal) minVal = val;
+          if (val > maxVal) maxVal = val;
+        }
+        if (minVal === Infinity) { minVal = NaN; maxVal = NaN; }
+
+        const firstVal = resultFlat[startIdx];
+        const lastVal = resultFlat[endIdx - 1];
+        finalX[outPtr] = xAxis[startIdx];
+        finalX[outPtr + 1] = xAxis[endIdx - 1];
+
+        if (firstVal > lastVal) {
+          finalY[outPtr] = maxVal;
+          finalY[outPtr + 1] = minVal;
+        } else {
+          finalY[outPtr] = minVal;
+          finalY[outPtr + 1] = maxVal;
+        }
+        outPtr += 2;
+      }
+      return { ndim, x: finalX, y: finalY, name };
+    }
+
+    // Structure Output
+    if (ndim === 1) {
+      return { ndim, x: xAxis, y: resultFlat, name};
+    } else if (ndim === 2) {
+      const zRows = new Array(ny);
+      for (let j = 0; j < ny; j++) {
+        const start = j * nx;
+        zRows[j] = resultFlat.subarray(start, start + nx);
+      }
+      return { ndim, x: xAxis, y: yAxis, z: zRows, name };
+    } else if (ndim === 3) {
+      const valueSlices = new Array(nz);
+      for (let k = 0; k < nz; k++) {
+        const sliceRows = new Array(ny);
+        const sliceOffset = k * ny * nx;
+        for (let j = 0; j < ny; j++) {
+          const rowStart = sliceOffset + (j * nx);
+          sliceRows[j] = resultFlat.subarray(rowStart, rowStart + nx);
+        }
+        valueSlices[k] = sliceRows;
+      }
+      return { ndim, x: xAxis, y: yAxis, z: zAxis, value: valueSlices, name };
+    }
+  };
+
+  /**
+   * Main data generator called by the UI.
+   * Iterates through all normalized specs and returns an array of results.
+   */
+  const dataGenerator = (newRange) => {
+    return normalizedSpecs.map(spec => calculateSingleSpec(spec, newRange));
+  };
+
+  const callbackId = box.registerUiCallback(dataGenerator, box.cell_uuid);
+  if (!callbackId) {
+    box.echo("Error: Could not register plot callback. Ensure code is run inside a cell.");
+    return;
+  }
+
+  const divId = 'plot-' + crypto.randomUUID();
+  box.echoHTML(`<div class="plot" id="${divId}" style="${style || ''}; resize:both; overflow:auto;"></div>`);
+
+  // Construct initial combined range based on maxNdim for the first view
+  // Use the range of the first spec that matches maxNdim, or default
+  const initialRange = normalizedSpecs.find(s => s.ndim === maxNdim)?.range || [[-10, 10]];
+
+  const plotOptions = {
+    divId,
+    callbackId,
+    maxNdim, // Send the largest dimension found
+    range: initialRange,
+    layout,
+    config
+  };
+
+  const script = `
+      if (typeof workerhelper.drawPlot === 'function') {
+          workerhelper.drawPlot(${JSON.stringify(plotOptions)});
+      } else {
+          const el = document.getElementById(${JSON.stringify(divId)});
+          if(el) el.innerText = 'Error: workerhelper.drawPlot is not defined.';
+      }
+  `;
+  box.outputBuffer.resultScript += script;
+};
+
 
 
 /**

@@ -319,7 +319,7 @@ const App = {
     loadData(filename, data) {
       this.clearAll();
       this.filename = filename;
-      this.blocks = data.blocks.map(b => ({ ...b, uuid: `${Date.now()}-${this.uuid_pos++}` }));
+      this.blocks = data.blocks.map(b => ({ ...b, uuid: 'cell-' + crypto.randomUUID() }));
       this.maxeIndex = data.maxeIndex || 0;
       if (this.blocks.length === 0) this.addblock();
       this.$nextTick(() => { this.isDirty = false; });
@@ -366,7 +366,7 @@ const App = {
     cutBlock() { if (this.selected) { this.copyBlock(); this.deleteBlock(); } },
     pasteBlock() {
       if (!this.cellClipboard) return;
-      const newBlock = { ...JSON.parse(JSON.stringify(this.cellClipboard)), uuid: `${Date.now()}-${this.uuid_pos++}` };
+      const newBlock = { ...JSON.parse(JSON.stringify(this.cellClipboard)), uuid: 'cell-' + crypto.randomUUID() };
       this.blocks.splice(this.selectedIndex + 1, 0, newBlock);
       this.selectedIndex++;
     },
@@ -389,7 +389,7 @@ const App = {
         .catch(e => alert('Error loading help file: ' + e));
     },
     appendBlocks(blocks) {
-      blocks.forEach(b => { this.blocks.push({ ...b, uuid: `${Date.now()}-${this.uuid_pos++}` }); });
+      blocks.forEach(b => { this.blocks.push({ ...b, uuid: 'cell-' + crypto.randomUUID() }); });
     },
     formatError(source, e) {
       let pos = -1, match = null;
@@ -423,7 +423,7 @@ const App = {
         cur.resultScript = '';
         let codeToRun = cur.code;
         if (debug) codeToRun = "debugger;\n" + codeToRun;
-        let evalresult = workerhelper.runcode(codeToRun, info);
+        let evalresult = workerhelper.runcode(codeToRun, info, cur.uuid);
         if (evalresult instanceof Promise) evalresult = await evalresult;
         if (evalresult !== undefined) cur.result += `<pre>${String(evalresult)}</pre>`;
       } catch (e) {
@@ -493,12 +493,12 @@ const App = {
       }
     },
     addblock(code = "") {
-      const newBlock = { eindex: -1, code, result: null, resultScript: '', uuid: `${Date.now()}-${this.uuid_pos++}` };
+      const newBlock = { eindex: -1, code, result: null, resultScript: '', uuid: 'cell-' + crypto.randomUUID() };
       this.blocks.splice(this.selectedIndex + 1, 0, newBlock);
       this.selectedIndex++;
     },
     insertBlock() {
-      const newBlock = { eindex: -1, code: "", result: null, resultScript: '', uuid: `${Date.now()}-${this.uuid_pos++}` };
+      const newBlock = { eindex: -1, code: "", result: null, resultScript: '', uuid: 'cell-' + crypto.randomUUID() };
       this.blocks.splice(this.selectedIndex, 0, newBlock);
     },
     deleteBlock() {
