@@ -63,9 +63,8 @@ function compileImplicitFunc(input) {
 
     // 4. Generate Vectorized Function (Simulates SIMD)
     // Arguments:
-    // n: number of points
-    // xArr, yArr: Input coordinate arrays (Float32Array)
-    // outArr: Output value array (Float32Array)
+    // xArr, yArr: Input coordinate arrays (FloatArray)
+    // outArr: Output value array (FloatArray)
     const funcBody = `
         for (let j = 0; j < h; j++) {
             for(let i = 0; i < w; i++){

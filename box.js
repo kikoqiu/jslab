@@ -268,6 +268,58 @@ ob.observe(document.getElementById('${div}'));
 
 
 /**
+ * Compile a vectorized expression eval function 
+ * @private
+ * @param {string} expr 
+ * @param {number} ndim 
+ * @returns {Function}
+ */
+box._compileExpression = function(expr, ndim = 1){
+    let mathBody = expr.replace(/\^/g, "**");
+    // Replace standard math functions (sin, cos, etc.) with Math.sin, Math.cos
+    const mathProps = Object.getOwnPropertyNames(Math);
+    for (const prop of mathProps) {
+        const regex = new RegExp(`\\b${prop}\\b`, 'g');
+        mathBody = mathBody.replace(regex, `Math.${prop}`);
+    }
+    
+    let funcBody;
+    if(ndim==3){
+      funcBody= 
+      `for (let k = 0; k < nz; k++){
+            for (let j = 0; j < ny; j++){
+                for(let i = 0; i < nx; i++){
+                    const x = xArr[i];
+                    const y = yArr[j];
+                    const z = zArr[k];
+                    outArr[k * ny * nx + j * nx + i] = ${mathBody};
+                }
+            }
+        }`;
+    }else if(ndim==2){
+      funcBody=
+      `for (let j = 0; j < ny; j++){
+          for(let i = 0; i < nx; i++){
+              const x = xArr[i];
+              const y = yArr[j];
+              outArr[j * nx + i] = ${mathBody};
+          }
+      }`;
+    }else if(ndim==1){
+      funcBody=
+      `for(let i = 0; i < nx; i++){
+          const x = xArr[i];
+          outArr[i] = ${mathBody};
+      }`;
+    }
+
+    try {
+        return new Function("nx", "ny", "nz", "xArr", "yArr", "zArr", "outArr", funcBody);
+    } catch (e) {
+        throw new Error(`Compilation failed: ${e.message}`);
+    }
+}
+/**
  * Generates data for one or more functions and sets up the plot environment.
  * Supports single function, array of functions, or array of configuration objects.
  *
@@ -291,14 +343,17 @@ box.plotFunction = function(plotSpec, layout, config, style) {
   let maxNdim = 1;
   
   // Process each spec to apply defaults
-  const normalizedSpecs = specs.map(spec => {
-    if (typeof spec.func !== 'function') {
-      box.echo("Error: plotSpec.func must be a function.");
+  const normalizedSpecs = specs.map(spec => {    
+    const ndim = spec.ndim || 1;
+    if (ndim > maxNdim) maxNdim = ndim;
+
+    if (typeof spec.func ==="string"){
+      spec.expressionFunc = box._compileExpression(spec.func,ndim);
+    } else if(typeof spec.func !== 'function') {
+      box.echo("Error: plotSpec.func must be a string/function.");
       return null;
     }
 
-    const ndim = spec.ndim || 1;
-    if (ndim > maxNdim) maxNdim = ndim;
 
     // Default ranges and samples based on dimension
     const defaultRanges = [[-10, 10], [-10, 10], [-10, 10]];
@@ -347,7 +402,7 @@ box.plotFunction = function(plotSpec, layout, config, style) {
    * reused from the original logic but encapsulated.
    */
   const calculateSingleSpec = (spec, currentRange) => {
-    const { func, ndim, samples, vectorized, supersample, name } = spec;
+    const { func, expressionFunc, ndim, samples, vectorized, supersample, name } = spec;
 
     // Use currentRange if available (from zoom), otherwise use spec default.
     // Ensure we only take dimensions relevant to this spec.
@@ -389,35 +444,18 @@ box.plotFunction = function(plotSpec, layout, config, style) {
 
     let resultFlat;
 
-    if (vectorized) {
-      const xMesh = new Float64Array(totalPoints);
-      let yMesh, zMesh;
-      if (ndim >= 2) yMesh = new Float64Array(totalPoints);
-      if (ndim >= 3) zMesh = new Float64Array(totalPoints);
+    if(expressionFunc){
+      resultFlat = new Float64Array(totalPoints);
+      expressionFunc(nx, ny, nz, xAxis, yAxis, zAxis, resultFlat);
+    }else if (vectorized) {
+      if (ndim === 1) resultFlat = func(new ndarray.NDArray(xAxis,{shape:[nx]}));
+      else if (ndim === 2) resultFlat = func(new ndarray.NDArray(xAxis,{shape:[1,nx]}), new ndarray.NDArray(yAxis,{shape:[ny,1]}));
+      else resultFlat = func(new ndarray.NDArray(xAxis,{shape:[1, 1, nx]}), new ndarray.NDArray(yAxis,{shape:[1, ny, 1]}), new ndarray.NDArray(zAxis,{shape:[nz, 1, 1]}));
 
-      let ptr = 0;
-      for (let k = 0; k < nz; k++) {
-        const zVal = (ndim >= 3) ? zAxis[k] : 0;
-        for (let j = 0; j < ny; j++) {
-          const yVal = (ndim >= 2) ? yAxis[j] : 0;
-          xMesh.set(xAxis, ptr);
-          if (ndim >= 2) {
-            for (let i = 0; i < nx; i++) {
-              yMesh[ptr + i] = yVal;
-              if (ndim >= 3) zMesh[ptr + i] = zVal;
-            }
-          }
-          ptr += nx;
-        }
+      if (!(resultFlat instanceof ndarray.NDArray)) {
+        throw new Error("result must be an NDArray");
       }
-
-      if (ndim === 1) resultFlat = func(xMesh);
-      else if (ndim === 2) resultFlat = func(xMesh, yMesh);
-      else resultFlat = func(xMesh, yMesh, zMesh);
-
-      if (!(resultFlat instanceof Float64Array)) {
-        resultFlat = new Float64Array(resultFlat);
-      }
+      resultFlat = resultFlat.data;
     } else {
       resultFlat = new Float64Array(totalPoints);
       let ptr = 0;
@@ -602,7 +640,7 @@ box.plotImplicit = function(plotSpec, options) {
 
           const dataGenerator = (w, h, xArr, yArr) => {          
               if (vectorized) {
-                  const result = func(new ndarray.NDArray(xArr.slice(0, w),{shape:[1,w]}), new ndarray.NDArray(yArr.slice(0, h),{shape:[h,1]}));
+                  const result = func(new ndarray.NDArray(xArr.slice(0, w),{shape:[1,w],dtype:"float32"}), new ndarray.NDArray(yArr.slice(0, h),{shape:[h,1],dtype:"float32"}));
                   return result.data;
               } else {
                   const outArr = new Float32Array(h*w);
