@@ -11,6 +11,7 @@
   <!--script src="https://unpkg.com/vue@3.1.1/dist/vue.global.prod.js"></script-->
   <script src="libs/vue.global.3.5.25.js"></script>
   <script src="libs/axios.min.js"></script>
+  <script src="libs/main.js"></script>
 
   <script src="libs/tex-svg.js"></script>
   <script src="libs/plotly-3.3.0.min.js"></script>
@@ -226,11 +227,15 @@ const App = {
     }
   },
   async mounted() {
-    let loaded = await this.loadBlock();
-    let qcode = this.getQueryString('code');
+    let loaded = false;
+
+    let qcode = await SmartURLCodec.resolveData();
     if(qcode != null){
       this.addblock(qcode);
       loaded = true;
+    }
+    if(!loaded){
+      loaded = await this.loadBlock();
     }
     if (!loaded) {
       this.addblock("echo('Welcome to JSLab!');");
@@ -360,9 +365,9 @@ const App = {
       reader.readAsText(file);
       event.target.value = '';
     },
-    shareBlock() {
+    async shareBlock() {
       if (!this.selected || !this.selected.code) return;
-      let url = window.location.origin + window.location.pathname + "?code=" + encodeURIComponent(this.selected.code);
+      let url = await SmartURLCodec.buildUrl(window.location.origin + window.location.pathname,this.selected.code);
       navigator.clipboard.writeText(url).then(() => alert('Shareable link for cell copied to clipboard!'), () => alert('Failed to copy link.'));
     },
     copyBlock() { if (this.selected) this.cellClipboard = JSON.parse(JSON.stringify(this.selected)); },
@@ -445,10 +450,6 @@ const App = {
     },
     async evalCode(debug = false) {
       if (this.isExecuting) return;
-      if(this.filename == '') {
-        this.saveAsBlock();
-        return;
-      }
       if (!this.selected) return;
 
       this.isExecuting = true;
@@ -520,14 +521,6 @@ const App = {
     showToast(message) {
       this.notificationMessage = message;
       this.showNotification = true;
-    },    
-    getQueryString(name) {
-        let reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");
-        let r = window.location.search.substr(1).match(reg);
-        if (r != null) {
-            return decodeURIComponent(r[2]);
-        };
-        return null;
     }
   }
 };
