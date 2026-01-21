@@ -553,6 +553,102 @@ box.plotFunction = function(plotSpec, layout, config, style) {
 };
 
 
+/**
+ * Plots an implicit function (e.g., x^2 + y^2 = 1) on the UI.
+ * The actual computation happens in the worker, and rendering happens on the main thread.
+ *
+ * @param {string | Function | object | Array<string|Function|object>} plotSpec - The specification(s) for the implicit function(s).
+ *   - If a `string`: An implicit equation like "x\*\*2 + y\*\*2 = 1".
+ *   - If a `Function`: A scalar function `f(x, y)` which returns a numerical value. The plot will show where `f(x, y) = 0`.
+ *   - If an `object`: { func, vectorized, isEquality }.
+ *   - vectorized If `true`, `func` is expected to take `ndarray.NDArray` inputs for `x(spape=[1,w])` and `y(spape=[h,1])` and return a `ndarray.NDArray` of results, e.g. (x**2-y**2).sin()-(x+y).sin()-(x*y).cos() . If `false`, `func` takes scalar `x, y` and is called for each point.
+ *   - isEquality If `true`, plots `f(x,y)=0`. If `false`, plots `f(x,y)<0` (an inequality region).
+ *   - If an `Array`: A list containing any combination of the above.
+ * @param {object} [options={}] - Configuration options for the plot.
+ * @param {string[]} [options.colors] - Array of color strings corresponding to inputs.
+ * @param {string[]} [options.names] - Array of name strings for the legend/tooltip.
+ * @param {string} [options.style='height:600px; resize:both; overflow:auto;'] - CSS style for the plot container.
+ * @param {object} [options.bounds={xMin:-10, xMax:10, yMin:-10, yMax:10}] - Initial mathematical bounds.
+ * @param {number} [options.superSample=1] - Factor for supersampling.
+ * @param {string} [options.gridColor='#e0e0e0'] - Color for grid lines.
+ * @param {string} [options.axisColor='#444'] - Color for axis lines and labels.
+ */
+box.plotImplicit = function(plotSpec, options) {
+  options = options ?? {};
+  
+  // Normalize input to an array to handle single or multiple plots uniformly
+  const inputList = Array.isArray(plotSpec) ? plotSpec : [plotSpec];
+  const specsForUI = [];
+
+  // Step 1: Process all inputs
+  for (const item of inputList) {
+      if (typeof item === 'string') {
+          specsForUI.push({ type: 'string', value: item });
+      } else {
+          let func, vectorized = false, isEquality = true;
+
+          if (typeof item === 'function') {
+              func = item;
+          } else if (typeof item === 'object' && item !== null) {
+              func = item.func;
+              vectorized = item.vectorized || false;
+              isEquality = item.isEquality !== undefined ? item.isEquality : true;
+          }
+
+          if (typeof func !== 'function') {
+              box.echo("Error: plotSpec item must be a string, a function, or an object with a 'func' property.");
+              return;
+          }
+
+          const dataGenerator = (w, h, xArr, yArr) => {          
+              if (vectorized) {
+                  const result = func(new ndarray.NDArray(xArr.slice(0, w),{shape:[1,w]}), new ndarray.NDArray(yArr.slice(0, h),{shape:[h,1]}));
+                  return result.data;
+              } else {
+                  const outArr = new Float32Array(h*w);
+                  for (let j = 0; j < h; j++) {
+                    for(let i = 0; i < w; i++){
+                      outArr[j * w + i] = func(xArr[i], yArr[j]);
+                    }
+                  }
+                  return outArr;
+              }
+          };
+
+          const callbackId = box.registerUiCallback(dataGenerator, box.cell_uuid);
+          if (!callbackId) {
+              box.echo("Error: Could not register plot callback. Ensure code is run inside a cell.");
+              return;
+          }
+
+          specsForUI.push({ type: 'callback', callbackId, isEquality });
+      }
+  }
+
+  // Step 2: Generate resultScript
+  const divId = 'plot-' + crypto.randomUUID();
+  const style = options.style || 'resize:both; overflow:auto;';
+  box.echoHTML(`<div class="plot" id="${divId}" style="${style}"></div>`);
+
+  const plotOptions = {
+      divId,
+      specs: specsForUI, // Pass array of specs
+      ...options 
+  };
+
+  const script = `
+      if (typeof workerhelper.plotImplicit === 'function') {
+          workerhelper.plotImplicit(${JSON.stringify(plotOptions)});
+      } else {
+          const el = document.getElementById(${JSON.stringify(divId)});
+          if(el) el.innerText = 'Error: workerhelper.plotImplicit is not defined.';
+      }
+  `;
+  box.outputBuffer.resultScript += script;
+};
+
+
+
 
 /**
  * add animation to a plotly div

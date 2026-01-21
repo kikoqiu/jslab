@@ -354,6 +354,63 @@ workerhelper.drawPlot = function(plotOptions) {
   initializePlot();
 };
 
+workerhelper.plotImplicit = async function(plotOptions) {
+    const { divId, specs } = plotOptions;
+
+    const plotDiv = document.getElementById(divId);
+    if (!plotDiv) {
+        console.error(`Plot container with id ${divId} not found.`);
+        return;
+    }
+
+    // Support legacy single spec if specs array is missing (backward compatibility)
+    const specList = specs || (plotOptions.spec ? [plotOptions.spec] : []);
+    const exprInputs = [];
+
+    // Process all specifications
+    for (const spec of specList) {
+        if (spec.type === 'string') {
+            exprInputs.push(spec.value);
+        } else if (spec.type === 'callback') {
+            // Initial ping to ensure worker function exists
+            try {
+                await workerhelper.callWorkerFunction(spec.callbackId, [0, 0, null, null]);
+            } catch (e) {
+                if (e instanceof NotExistError) {
+                    plotDiv.innerText = 'Not ready.';
+                    return;
+                }
+            }
+            
+            // Construct the logic object
+            exprInputs.push({
+                isEquality: spec.isEquality,
+                batchFunc: async function(w, h, xArr, yArr, outArr) {
+                    try {
+                        const result = await workerhelper.callWorkerFunction(spec.callbackId, [w, h, xArr, yArr]);
+                        if (result) {
+                            outArr.set(result);
+                        }
+                    } catch (e) {
+                        console.error('Error during worker callback for implicit plot:', e);
+                        outArr.fill(NaN);
+                    }
+                },
+                original: "f(x, y)" 
+            });
+        }
+    }
+
+    if (exprInputs.length === 0) {
+        plotDiv.innerText = 'Error: No valid plot specifications found.';
+        return;
+    }
+
+    // Call the main rendering function from plot-imp.js
+    // exprInputs is now an array, supported by the modified plotImplicitCanvas
+    plotImplicitCanvas(plotDiv, exprInputs, plotOptions);
+};
+
 
 
 // This function is called by CodeMirror. It delegates to the worker.
