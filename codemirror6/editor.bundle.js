@@ -28548,7 +28548,14 @@ The returned result is directly inserted into the javascript code, any markdown 
             return `${name}()`; // Function with no arguments
         }
         // Process arguments into snippet placeholders
-        const snippetArgs = argsStr.split(',').map(arg => `\${${arg.trim()}}`).join(', ');
+        let args = argsStr.split(',');
+        for (let i = 0; i < args.length; ++i) {
+            if (args[i].indexOf('=') != -1) {
+                args = args.slice(0, i);
+                break;
+            }
+        }
+        const snippetArgs = args.map(arg => `\${${arg.trim()}}`).join(', ');
         return snippet(`${name}(${snippetArgs})`);
     }
     function generateTooltipHtmlForMathHelp(info) {

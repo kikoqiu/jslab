@@ -328,10 +328,12 @@ box._compileExpression = function(expr, ndim = 1){
  * @param {Object} config - Plotly config options.
  * @param {String} style - CSS style for the container.
  */
-box.plotFunction = function(plotSpec, layout, config, style) {
+box.plotFunction = function(plotSpec, layout=undefined, config=undefined, style=undefined) {
+  layout = {dragmode: 'pan', ...layout}
+  config = {scrollZoom: true, ...config};
   // Normalize input to an array of specification objects
   let specs = [];
-  if (typeof plotSpec === "function") {
+  if (typeof plotSpec === "function" || typeof plotSpec === "string") {
     specs = [{ func: plotSpec }];
   } else if (Array.isArray(plotSpec)) {
     specs = plotSpec.map(s => (typeof s === "function" ? { func: s } : s));
@@ -611,7 +613,7 @@ box.plotFunction = function(plotSpec, layout, config, style) {
  * @param {string} [options.gridColor='#e0e0e0'] - Color for grid lines.
  * @param {string} [options.axisColor='#444'] - Color for axis lines and labels.
  */
-box.plotImplicit = function(plotSpec, options) {
+box.plotImplicit = function(plotSpec, options=undefined) {
   options = options ?? {};
   
   // Normalize input to an array to handle single or multiple plots uniformly
@@ -755,7 +757,7 @@ box.plot=function(...xPoints_yPoints){
       
     }
   }
-  return box.plotly(data,layout,config,style);
+  return box.plotly(data,layout,{scrollZoom: true, ...config},style);
 };
 
 /**
