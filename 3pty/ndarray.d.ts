@@ -1126,20 +1126,20 @@ declare module "ndarray_core" {
             };
         };
         /**
-         * @param {TypedArray} data - The underlying physical storage.
+         * @param {TypedArray|number} data - The underlying physical storage. Or number when it's a scalar.
          * @param {Object} options
          * @param {Array|Int32Array} options.shape - The dimensions of the array.
          * @param {Array|Int32Array} [options.strides] - The strides, defaults to C-style.
          * @param {number} [options.offset=0] - The view offset.
          * @param {string} [options.dtype] - The data type.
          */
-        constructor(data: TypedArray, { shape, strides, offset, dtype }: {
+        constructor(data: TypedArray | number, options: {
             shape: any[] | Int32Array;
             strides?: any[] | Int32Array<ArrayBufferLike> | undefined;
             offset?: number | undefined;
             dtype?: string | undefined;
         });
-        data: TypedArray;
+        data: any;
         shape: Int32Array<ArrayBufferLike>;
         ndim: number;
         offset: number;

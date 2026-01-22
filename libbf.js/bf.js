@@ -567,11 +567,14 @@ bf.prototype.operatorSub=bf.prototype.sub;
 bf.prototype.operatorMul=bf.prototype.mul;
 bf.prototype.operatorDiv=bf.prototype.div;
 bf.prototype.operatorPow=bf.prototype.pow;
-bf.prototype.operatorBinaryAnd=bf.prototype.and;
-bf.prototype.operatorBinaryOr=bf.prototype.or;
-bf.prototype.operatorBinaryXor=bf.prototype.xor;
-//bf.prototype.operatorBinaryLShift=bf.prototype.mul2exp;
-//bf.prototype.operatorBinaryRShift=bf.prototype.mul2exp;
+bf.prototype.operatorMod=bf.prototype.mod;
+bf.prototype.operatorNeg=bf.prototype.neg;
+bf.prototype.operatorBitwiseAnd=bf.prototype.and;
+bf.prototype.operatorBitwiseOr=bf.prototype.or;
+bf.prototype.operatorBitwiseXor=bf.prototype.xor;
+//bf.prototype.operatorBitwiseLShift=bf.prototype.mul2exp;
+//bf.prototype.operatorBitwiseRShift=bf.prototype.mul2exp;
+bf.prototype.operatorBitwiseNot=bf.prototype.not;
 bf.prototype.operatorLess=function(b){
 	return this.cmp(b)<0;
 }

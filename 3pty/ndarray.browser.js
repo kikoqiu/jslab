@@ -2327,14 +2327,19 @@ var ndarray = (() => {
   };
   var NDArray = class _NDArray {
     /**
-     * @param {TypedArray} data - The underlying physical storage.
+     * @param {TypedArray|number} data - The underlying physical storage. Or number when it's a scalar.
      * @param {Object} options
      * @param {Array|Int32Array} options.shape - The dimensions of the array.
      * @param {Array|Int32Array} [options.strides] - The strides, defaults to C-style.
      * @param {number} [options.offset=0] - The view offset.
      * @param {string} [options.dtype] - The data type.
      */
-    constructor(data, { shape, strides, offset = 0, dtype }) {
+    constructor(data, options) {
+      let { shape, strides, offset = 0, dtype } = options ?? {};
+      if (typeof data === "number" && shape === void 0) {
+        data = Float64Array.from([data]);
+        shape = Int32Array.from([]);
+      }
       this.data = data;
       this.shape = shape instanceof Int32Array ? shape : Int32Array.from(shape);
       this.ndim = this.shape.length;
@@ -4411,10 +4416,11 @@ var ndarray = (() => {
       params: [
         {
           name: "data",
-          description: "The underlying physical storage.",
+          description: "The underlying physical storage. Or number when it's a scalar.",
           type: {
             names: [
-              "TypedArray"
+              "TypedArray",
+              "number"
             ]
           }
         },
@@ -4476,10 +4482,11 @@ var ndarray = (() => {
       params: [
         {
           name: "data",
-          description: "The underlying physical storage.",
+          description: "The underlying physical storage. Or number when it's a scalar.",
           type: {
             names: [
-              "TypedArray"
+              "TypedArray",
+              "number"
             ]
           }
         },

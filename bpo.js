@@ -45,6 +45,17 @@ let _Op = (function () {
 			return a / b;
 		},
 
+		mod(a, b) {
+			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a % b;
+			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorMod) {
+				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
+			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
+				throw new Error('bpo: not the same class');
+			}
+			if (typeof (a) == 'object' && a.operatorMod) return a.operatorMod(b);
+			return a % b;
+		},
+
 		pow(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a ** b;
 			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorPow) {
@@ -56,60 +67,84 @@ let _Op = (function () {
 			return a ** b;
 		},
 
-		binaryAnd(a, b) {
+		bitwiseAnd(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a & b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBinaryAnd) {
+			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseAnd) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
 			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
 				throw new Error('bpo: not the same class');
 			}
-			if (typeof (a) == 'object' && a.operatorBinaryAnd) return a.operatorBinaryAnd(b);
+			if (typeof (a) == 'object' && a.operatorBitwiseAnd) return a.operatorBitwiseAnd(b);
 			return a & b;
 		},
 
-		binaryOr(a, b) {
+		bitwiseOr(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a | b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBinaryOr) {
+			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseOr) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
 			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
 				throw new Error('bpo: not the same class');
 			}
-			if (typeof (a) == 'object' && a.operatorBinaryOr) return a.operatorBinaryOr(b);
+			if (typeof (a) == 'object' && a.operatorBitwiseOr) return a.operatorBitwiseOr(b);
 			return a | b;
 		},
 
-		binaryXor(a, b) {
+		bitwiseXor(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a ^ b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBinaryXor) {
+			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseXor) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
 			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
 				throw new Error('bpo: not the same class');
 			}
-			if (typeof (a) == 'object' && a.operatorBinaryXor) return a.operatorBinaryXor(b);
+			if (typeof (a) == 'object' && a.operatorBitwiseXor) return a.operatorBitwiseXor(b);
 			return a ^ b;
 		},
 
-		binaryLShift(a, b) {
+		bitwiseLShift(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a << b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBinaryLShift) {
+			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseLShift) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
 			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
 				throw new Error('bpo: not the same class');
 			}
-			if (typeof (a) == 'object' && a.operatorBinaryLShift) return a.operatorBinaryLShift(b);
+			if (typeof (a) == 'object' && a.operatorBitwiseLShift) return a.operatorBitwiseLShift(b);
 			return a << b;
 		},
 
-		binaryRShift(a, b) {
+		bitwiseRShift(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a >> b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBinaryRShift) {
+			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseRShift) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
 			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
 				throw new Error('bpo: not the same class');
 			}
-			if (typeof (a) == 'object' && a.operatorBinaryRShift) return a.operatorBinaryRShift(b);
+			if (typeof (a) == 'object' && a.operatorBitwiseRShift) return a.operatorBitwiseRShift(b);
 			return a >> b;
 		},
+
+		bitwiseURShift(a, b) {
+			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a >>> b;
+			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseURShift) {
+				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
+			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
+				throw new Error('bpo: not the same class');
+			}
+			if (typeof (a) == 'object' && a.operatorBitwiseURShift) return a.operatorBitwiseURShift(b);
+			return a >>> b;
+		},
+
+		neg(a) {
+			if (typeof (a) == 'number' || typeof (a) == 'bigint') return -a;
+			if (typeof (a) == 'object' && a.operatorNeg) return a.operatorNeg();
+			return -a;
+		},
+
+		bitwiseNot(a) {
+			if (typeof (a) == 'number' || typeof (a) == 'bigint') return ~a;
+			if (typeof (a) == 'object' && a.operatorBitwiseNot) return a.operatorBitwiseNot();
+			return ~a;
+		},
+
 
 		less(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a < b;
@@ -195,28 +230,43 @@ export function visitor(babel) {
 		}
 	}
 
+	function isPrimitive(nodePath) {
+		// Quick check for literals
+		if (t.isLiteral(nodePath.node)) {
+			return true;
+		}
+		// Try to evaluate the expression to see if it results in a primitive value (e.g., constant variables)
+		const evaluated = nodePath.evaluate();
+		// If confident and value is null or not object (number, string, boolean, undefined)
+		return evaluated.confident && (evaluated.value === null || typeof evaluated.value !== 'object');
+	};
+
 	return {
 		visitor: {
 			Program(path) {
 			},
 			BlockStatement(path) {
 				initStatus(path);
-			},
+			},			
 			BinaryExpression(path) {
 				initStatus(path, true);
 				if (!path.node.BPO_STATUS) return;
+				// Optimization: If both sides are primitives, skip overloading
+				if (isPrimitive(path.get('left')) && isPrimitive(path.get('right'))) return;
 				var tab = {
 					'+': 'add',
 					'-': 'sub',
 					'*': 'mul',
 					'/': 'div',
+					'%': 'mod',
 					'**': 'pow',
 
-					'&': 'binaryAnd',
-					'|': 'binaryOr',
-					'^': 'binaryXor',
-					'<<': 'binaryLShift',
-					'>>': 'binaryRShift',
+					'&': 'bitwiseAnd',
+					'|': 'bitwiseOr',
+					'^': 'bitwiseXor',
+					'<<': 'bitwiseLShift',
+					'>>': 'bitwiseRShift',
+					'>>>': 'bitwiseURShift',
 
 					'<': 'less',
 					'>': 'greater',
@@ -233,7 +283,22 @@ export function visitor(babel) {
 					)
 				);
 			},
+			UnaryExpression(path) {
+				initStatus(path, true);
+				if (!path.node.BPO_STATUS) return;
+				if (isPrimitive(path.get('argument'))) return;
+				var tab = {
+					'-': 'neg',
+					'~': 'bitwiseNot',
+				};
+				if (!(path.node.operator in tab)) return;
+				path.replaceWith(
+					t.callExpression(
+						t.MemberExpression(t.identifier('_Op'), t.identifier(tab[path.node.operator])),
+						[path.node.argument]
+					)
+				);
+			},
 		},
 	};
 };
-
