@@ -36,6 +36,7 @@ terminated string or NULL if memory error. *plen contains its
 length if plen != NULL.  The exponent letter is "e" for base 10,
 "p" for bases 2, 8, 16 with a binary exponent and "@" for the other
 bases. */
+Flags.BF_RND_MASK= 0x7;
 
 Flags.BF_FTOA_FORMAT_MASK =(3 << 16)
 
@@ -162,7 +163,10 @@ var module=
 	libbf:null,
 	bf(val,radix=10){
 		return new this._bf(val,radix);
-	}
+	},
+	throwExceptionOnInvalidOp:false,
+	Flags,
+	globalFlag: 0 /*bf_set_exp_bits(15) MAXMUM | */,
 }; 
 
 
@@ -302,16 +306,31 @@ bf.prototype.geth=function(){
 		return this.h;
 	}
 }
+
+bf.prototype.isInExact=function(){
+	return this.checkstatus(this.status);
+}
+
 bf.prototype.checkstatus=function(s){
-	//if(s&Flags.BF_ST_INEXACT)console.log("libbf BF_ST_INEXACT ");
-	//if(s&Flags.BF_ST_DIVIDE_ZERO)console.log("libbf BF_ST_DIVIDE_ZERO "+s);
-	if(s&Flags.BF_ST_INVALID_OP)throw new Error("libbf BF_ST_INVALID_OP ");
+	/*if(s&Flags.BF_ST_INEXACT){
+	 	console.log("libbf BF_ST_INEXACT ");
+	}*/
+	if(s&Flags.BF_ST_DIVIDE_ZERO){
+		console.log("libbf BF_ST_DIVIDE_ZERO, status="+s);
+	}
+	if(s&Flags.BF_ST_INVALID_OP){
+		if(module.throwExceptionOnInvalidOp){
+			throw new Error("libbf BF_ST_INVALID_OP, status=");
+		}
+		//don't throw an exception, the result will be a NaN
+		console.log("libbf BF_ST_INVALID_OP, status="+s);
+	}
 	return s;
 }
 bf.prototype.checktype=function (...ar){
 	for(let a of ar){
 		if(a!==null && a.constructor!=bf){
-			throw new Error('is not a bigfloat '+ !!a.constructor);
+			throw new Error('object is not a bigfloat '+ a.constructor);
 		};
 	}
 }
@@ -333,17 +352,33 @@ bf.prototype.wraptypeh=function (...ar){
 			ret.push(b.h);
 			disposes.push(b);
 		}else{
-			throw new Error('is not a bigfloat '+ !!a.constructor);
+			throw new Error('object is not a bigfloat '+ a.constructor);
 		}
 	}
 	return ret;
 }
-bf.prototype.flag=/*bf_set_exp_bits(15) MAXMUM | */ Flags.BF_RNDN | Flags.BF_FLAG_SUBNORMAL;
+/**
+ * 
+ * @param {*} method 
+ * @param {*} a 
+ * @param {*} b 
+ * @param {*} prec 
+ * @param {number} flags - if set, or with globalflag
+ * @param {number} rnd_mode - if set, overwrite round mode in globalflag
+ * @returns 
+ */
 
-bf.prototype.calc=function(method,a=null,b=null,prec){
+bf.prototype.calc=function(method,a=null,b=null,prec, flags=undefined, rnd_mode = undefined){
 	if(prec<1)prec=module.precision;
 	let [cleanup,ah,bh]=this.wraptypeh(a,b);
-	this.status|=module.libbf._calc(method.charCodeAt(0),this.geth(),ah,bh,prec,this.flag);
+	let targetflags = module.globalFlag;
+	if(!(flags === undefined)){
+		targetflags = targetflags | (flags & ~Flags.BF_RND_MASK);
+	}
+	if(!(rnd_mode === undefined)){
+		targetflags = (targetflags & ~Flags.BF_RND_MASK) | (rnd_mode & Flags.BF_RND_MASK);
+	}
+	this.status|=module.libbf._calc(method.charCodeAt(0),this.geth(),ah,bh,prec,targetflags);
 	cleanup();
 	this.checkstatus(this.status);
 	return this;
@@ -351,7 +386,7 @@ bf.prototype.calc=function(method,a=null,b=null,prec){
 bf.prototype.calc2=function(method,a=null,b=null,prec,rnd_mode=0,q=null){
 	if(prec<1)prec=module.precision;
 	let [cleanup,ah,bh,qh]=this.wraptypeh(a,b,q);
-	this.status|=module.libbf._calc2(method.charCodeAt(0),this.geth(),ah,bh,prec,this.flag,rnd_mode,qh);
+	this.status|=module.libbf._calc2(method.charCodeAt(0),this.geth(),ah,bh,prec,module.globalFlag,rnd_mode,qh);
 	cleanup();
 	this.checkstatus(this.status);
 	return this;
@@ -405,26 +440,26 @@ bf.prototype.setsqrt=function(a,prec=0){
 	return this.calc('s',a,null,prec);
 }
 /*round to prec*/
-bf.prototype.fpround=function(prec=0,flags=Flags.BF_RNDN){
-	return this.calc('r',null,null,prec,flags,null);
+bf.prototype.setfpround=function(prec=0,rnd_mode=Flags.BF_RNDN){
+	return this.calc('r',null,null,prec,undefined, rnd_mode);
 }
 /*round to int*/
-bf.prototype.round=function(){
-	return this.calc('i',null,null,0,Flags.BF_RNDNA,null);
+bf.prototype.setround=function(){
+	return this.calc('i',null,null,0,undefined,Flags.BF_RNDN);
 }
-bf.prototype.trunc=function(){	
-	return this.calc('i',null,null,0,Flags.BF_RNDZ,null);
+bf.prototype.settrunc=function(){	
+	return this.calc('i',null,null,0,undefined,Flags.BF_RNDZ);
 }
-bf.prototype.floor=function(){	
-	return this.calc('i',null,null,0,Flags.BF_RNDD,null);
+bf.prototype.setfloor=function(){	
+	return this.calc('i',null,null,0,undefined,Flags.BF_RNDD);
 }
-bf.prototype.ceil=function(){
-	return this.calc('i',null,null,0,Flags.BF_RNDU,null);
+bf.prototype.setceil=function(){
+	return this.calc('i',null,null,0,undefined,Flags.BF_RNDU);
 }
-bf.prototype.neg=function(){	
+bf.prototype.setneg=function(){	
 	return this.calc('n',null,null,0);
 }
-bf.prototype.abs=function(){	
+bf.prototype.setabs=function(){	
 	return this.calc('b',null,null,0);
 }
 
@@ -460,7 +495,7 @@ bf.prototype.setlog=function(a,prec=0){
 }
 bf.prototype.setpow=function(a,b,prec=0){
 	this.checkoprand(a,b);
-	return this.calc('P',a,b,prec,this.flag|Flags.BF_POW_JS_QUIRKS);
+	return this.calc('P',a,b,prec,Flags.BF_POW_JS_QUIRKS);
 }
 bf.prototype.setcos=function(a,prec=0){	
 	this.checkoprand(a);
@@ -530,6 +565,7 @@ let getFuncParameters=function (func) {
 			var args = mathes[1].replace(/[^,=\w]*/g, '').split(',');
 			return args;
 		}
+		return [];
 	}
 }
 for(let k in bf.prototype){
@@ -541,7 +577,12 @@ for(let k in bf.prototype){
 		let numps=ps.length;
 		let nfunc=k.substr(3);
 		bf.prototype[nfunc]=function(...args){
-			if(numps==1){
+			if(numps==0){
+				if(args.length!=0)throw new Error('oprands missmatch');
+				let v=new bf();
+				v.copy(this);
+				return ofunc.apply(v);
+			}else if(numps==1){
 				if(args.length!=0)throw new Error('oprands missmatch');
 				let a=[];
 				return ofunc.apply(new bf(), a);
