@@ -22,6 +22,9 @@ async function loadLibs() {
         bfjs.gc_ele_limit = 100;
 
         self.postMessage({ type: 'ready' });
+        //default load nd array async
+        setTimeout(()=>box.loadNDArray(),1000);
+        setTimeout(()=>importScripts("3pty/groups.browser.js"),1100);
     } catch (error) {
         self.postMessage({ type: 'error', payload: { message: `Failed to load libraries: ${error.message}` } });
     }

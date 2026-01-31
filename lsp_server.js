@@ -249,7 +249,8 @@ async function initialize() {
             `./libs/typescript@${tsVersion}/lib/lib.es2015.core.d.ts`,
             `./libs/typescript@${tsVersion}/lib/lib.esnext.d.ts`,
             `./libs/typescript@${tsVersion}/lib/lib.dom.d.ts`,
-            '3pty/ndarray.d.ts'
+            '3pty/ndarray.d.ts',
+            '3pty/groups.d.ts'
         ]);
 
         // Initialize main file
@@ -332,7 +333,7 @@ lspServer.runStaticCompletions = function(context) {
 
     const { fulltext, pos } = context;
 
-    const prefix = "import * as ndarray from 'ndarray';\n(async () => {\n";
+    const prefix = "import * as ndarray from 'ndarray';import * as groups from 'groups';\n(async () => {\n";
     const suffix = "\n})();";
     const wrappedCode = prefix + fulltext + suffix;
     const adjustedPos = pos + prefix.length;

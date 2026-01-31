@@ -399,26 +399,31 @@ const customCompletions = async (context) => {
         fulltext: context.state.doc.toString(),
         pos: context.pos
     };
-    const staticCompletions = getStaticCompletions(ctx);    
+
+    const staticCompletions = getStaticCompletions(ctx);
+
     // --- Get properties ---
     // Only invoke dynamic completion if there are no function calls (parentheses) in the chain.
     // Dynamic completion supports full property chains but not function return types.
     let dynamicResults = null;
     if (text.indexOf('(') === -1) {
-        dynamicResults = await workerhelper.getCompletions(ctx);
+        dynamicResults = workerhelper.getCompletions(ctx);
     }
+
     // Process and add completions from both sources
-    if (dynamicResults) {
-        for (let item of dynamicResults) {
+    const staticResults = await staticCompletions;
+    if (staticResults) {
+        for (let item of staticResults) {
             if (item['snippet']) {
                 item.apply = snippet(item.snippet);
             }
             addCompletion(item);
         }
     }
-    const staticResults = await staticCompletions;
-    if (staticResults) {
-        for (let item of staticResults) {
+
+    dynamicResults=await dynamicResults;
+    if (dynamicResults) {
+        for (let item of dynamicResults) {
             if (item['snippet']) {
                 item.apply = snippet(item.snippet);
             }

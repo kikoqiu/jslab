@@ -142,7 +142,13 @@ box.echo=function(...o){
   let str='';
   for(var i of o){
     if(str!='')str+=', ';
-    str+=String(i);
+    if(typeof i==="string" || typeof i==="number" || typeof i==="bigint" ){
+      str += i;
+    }else if(Array.isArray(i) || ArrayBuffer.isView(i)){
+      str+=`[${String(i)}]`;
+    }else if(typeof i==="object" && i.toString){
+      str += i.toString();
+    }
   }
   str=str.replace(/</ig,'&lt;').replace(/>/ig,'&gt;')+'\n';
   str=`<pre><code>${str}</code></pre>`;
@@ -319,11 +325,17 @@ box._compileExpression = function(expr, ndim = 1){
         throw new Error(`Compilation failed: ${e.message}`);
     }
 }
+
 /**
- * Generates data for one or more functions and sets up the plot environment.
+ * Generates data for one or more functions and plot with plotly.
  * Supports single function, array of functions, or array of configuration objects.
  *
  * @param {Function|Function[]|Object[]} plotSpec - The function(s) or configuration object(s) to plot.
+ * @param {Function} plotSpec.func - function | expression string
+ * @param {Array[][]} plotSpec.range - default [[-10, 10], [-10, 10], [-10, 10]]
+ * @param {number[]} plotSpec.samples - [500, 500]
+ * @param {boolean} plotSpec.vectorized false
+ * @param {number} plotSpec.supersample 8
  * @param {Object} layout - Plotly layout configuration.
  * @param {Object} config - Plotly config options.
  * @param {String} style - CSS style for the container.
@@ -396,6 +408,10 @@ box.plotFunction = function(plotSpec, layout=undefined, config=undefined, style=
       supersample: spec.supersample || 8
     };
   }).filter(s => s !== null);
+
+  if(maxNdim==1){
+    layout = {xaxis:{scaleanchor:'y'}, ...layout};
+  }
 
   if (normalizedSpecs.length === 0) return;
 
@@ -765,7 +781,7 @@ box.plot=function(...xPoints_yPoints){
  * @param  {...any} xPoints_yPoints_zPoints x-points,y-points,z-points,[x-point,y-point,z-points...],[{labels,style,layout,config}] 
  * @returns the plotly div id
  */
-box.plot3d=function(...xPoints_yPoints_zPoints){
+box.plot3DLine=function(...xPoints_yPoints_zPoints){
   let args=xPoints_yPoints_zPoints;
   let style=null;  
   let data=[];
@@ -799,7 +815,28 @@ box.plot3d=function(...xPoints_yPoints_zPoints){
 };
 
 
+/**
+ * Plot the Cayley Graph for the Group
+ * @param {*} generators the generators of the Group
+ * @param {Map<number, string>} [nameMap=undefined] the name map for the whole group elements
+ */
+box.plotCayleyGraph=function(generators,nameMap){
+  let {data, layout, nameMap:_nameMap}=groups.generateCayleyGraphForPlotly(generators, {nameMap});
+  box.plotly(data,layout);
+  return _nameMap;
+}
 
+/**
+ * Display Multiplication table for the Group
+ * @param {*} generators the generators of the Group
+ * @param {Map<number, string>} [nameMap=undefined] the name map for the whole group elements
+ * @returns the generated mul table object
+ */
+box.showCayleyMultiplicationTable=function(generators,nameMap=undefined){
+  let ret=groups.generateMultiplicationTable(generators,nameMap);
+  box.echoHTML(ret.html);
+  return ret;
+}
 
 /**
  * Read a file
