@@ -21,7 +21,6 @@ var groups = (() => {
   // src/groups.js
   var groups_exports = {};
   __export(groups_exports, {
-    AbstractGroupSet: () => AbstractGroupSet,
     IntSetUtils: () => IntSetUtils,
     PermutationRepository: () => PermutationRepository,
     PermutationSet: () => PermutationSet,
@@ -43,6 +42,8 @@ var groups = (() => {
     createTetrahedral: () => createTetrahedral,
     createTrivial: () => createTrivial,
     decomposeToCycles: () => decomposeToCycles,
+    findCoxeterLikeGenerators: () => findCoxeterLikeGenerators,
+    findLowOrderGenerators: () => findLowOrderGenerators,
     generateCayleyGraphForPlotly: () => generateCayleyGraphForPlotly,
     generateGroup: () => generateGroup,
     generateMultiplicationTable: () => generateMultiplicationTable,
@@ -195,12 +196,317 @@ var groups = (() => {
     }
   };
 
+  // src/schreier-sims.js
+  var SchreierSimsAlgorithm = class _SchreierSimsAlgorithm {
+    /**
+     * Constructs a new Schreier-Sims Algorithm instance.
+     * The instance can be initialized with an optional `initialBase` to prioritize certain points in the base.
+     * @param {number[]} [initialBase=[]] - An optional array of points to form the initial base. These points will be stabilized first.
+     */
+    constructor(initialBase = []) {
+      this.repo = globalRepo;
+      this.base = [];
+      this.transversals = [];
+      this.generators = [];
+      this.idIdentity = this.repo.identity;
+      for (const point of initialBase) {
+        this._extendBase(point);
+      }
+    }
+    /**
+     * Factory method: Computes the Base and Strong Generating Set (BSGS) for a given set of generators.
+     * @param {PermutationSet|number[]} groupSet - The set of permutations that generate the group.
+     * @param {number[]} [initialBase=[]] - An optional array of points to serve as a prefix for the base.
+     * @returns {SchreierSimsAlgorithm} A new `SchreierSimsAlgorithm` instance with the computed BSGS.
+     * @static
+     */
+    static compute(groupSet, initialBase = []) {
+      const engine = new _SchreierSimsAlgorithm(initialBase);
+      let ids;
+      if (groupSet instanceof PermutationSet) {
+        ids = groupSet.indices;
+      } else if (Array.isArray(groupSet) || ArrayBuffer.isView(groupSet)) {
+        ids = groupSet;
+      } else {
+        throw new Error("unkown groupset type");
+      }
+      for (let i = 0; i < ids.length; i++) {
+        engine.siftAndInsert(ids[i]);
+      }
+      return engine;
+    }
+    // ========================================================================
+    // Public API
+    // ========================================================================
+    /**
+     * Gets the current degree (number of points) on which the permutations act.
+     * This value is dynamically managed by the underlying `PermutationRepository`.
+     * @returns {number} The degree of the permutation group.
+     */
+    get degree() {
+      return this.repo.globalDegree;
+    }
+    /**
+     * Calculates the exact order (size) of the group represented by the BSGS.
+     * The order is computed as the product of the sizes of the orbits (transversals) at each level of the base.
+     * @returns {bigint} The order of the group as a BigInt, to support very large group orders.
+     */
+    get order() {
+      let size = 1n;
+      for (const t of this.transversals) {
+        size *= BigInt(t.size);
+      }
+      return size;
+    }
+    /**
+     * Returns a string representation.
+     * @returns {string} A result string.
+     */
+    toString() {
+      return `SSA(generators=${JSON.stringify(this.generators)}, degree=${this.degree}, order=${this.order})`;
+    }
+    /**
+     * Checks if a given permutation is an element of the group represented by this BSGS.
+     * The permutation is "sifted" through the stabilizer chain. If the process
+     * reduces the permutation to the identity element, it is in the group.
+     * @param {number|Int32Array|Array<number>} perm - The permutation to check, either as an ID or a raw array.
+     * @returns {boolean} True if the permutation belongs to the group, false otherwise.
+     */
+    contains(perm) {
+      let permId = perm;
+      if (typeof perm !== "number") {
+        permId = this.repo.register(perm);
+      }
+      const { residue } = this._strip(permId);
+      return residue === this.idIdentity;
+    }
+    /**
+     * Checks if the group acts transitively on a specified domain.
+     * A group is transitive if, for any two points `x` and `y` in the domain,
+     * there exists a group element `g` such that `g(x) = y`.
+     * This implementation checks if the orbit of the first base point (`base[0]`) under the full group
+     * covers the entire `domainSize`.
+     * @param {number} domainSize - The size of the domain (e.g., `globalDegree`) to check for transitivity.
+     * @returns {boolean} True if the group is transitive on the given domain, false otherwise.
+     */
+    isTransitive(domainSize) {
+      if (domainSize <= 1) return true;
+      if (this.base.length === 0) return false;
+      return this.transversals[0].size === domainSize;
+    }
+    /**
+     * Computes the stabilizer subgroup G_p of a specific point `p`.
+     * G_p is defined as the set of all permutations `g` in the group G such that `g(p) = p`.
+     * @param {number} point - The point (0-based index) for which to compute the stabilizer.
+     * @returns {PermutationSet} A `PermutationSet` containing the generators of the stabilizer subgroup.
+     */
+    getStabilizer(point) {
+      const stabSSA = new _SchreierSimsAlgorithm([point]);
+      const allGens = this.generators.flat();
+      for (const gen of allGens) {
+        stabSSA.siftAndInsert(gen);
+      }
+      const stabilizerGens = stabSSA.generators.slice(1).flat();
+      return new PermutationSet(stabilizerGens, false, true);
+    }
+    /**
+     * Multiplies two permutations `idA` and `idB`.
+     * The convention is `(A * B)(x) = A(B(x))`, meaning `idB` is applied first, then `idA`.
+     * This method delegates to the underlying `PermutationRepository` for the actual multiplication.
+     * @param {number} idA - The ID of the first permutation (A).
+     * @param {number} idB - The ID of the second permutation (B).
+     * @returns {number} The ID of the resulting permutation (A * B).
+     * @private
+     */
+    multiply(idA, idB) {
+      return this.repo.multiply(idA, idB);
+    }
+    /**
+     * Computes or retrieves the inverse of a given permutation ID.
+     * This method delegates to the underlying `PermutationRepository` for inversion.
+     * @param {number} id - The ID of the permutation to invert.
+     * @returns {number} The ID of the inverse permutation.
+     * @private
+     */
+    inverse(id) {
+      return this.repo.inverse(id);
+    }
+    // ========================================================================
+    // Core Logic
+    // ========================================================================
+    /**
+     * The "Strip" (or Sift) procedure is a core component of the Schreier-Sims algorithm.
+     * It attempts to reduce a permutation `gId` to the identity by applying elements from the stabilizer chain.
+     * At each level `i`, if `gId` moves `base[i]` to `delta`, and `delta` is in the known orbit `transversals[i]`,
+     * `gId` is multiplied by the inverse of the representative `u` (where `u(base[i]) = delta`).
+     * This process continues until `gId` either becomes the identity or reaches a level where it moves `base[i]`
+     * to a point not in the current orbit.
+     * @param {number} gId - The permutation ID to be sifted.
+     * @returns {{residue: number, level: number}} An object containing:
+     *   - `residue`: The permutation ID remaining after sifting (identity if `gId` is in the group).
+     *   - `level`: The level in the stabilizer chain where sifting stopped (or `base.length` if sifted to identity).
+     * @private
+     */
+    _strip(gId) {
+      let curr = gId;
+      const depth = this.base.length;
+      const N = this.repo.globalDegree;
+      for (let i = 0; i < depth; i++) {
+        const beta = this.base[i];
+        const offset = curr * N;
+        const delta = this.repo.permBuffer[offset + beta];
+        if (delta === beta) continue;
+        const traversal = this.transversals[i];
+        const u = traversal.get(delta);
+        if (u !== void 0) {
+          const uInv = this.inverse(u);
+          curr = this.multiply(uInv, curr);
+        } else {
+          return { residue: curr, level: i };
+        }
+      }
+      return { residue: curr, level: depth };
+    }
+    /**
+     * The main incremental construction method for the BSGS.
+     * It sifts a given permutation `gId`. If `gId` is not already in the group generated by the current BSGS,
+     * the algorithm updates the stabilizer chain (`base`, `transversals`, `generators`) to include `gId`,
+     * ensuring that the BSGS correctly represents the expanded group.
+     * @param {number} gId - The permutation ID to be inserted into the BSGS.
+     */
+    siftAndInsert(gId) {
+      const { residue: h, level } = this._strip(gId);
+      if (h === this.idIdentity) return;
+      if (level === this.base.length) {
+        const movedPoint = this._findFirstMovedPoint(h);
+        if (movedPoint === -1) return;
+        this._extendBase(movedPoint);
+      }
+      this._addGeneratorToLevel(level, h);
+      for (let i = 0; i < level; i++) {
+        this._addGeneratorToLevel(i, h);
+      }
+    }
+    /**
+     * Get generators as PermutationSet
+     * @returns {PermutationSet}
+     */
+    getGeneratorsAsPermutationSet() {
+      const flatIds = this.generators.flat();
+      return new PermutationSet(flatIds, false, false);
+    }
+    /**
+     * Adds a new strong generator `hId` to the `generators` list at the specified `level`
+     * and triggers an update of the orbit (`transversal`) at that level.
+     * @param {number} level - The level in the stabilizer chain to which the generator is added.
+     * @param {number} hId - The ID of the permutation to add as a strong generator.
+     * @private
+     */
+    _addGeneratorToLevel(level, hId) {
+      this.generators[level].push(hId);
+      this._updateOrbit(level, hId);
+    }
+    /**
+     * Extends the base of the stabilizer chain by adding a new point.
+     * This creates a new level in the chain, initializing its generators and transversal.
+     * @param {number} point - The new point to be added to the base.
+     * @private
+     */
+    _extendBase(point) {
+      this.base.push(point);
+      this.generators.push([]);
+      const map = /* @__PURE__ */ new Map();
+      map.set(point, this.idIdentity);
+      this.transversals.push(map);
+    }
+    /**
+     * Updates the orbit (transversal) at a specified `level` of the stabilizer chain.
+     * This involves performing a Breadth-First Search (BFS) starting from existing orbit representatives
+     * and the new generator `hId`. During the BFS, any newly discovered Schreier generators
+     * (elements that stabilize `base[level]` but are not yet in the BSGS for `G^(level+1)`) are sifted and inserted.
+     * @param {number} level - The level in the stabilizer chain whose orbit needs updating.
+     * @param {number} hId - The ID of a newly added strong generator at this level.
+     * @private
+     */
+    _updateOrbit(level, hId) {
+      const transversal = this.transversals[level];
+      const queue = [];
+      const existingReps = Array.from(transversal.values());
+      for (const uRep of existingReps) {
+        this._processSchreierEdge(uRep, hId, level, queue);
+      }
+      let ptr = 0;
+      const gens = this.generators[level];
+      while (ptr < queue.length) {
+        const uRep = queue[ptr++];
+        for (let i = 0; i < gens.length; i++) {
+          this._processSchreierEdge(uRep, gens[i], level, queue);
+        }
+      }
+    }
+    /**
+     * Processes a single edge (`uRep` --`sId`--> `cand`) in the Schreier graph during orbit construction.
+     * If `cand` maps to a new point in the orbit, it's added to the transversal and BFS queue.
+     * If `cand` maps to an already visited point, a Schreier generator (`v^-1 * cand`) is formed
+     * and recursively sifted to maintain the BSGS.
+     * @param {number} uRep - The permutation ID of the current orbit representative (`u`).
+     * @param {number} sId - The permutation ID of the generator (`s`) being applied.
+     * @param {number} level - The current level in the stabilizer chain.
+     * @param {number[]} queue - The Breadth-First Search work queue, storing permutation IDs.
+     * @private
+     */
+    _processSchreierEdge(uRep, sId, level, queue) {
+      const cand = this.multiply(sId, uRep);
+      const N = this.repo.globalDegree;
+      const beta = this.base[level];
+      const offset = cand * N;
+      const img = this.repo.permBuffer[offset + beta];
+      const transversal = this.transversals[level];
+      if (!transversal.has(img)) {
+        transversal.set(img, cand);
+        queue.push(cand);
+      } else {
+        const v = transversal.get(img);
+        if (v === cand) return;
+        const vInv = this.inverse(v);
+        const schreierGen = this.multiply(vInv, cand);
+        if (schreierGen !== this.idIdentity) {
+          this.siftAndInsert(schreierGen);
+        }
+      }
+    }
+    // ========================================================================
+    // Low-Level Helpers (Direct Memory Access)
+    // ========================================================================
+    /**
+     * Finds the smallest point (index) that is not fixed by the given permutation `permId`.
+     * This is typically used to select a new base point when extending the stabilizer chain.
+     * @param {number} permId - The ID of the permutation to analyze.
+     * @returns {number} The 0-based index of the first point moved by the permutation, or -1 if the permutation is the identity.
+     * @private
+     */
+    _findFirstMovedPoint(permId) {
+      const N = this.repo.globalDegree;
+      const offset = permId * N;
+      const buf = this.repo.permBuffer;
+      for (let i = 0; i < N; i++) {
+        if (buf[offset + i] !== i) return i;
+      }
+      return -1;
+    }
+  };
+
   // src/group-utils.js
   function parseCycles(str, degree = 0) {
     const cycleStrings = str.match(/\(([^)]+)\)/g) || [];
     const cycles = cycleStrings.map(
-      (s) => s.replace(/[()]/g, "").trim().split(/\s+/).map(Number)
+      (s) => s.replace(/[()]/g, "").trim().split(/[\s,]+/).map(Number)
     );
+    cycles.forEach((cycle) => {
+      if (cycle.some((e) => e <= 0 || isNaN(e))) {
+        throw new Error(`Invalid cycle notation: "${str}". Cycles must contain positive integers.`);
+      }
+    });
     if (degree === 0) {
       const maxVal = cycles.length > 0 ? Math.max(...cycles.flat()) : 0;
       degree = Math.max(maxVal, 0);
@@ -269,7 +575,7 @@ var groups = (() => {
       globalRepo.register(genSwap),
       globalRepo.register(genCycle)
     ];
-    return new PermutationSet(ids, true, false);
+    return new PermutationSet(ids, false, false);
   }
   function createAlternating(n) {
     if (n <= 2) return PermutationSet.identity(n);
@@ -282,7 +588,7 @@ var groups = (() => {
       perm[i] = 0;
       ids.push(globalRepo.register(perm));
     }
-    return new PermutationSet(ids, true, false);
+    return new PermutationSet(ids, false, false);
   }
   function createCyclic(n) {
     if (n <= 1) return PermutationSet.identity(n);
@@ -307,7 +613,7 @@ var groups = (() => {
       globalRepo.register(rot),
       globalRepo.register(ref)
     ];
-    return new PermutationSet(ids, true, false);
+    return new PermutationSet(ids, false, false);
   }
   function createKleinFour() {
     const a = new Int32Array([1, 0, 3, 2]);
@@ -315,7 +621,7 @@ var groups = (() => {
     return new PermutationSet([
       globalRepo.register(a),
       globalRepo.register(b)
-    ], true, false);
+    ], false, false);
   }
   function createFromCycleStrings(cyclesStrArr, degree = 0) {
     const ids = [];
@@ -325,7 +631,14 @@ var groups = (() => {
     }
     return new PermutationSet(ids, false, false);
   }
-  function createDirectProduct(groupA, groupB) {
+  function createDirectProduct(groupA, groupB, ...extraGroups) {
+    if (extraGroups.length > 0) {
+      let product = createDirectProduct(groupA, groupB);
+      for (const g of extraGroups) {
+        product = createDirectProduct(product, g);
+      }
+      return product;
+    }
     const getEffectiveDegree = (groupSet) => {
       let max = 0;
       for (const id of groupSet.indices) {
@@ -372,7 +685,7 @@ var groups = (() => {
     return new PermutationSet([
       globalRepo.register(i_gen),
       globalRepo.register(j_gen)
-    ], true, false);
+    ], false, false);
   }
   function createTrivial() {
     return PermutationSet.identity(1);
@@ -389,6 +702,86 @@ var groups = (() => {
   }
   function createIcosahedral() {
     return createAlternating(5);
+  }
+  function findLowOrderGenerators(inputGenerators, maxOrder, maxSearchSize = 5e4) {
+    const originalIds = inputGenerators instanceof PermutationSet ? inputGenerators.indices : inputGenerators;
+    const genIds = originalIds.filter((id) => id !== globalRepo.identity);
+    if (genIds.length === 0) return new PermutationSet([], true);
+    const ssa = new SchreierSimsAlgorithm();
+    const newGenerators = [];
+    const isCoverageComplete = () => {
+      for (const id of genIds) {
+        if (!ssa.contains(id)) return false;
+      }
+      return true;
+    };
+    const getOrder = (id) => {
+      const perm = globalRepo.get(id);
+      const n = perm.length;
+      const visited2 = new Uint8Array(n);
+      let totalLcm = 1n;
+      const gcd = (a, b) => {
+        while (b !== 0n) {
+          let t = b;
+          b = a % b;
+          a = t;
+        }
+        return a;
+      };
+      for (let i = 0; i < n; i++) {
+        if (visited2[i]) continue;
+        let len = 0n;
+        let curr = i;
+        while (!visited2[curr]) {
+          visited2[curr] = 1;
+          curr = perm[curr];
+          len++;
+        }
+        if (len > 0n) {
+          const div = gcd(totalLcm, len);
+          totalLcm = totalLcm * len / div;
+        }
+      }
+      return Number(totalLcm);
+    };
+    const processCandidate = (id) => {
+      if (id === globalRepo.identity) return;
+      const order = getOrder(id);
+      if (order <= maxOrder) {
+        if (!ssa.contains(id)) {
+          ssa.siftAndInsert(id);
+          newGenerators.push(id);
+        }
+      }
+    };
+    const queue = [];
+    const visited = /* @__PURE__ */ new Set();
+    for (const id of genIds) {
+      if (!visited.has(id)) {
+        visited.add(id);
+        queue.push(id);
+        processCandidate(id);
+      }
+    }
+    if (isCoverageComplete()) {
+      return new PermutationSet(newGenerators, false, false);
+    }
+    let head = 0;
+    while (head < queue.length && visited.size < maxSearchSize) {
+      const curr = queue[head++];
+      for (const gen of genIds) {
+        const next = globalRepo.multiply(curr, gen);
+        if (!visited.has(next)) {
+          visited.add(next);
+          queue.push(next);
+          processCandidate(next);
+          if (newGenerators.length > 0 && isCoverageComplete()) {
+            return new PermutationSet(newGenerators, false, false);
+          }
+        }
+      }
+    }
+    return null;
   }
 
   // src/permutation-repository.js
@@ -641,107 +1034,13 @@ var groups = (() => {
       _tempCompositionBuffer = new Int32Array(newSize);
     }
   }
-  var AbstractGroupSet = class _AbstractGroupSet {
-    constructor() {
-      if (new.target === _AbstractGroupSet) {
-        throw new Error("AbstractGroupSet is not instantiable.");
-      }
-    }
-    // Abstract Methods
-    /**
-     * The number of elements in the set.
-     * @type {number}
-     * @abstract
-     */
-    get size() {
-      throw new Error("Method not implemented.");
-    }
-    /**
-     * Multiplies this set by another set.
-     * @param {AbstractGroupSet} other - The other set to multiply by.
-     * @returns {AbstractGroupSet} A new set representing the product.
-     * @abstract
-     */
-    // eslint-disable-next-line
-    multiply(other) {
-      throw new Error("Method not implemented.");
-    }
-    /**
-     * Computes the inverse of each element in the set.
-     * @returns {AbstractGroupSet} A new set containing the inverses.
-     * @abstract
-     */
-    inverse() {
-      throw new Error("Method not implemented.");
-    }
-    /**
-     * Computes the union of this set with another set.
-     * @param {AbstractGroupSet} other - The other set.
-     * @returns {AbstractGroupSet} A new set representing the union.
-     * @abstract
-     */
-    // eslint-disable-next-line
-    union(other) {
-      throw new Error("Method not implemented.");
-    }
-    /**
-     * Computes the intersection of this set with another set.
-     * @param {AbstractGroupSet} other - The other set.
-     * @returns {AbstractGroupSet} A new set representing the intersection.
-     * @abstract
-     */
-    // eslint-disable-next-line
-    intersection(other) {
-      throw new Error("Method not implemented.");
-    }
-    /**
-     * Computes the difference of this set with another set (elements in this set but not in `other`).
-     * @param {AbstractGroupSet} other - The other set.
-     * @returns {AbstractGroupSet} A new set representing the difference.
-     * @abstract
-     */
-    // eslint-disable-next-line
-    difference(other) {
-      throw new Error("Method not implemented.");
-    }
-    /**
-     * Checks if this set is a superset of another set.
-     * @param {AbstractGroupSet} other - The other set.
-     * @returns {boolean} True if this set contains all elements of `other`.
-     * @abstract
-     */
-    // eslint-disable-next-line
-    isSuperSetOf(other) {
-      throw new Error("Method not implemented.");
-    }
-    /**
-     * Creates a lightweight read-only view of a subset.
-     * @param {number} start - The starting index (inclusive).
-     * @param {number} end - The ending index (exclusive).
-     * @returns {AbstractGroupSet} A new set representing the slice.
-     * @abstract
-     */
-    // eslint-disable-next-line
-    slice(start, end) {
-      throw new Error("Method not implemented.");
-    }
-    /**
-     * Returns an iterator for the elements in the set.
-     * @returns {Iterator<number>} An iterator for the set's element IDs.
-     * @abstract
-     */
-    [Symbol.iterator]() {
-      throw new Error("Method not implemented.");
-    }
-  };
-  var PermutationSet = class _PermutationSet extends AbstractGroupSet {
+  var PermutationSet = class _PermutationSet {
     /**
      * @param {Int32Array|Array<number>} ids - Sorted, unique IDs from the repository.
      * @param {boolean} [isTrustedSortedUnique=false] - Skip sort/dedup if true.
      * @param {boolean} [isGroup=false] - Whether this set is known to be a mathematical group.
      */
     constructor(ids, isTrustedSortedUnique = false, isGroup = false) {
-      super();
       if (isTrustedSortedUnique && ids instanceof Int32Array) {
         this._ids = ids;
       } else {
@@ -1101,6 +1400,8 @@ var groups = (() => {
   function generateGroup(generators) {
     if (Array.isArray(generators)) {
       generators = new PermutationSet(generators);
+    } else if (generators instanceof SchreierSimsAlgorithm) {
+      generators = generators.getGeneratorsAsPermutationSet();
     } else {
       if (!(generators instanceof PermutationSet)) {
         throw new Error("unknown generators type");
@@ -1120,291 +1421,113 @@ var groups = (() => {
     return group;
   }
 
-  // src/schreier-sims.js
-  var SchreierSimsAlgorithm = class _SchreierSimsAlgorithm {
-    /**
-     * Constructs a new Schreier-Sims Algorithm instance.
-     * The instance can be initialized with an optional `initialBase` to prioritize certain points in the base.
-     * @param {number[]} [initialBase=[]] - An optional array of points to form the initial base. These points will be stabilized first.
-     */
-    constructor(initialBase = []) {
-      this.repo = globalRepo;
-      this.base = [];
-      this.transversals = [];
-      this.generators = [];
-      this.idIdentity = this.repo.identity;
-      for (const point of initialBase) {
-        this._extendBase(point);
-      }
+  // src/group-private-utils.js
+  function _isSmallPrime(n) {
+    if (n <= 1) return false;
+    if (n <= 3) return true;
+    if (n % 2 === 0 || n % 3 === 0) return false;
+    for (let i = 5; i * i <= n; i += 6) {
+      if (n % i === 0 || n % (i + 2) === 0) return false;
     }
-    /**
-     * Factory method: Computes the Base and Strong Generating Set (BSGS) for a given set of generators.
-     * @param {PermutationSet} groupSet - The set of permutations that generate the group.
-     * @param {number[]} [initialBase=[]] - An optional array of points to serve as a prefix for the base.
-     * @returns {SchreierSimsAlgorithm} A new `SchreierSimsAlgorithm` instance with the computed BSGS.
-     * @static
-     */
-    static compute(groupSet, initialBase = []) {
-      const engine = new _SchreierSimsAlgorithm(initialBase);
-      const ids = groupSet.indices;
-      for (let i = 0; i < ids.length; i++) {
-        engine.siftAndInsert(ids[i]);
-      }
-      return engine;
-    }
-    // ========================================================================
-    // Public API
-    // ========================================================================
-    /**
-     * Gets the current degree (number of points) on which the permutations act.
-     * This value is dynamically managed by the underlying `PermutationRepository`.
-     * @returns {number} The degree of the permutation group.
-     */
-    get degree() {
-      return this.repo.globalDegree;
-    }
-    /**
-     * Calculates the exact order (size) of the group represented by the BSGS.
-     * The order is computed as the product of the sizes of the orbits (transversals) at each level of the base.
-     * @returns {bigint} The order of the group as a BigInt, to support very large group orders.
-     */
-    get order() {
-      let size = 1n;
-      for (const t of this.transversals) {
-        size *= BigInt(t.size);
-      }
-      return size;
-    }
-    /**
-     * Checks if a given permutation is an element of the group represented by this BSGS.
-     * The permutation is "sifted" through the stabilizer chain. If the process
-     * reduces the permutation to the identity element, it is in the group.
-     * @param {number|Int32Array|Array<number>} perm - The permutation to check, either as an ID or a raw array.
-     * @returns {boolean} True if the permutation belongs to the group, false otherwise.
-     */
-    contains(perm) {
-      let permId = perm;
-      if (typeof perm !== "number") {
-        permId = this.repo.register(perm);
-      }
-      const { residue } = this._strip(permId);
-      return residue === this.idIdentity;
-    }
-    /**
-     * Checks if the group acts transitively on a specified domain.
-     * A group is transitive if, for any two points `x` and `y` in the domain,
-     * there exists a group element `g` such that `g(x) = y`.
-     * This implementation checks if the orbit of the first base point (`base[0]`) under the full group
-     * covers the entire `domainSize`.
-     * @param {number} domainSize - The size of the domain (e.g., `globalDegree`) to check for transitivity.
-     * @returns {boolean} True if the group is transitive on the given domain, false otherwise.
-     */
-    isTransitive(domainSize) {
-      if (domainSize <= 1) return true;
-      if (this.base.length === 0) return false;
-      return this.transversals[0].size === domainSize;
-    }
-    /**
-     * Computes the stabilizer subgroup G_p of a specific point `p`.
-     * G_p is defined as the set of all permutations `g` in the group G such that `g(p) = p`.
-     * @param {number} point - The point (0-based index) for which to compute the stabilizer.
-     * @returns {PermutationSet} A `PermutationSet` containing the generators of the stabilizer subgroup.
-     */
-    getStabilizer(point) {
-      const stabSSA = new _SchreierSimsAlgorithm([point]);
-      const allGens = this.generators.flat();
-      for (const gen of allGens) {
-        stabSSA.siftAndInsert(gen);
-      }
-      const stabilizerGens = stabSSA.generators.slice(1).flat();
-      return new PermutationSet(stabilizerGens, false, true);
-    }
-    /**
-     * Multiplies two permutations `idA` and `idB`.
-     * The convention is `(A * B)(x) = A(B(x))`, meaning `idB` is applied first, then `idA`.
-     * This method delegates to the underlying `PermutationRepository` for the actual multiplication.
-     * @param {number} idA - The ID of the first permutation (A).
-     * @param {number} idB - The ID of the second permutation (B).
-     * @returns {number} The ID of the resulting permutation (A * B).
-     * @private
-     */
-    multiply(idA, idB) {
-      return this.repo.multiply(idA, idB);
-    }
-    /**
-     * Computes or retrieves the inverse of a given permutation ID.
-     * This method delegates to the underlying `PermutationRepository` for inversion.
-     * @param {number} id - The ID of the permutation to invert.
-     * @returns {number} The ID of the inverse permutation.
-     * @private
-     */
-    inverse(id) {
-      return this.repo.inverse(id);
-    }
-    // ========================================================================
-    // Core Logic
-    // ========================================================================
-    /**
-     * The "Strip" (or Sift) procedure is a core component of the Schreier-Sims algorithm.
-     * It attempts to reduce a permutation `gId` to the identity by applying elements from the stabilizer chain.
-     * At each level `i`, if `gId` moves `base[i]` to `delta`, and `delta` is in the known orbit `transversals[i]`,
-     * `gId` is multiplied by the inverse of the representative `u` (where `u(base[i]) = delta`).
-     * This process continues until `gId` either becomes the identity or reaches a level where it moves `base[i]`
-     * to a point not in the current orbit.
-     * @param {number} gId - The permutation ID to be sifted.
-     * @returns {{residue: number, level: number}} An object containing:
-     *   - `residue`: The permutation ID remaining after sifting (identity if `gId` is in the group).
-     *   - `level`: The level in the stabilizer chain where sifting stopped (or `base.length` if sifted to identity).
-     * @private
-     */
-    _strip(gId) {
-      let curr = gId;
-      const depth = this.base.length;
-      const N = this.repo.globalDegree;
-      for (let i = 0; i < depth; i++) {
-        const beta = this.base[i];
-        const offset = curr * N;
-        const delta = this.repo.permBuffer[offset + beta];
-        if (delta === beta) continue;
-        const traversal = this.transversals[i];
-        const u = traversal.get(delta);
-        if (u !== void 0) {
-          const uInv = this.inverse(u);
-          curr = this.multiply(uInv, curr);
-        } else {
-          return { residue: curr, level: i };
+    return true;
+  }
+  function _getRandomElement(ssa) {
+    let result = ssa.repo.identity;
+    const depth = ssa.base.length;
+    for (let i = 0; i < depth; i++) {
+      const transversal = ssa.transversals[i];
+      const size = transversal.size;
+      const randIdx = Math.floor(Math.random() * size);
+      let k = 0;
+      for (const permId of transversal.values()) {
+        if (k === randIdx) {
+          result = ssa.repo.multiply(result, permId);
+          break;
         }
-      }
-      return { residue: curr, level: depth };
-    }
-    /**
-     * The main incremental construction method for the BSGS.
-     * It sifts a given permutation `gId`. If `gId` is not already in the group generated by the current BSGS,
-     * the algorithm updates the stabilizer chain (`base`, `transversals`, `generators`) to include `gId`,
-     * ensuring that the BSGS correctly represents the expanded group.
-     * @param {number} gId - The permutation ID to be inserted into the BSGS.
-     */
-    siftAndInsert(gId) {
-      const { residue: h, level } = this._strip(gId);
-      if (h === this.idIdentity) return;
-      if (level === this.base.length) {
-        const movedPoint = this._findFirstMovedPoint(h);
-        if (movedPoint === -1) return;
-        this._extendBase(movedPoint);
-      }
-      this._addGeneratorToLevel(level, h);
-      for (let i = 0; i < level; i++) {
-        this._addGeneratorToLevel(i, h);
+        k++;
       }
     }
-    /**
-     * Get generators as PermutationSet
-     * @returns {PermutationSet}
-     */
-    getGeneratorsAsPermutationSet() {
-      const flatIds = this.generators.flat();
-      return new PermutationSet(flatIds, false, false);
-    }
-    /**
-     * Adds a new strong generator `hId` to the `generators` list at the specified `level`
-     * and triggers an update of the orbit (`transversal`) at that level.
-     * @param {number} level - The level in the stabilizer chain to which the generator is added.
-     * @param {number} hId - The ID of the permutation to add as a strong generator.
-     * @private
-     */
-    _addGeneratorToLevel(level, hId) {
-      this.generators[level].push(hId);
-      this._updateOrbit(level, hId);
-    }
-    /**
-     * Extends the base of the stabilizer chain by adding a new point.
-     * This creates a new level in the chain, initializing its generators and transversal.
-     * @param {number} point - The new point to be added to the base.
-     * @private
-     */
-    _extendBase(point) {
-      this.base.push(point);
-      this.generators.push([]);
-      const map = /* @__PURE__ */ new Map();
-      map.set(point, this.idIdentity);
-      this.transversals.push(map);
-    }
-    /**
-     * Updates the orbit (transversal) at a specified `level` of the stabilizer chain.
-     * This involves performing a Breadth-First Search (BFS) starting from existing orbit representatives
-     * and the new generator `hId`. During the BFS, any newly discovered Schreier generators
-     * (elements that stabilize `base[level]` but are not yet in the BSGS for `G^(level+1)`) are sifted and inserted.
-     * @param {number} level - The level in the stabilizer chain whose orbit needs updating.
-     * @param {number} hId - The ID of a newly added strong generator at this level.
-     * @private
-     */
-    _updateOrbit(level, hId) {
-      const transversal = this.transversals[level];
-      const queue = [];
-      const existingReps = Array.from(transversal.values());
-      for (const uRep of existingReps) {
-        this._processSchreierEdge(uRep, hId, level, queue);
+    return result;
+  }
+  function _pow(gId, exp) {
+    if (exp === 0) return globalRepo.identity;
+    if (exp === 1) return gId;
+    let base = gId;
+    let result = globalRepo.identity;
+    let e = exp;
+    while (e > 0) {
+      if (e % 2 === 1) {
+        result = globalRepo.multiply(result, base);
       }
-      let ptr = 0;
-      const gens = this.generators[level];
-      while (ptr < queue.length) {
-        const uRep = queue[ptr++];
-        for (let i = 0; i < gens.length; i++) {
-          this._processSchreierEdge(uRep, gens[i], level, queue);
-        }
+      base = globalRepo.multiply(base, base);
+      e = Math.floor(e / 2);
+    }
+    return result;
+  }
+  function _lcm(a, b) {
+    if (a === 0 || b === 0) return 0;
+    return Math.abs(a * b / _gcd(a, b));
+  }
+  function _gcd(a, b) {
+    while (b !== 0) {
+      let t = b;
+      b = a % b;
+      a = t;
+    }
+    return a;
+  }
+  function _isPowerOfP(n, pBig) {
+    let val = n;
+    while (val > 1n) {
+      if (val % pBig !== 0n) return false;
+      val /= pBig;
+    }
+    return true;
+  }
+  function _getPPart(gId, p) {
+    const perm = globalRepo.get(gId);
+    const n = perm.length;
+    const visited = new Uint8Array(n);
+    let order = 1;
+    for (let i = 0; i < n; i++) {
+      if (visited[i]) continue;
+      let curr = i;
+      let len = 0;
+      while (!visited[curr]) {
+        visited[curr] = 1;
+        curr = perm[curr];
+        len++;
+      }
+      if (len > 1) {
+        order = _lcm(order, len);
       }
     }
-    /**
-     * Processes a single edge (`uRep` --`sId`--> `cand`) in the Schreier graph during orbit construction.
-     * If `cand` maps to a new point in the orbit, it's added to the transversal and BFS queue.
-     * If `cand` maps to an already visited point, a Schreier generator (`v^-1 * cand`) is formed
-     * and recursively sifted to maintain the BSGS.
-     * @param {number} uRep - The permutation ID of the current orbit representative (`u`).
-     * @param {number} sId - The permutation ID of the generator (`s`) being applied.
-     * @param {number} level - The current level in the stabilizer chain.
-     * @param {number[]} queue - The Breadth-First Search work queue, storing permutation IDs.
-     * @private
-     */
-    _processSchreierEdge(uRep, sId, level, queue) {
-      const cand = this.multiply(sId, uRep);
-      const N = this.repo.globalDegree;
-      const beta = this.base[level];
-      const offset = cand * N;
-      const img = this.repo.permBuffer[offset + beta];
-      const transversal = this.transversals[level];
-      if (!transversal.has(img)) {
-        transversal.set(img, cand);
-        queue.push(cand);
-      } else {
-        const v = transversal.get(img);
-        if (v === cand) return;
-        const vInv = this.inverse(v);
-        const schreierGen = this.multiply(vInv, cand);
-        if (schreierGen !== this.idIdentity) {
-          this.siftAndInsert(schreierGen);
-        }
+    if (order === 1) return globalRepo.identity;
+    let m = order;
+    while (m % p === 0) {
+      m /= p;
+    }
+    return _pow(gId, m);
+  }
+  function calcApproxOrder(perm, limit = 60) {
+    const n = perm.length;
+    const visited = new Uint8Array(n);
+    let lcm = 1;
+    for (let i = 0; i < n; i++) {
+      if (visited[i]) continue;
+      let curr = i, len = 0;
+      while (!visited[curr]) {
+        visited[curr] = 1;
+        curr = perm[curr];
+        len++;
+      }
+      if (len > 0) {
+        lcm = _lcm(lcm, len);
+        if (lcm > limit) return limit;
       }
     }
-    // ========================================================================
-    // Low-Level Helpers (Direct Memory Access)
-    // ========================================================================
-    /**
-     * Finds the smallest point (index) that is not fixed by the given permutation `permId`.
-     * This is typically used to select a new base point when extending the stabilizer chain.
-     * @param {number} permId - The ID of the permutation to analyze.
-     * @returns {number} The 0-based index of the first point moved by the permutation, or -1 if the permutation is the identity.
-     * @private
-     */
-    _findFirstMovedPoint(permId) {
-      const N = this.repo.globalDegree;
-      const offset = permId * N;
-      const buf = this.repo.permBuffer;
-      for (let i = 0; i < N; i++) {
-        if (buf[offset + i] !== i) return i;
-      }
-      return -1;
-    }
-  };
+    return lcm;
+  }
 
   // src/group-structural-utils.js
   function _ensureSSA(input) {
@@ -1681,6 +1804,9 @@ var groups = (() => {
     return last.order === 1n ? 1 : 0;
   }
   function analyzeGenerators(candidateIds) {
+    if (candidateIds instanceof PermutationSet) {
+      candidateIds = Array.from(candidateIds.indices);
+    }
     const ssa = new SchreierSimsAlgorithm();
     const fundamental = [];
     const redundant = [];
@@ -1745,96 +1871,15 @@ var groups = (() => {
     }
     throw new Error(`Failed to construct Sylow ${p}-subgroup. (Random search exhausted).`);
   }
-  function _isSmallPrime(n) {
-    if (n <= 1) return false;
-    if (n <= 3) return true;
-    if (n % 2 === 0 || n % 3 === 0) return false;
-    for (let i = 5; i * i <= n; i += 6) {
-      if (n % i === 0 || n % (i + 2) === 0) return false;
-    }
-    return true;
-  }
-  function _getRandomElement(ssa) {
-    let result = ssa.repo.identity;
-    const depth = ssa.base.length;
-    for (let i = 0; i < depth; i++) {
-      const transversal = ssa.transversals[i];
-      const size = transversal.size;
-      const randIdx = Math.floor(Math.random() * size);
-      let k = 0;
-      for (const permId of transversal.values()) {
-        if (k === randIdx) {
-          result = ssa.repo.multiply(result, permId);
-          break;
-        }
-        k++;
-      }
-    }
-    return result;
-  }
-  function _pow(gId, exp) {
-    if (exp === 0) return globalRepo.identity;
-    if (exp === 1) return gId;
-    let base = gId;
-    let result = globalRepo.identity;
-    let e = exp;
-    while (e > 0) {
-      if (e % 2 === 1) {
-        result = globalRepo.multiply(result, base);
-      }
-      base = globalRepo.multiply(base, base);
-      e = Math.floor(e / 2);
-    }
-    return result;
-  }
-  function _lcm(a, b) {
-    if (a === 0 || b === 0) return 0;
-    return Math.abs(a * b / _gcd(a, b));
-  }
-  function _gcd(a, b) {
-    while (b !== 0) {
-      let t = b;
-      b = a % b;
-      a = t;
-    }
-    return a;
-  }
-  function _isPowerOfP(n, pBig) {
-    let val = n;
-    while (val > 1n) {
-      if (val % pBig !== 0n) return false;
-      val /= pBig;
-    }
-    return true;
-  }
-  function _getPPart(gId, p) {
-    const perm = globalRepo.get(gId);
-    const n = perm.length;
-    const visited = new Uint8Array(n);
-    let order = 1;
-    for (let i = 0; i < n; i++) {
-      if (visited[i]) continue;
-      let curr = i;
-      let len = 0;
-      while (!visited[curr]) {
-        visited[curr] = 1;
-        curr = perm[curr];
-        len++;
-      }
-      if (len > 1) {
-        order = _lcm(order, len);
-      }
-    }
-    if (order === 1) return globalRepo.identity;
-    let m = order;
-    while (m % p === 0) {
-      m /= p;
-    }
-    return _pow(gId, m);
-  }
 
   // src/group-visualizer.js
   function generateNames(allElementIds, generatorIds, genLabels = void 0) {
+    if (allElementIds instanceof PermutationSet) {
+      allElementIds = Array.from(allElementIds.indices);
+    }
+    if (generatorIds instanceof PermutationSet) {
+      generatorIds = Array.from(generatorIds.indices);
+    }
     if (analyzeGenerators(generatorIds).redundant?.length > 0) {
       throw new Error("generateNames analyzeGenerators(generatorIds).redundant?.length>0");
     }
@@ -2023,9 +2068,12 @@ var groups = (() => {
     advancedMode: false,
     nameMap: void 0
   };
-  function generateCayleyGraphForPlotly(inputIds, customConfig = {}) {
+  function generateCayleyGraphForPlotly(inputIds, customConfig = {}, extraGenerators = []) {
     if (inputIds instanceof PermutationSet) {
       inputIds = Array.from(inputIds.indices);
+    }
+    if (extraGenerators instanceof PermutationSet) {
+      extraGenerators = Array.from(extraGenerators.indices);
     }
     const config = { ..._DefaultCayleyGraphConfig, ...customConfig };
     const { fundamental } = analyzeGenerators(inputIds);
@@ -2033,6 +2081,8 @@ var groups = (() => {
     if (generators.length === 0) {
       throw new Error("No generators provided.");
     }
+    const effectiveExtra = extraGenerators.filter((g) => !generators.includes(g));
+    const allVisualGenerators = [...generators, ...effectiveExtra];
     const allElements = Array.from(generateGroup(generators).indices);
     let nameMap;
     if (customConfig.nameMap) {
@@ -2077,7 +2127,7 @@ var groups = (() => {
     ];
     let usedColor = [];
     const genMeta = /* @__PURE__ */ new Map();
-    generators.forEach((genId) => {
+    allVisualGenerators.forEach((genId) => {
       let order = 1;
       let curr = genId;
       const idIdentity = globalRepo.identity;
@@ -2086,13 +2136,14 @@ var groups = (() => {
         order++;
       }
       let cIdx = genId * 1597 % colors.length;
-      while (usedColor[cIdx] && generators.length <= colors.length) {
+      while (usedColor[cIdx] && allVisualGenerators.length <= colors.length) {
         cIdx++;
       }
       usedColor[cIdx] = 1;
       genMeta.set(genId, {
         id: genId,
-        label: nameMap.get(genId),
+        label: nameMap.get(genId) || `g${genId}`,
+        // Fallback if nameMap generated only for fundamental group elements usually covers it, but safe fallback
         color: colors[cIdx],
         order,
         isDirected: order > 2
@@ -2126,8 +2177,9 @@ var groups = (() => {
     const cycleVisited = /* @__PURE__ */ new Map();
     generators.forEach((g) => cycleVisited.set(g, /* @__PURE__ */ new Set()));
     for (const elemId of allElements) {
-      for (const genId of generators) {
+      for (const genId of allVisualGenerators) {
         const targetId = globalRepo.multiply(elemId, genId);
+        if (!nodeObjMap.has(targetId)) continue;
         const meta = genMeta.get(genId);
         links.push({
           source: elemId,
@@ -2137,72 +2189,74 @@ var groups = (() => {
           order: meta.order,
           isDirected: meta.isDirected
         });
-        const edgeKey = getEdgeKey(elemId, targetId);
-        const targetDist = config.d0 / meta.order;
-        if (elemId !== targetId && !addedPhysicsEdges.has(edgeKey)) {
-          addedPhysicsEdges.add(edgeKey);
-          physicsConstraints.edges.push({
-            source: elemId,
-            target: targetId,
-            dist: targetDist,
-            strength: config.edgeStrength
-          });
-        }
-        if (meta.order > 2) {
-          const nextTargetId = globalRepo.multiply(targetId, genId);
-          const prevId = globalRepo.multiply(elemId, globalRepo.inverse(genId));
-          physicsConstraints.angleTriplets.push({
-            genId,
-            center: elemId,
-            prev: prevId,
-            // node * g^-1
-            next: targetId
-            // node * g
-          });
-          if (meta.order > 3 && elemId !== nextTargetId) {
-            const chordKey = getEdgeKey(elemId, nextTargetId);
-            const theta = (meta.order - 2) * Math.PI / meta.order;
-            const chordLen = Math.sqrt(
-              2 * (targetDist * targetDist) - 2 * (targetDist * targetDist) * Math.cos(theta)
-            );
-            if (!addedPhysicsEdges.has(chordKey)) {
-              physicsConstraints.chords.push({
-                source: elemId,
-                target: nextTargetId,
-                dist: chordLen,
-                strength: config.chordStrength
-              });
+        if (generators.includes(genId)) {
+          const edgeKey = getEdgeKey(elemId, targetId);
+          const targetDist = config.d0 / meta.order;
+          if (elemId !== targetId && !addedPhysicsEdges.has(edgeKey)) {
+            addedPhysicsEdges.add(edgeKey);
+            physicsConstraints.edges.push({
+              source: elemId,
+              target: targetId,
+              dist: targetDist,
+              strength: config.edgeStrength
+            });
+          }
+          if (meta.order > 2) {
+            const nextTargetId = globalRepo.multiply(targetId, genId);
+            const prevId = globalRepo.multiply(elemId, globalRepo.inverse(genId));
+            physicsConstraints.angleTriplets.push({
+              genId,
+              center: elemId,
+              prev: prevId,
+              // node * g^-1
+              next: targetId
+              // node * g
+            });
+            if (meta.order > 3 && elemId !== nextTargetId) {
+              const chordKey = getEdgeKey(elemId, nextTargetId);
+              const theta = (meta.order - 2) * Math.PI / meta.order;
+              const chordLen = Math.sqrt(
+                2 * (targetDist * targetDist) - 2 * (targetDist * targetDist) * Math.cos(theta)
+              );
+              if (!addedPhysicsEdges.has(chordKey)) {
+                physicsConstraints.chords.push({
+                  source: elemId,
+                  target: nextTargetId,
+                  dist: chordLen,
+                  strength: config.chordStrength
+                });
+              }
             }
           }
-        }
-        if (meta.order > 1) {
-          const visitedSet = cycleVisited.get(genId);
-          if (!visitedSet.has(elemId)) {
-            const cycleIndices = [];
-            let currTrace = elemId;
-            for (let k = 0; k < meta.order; k++) {
-              visitedSet.add(currTrace);
-              cycleIndices.push(currTrace);
-              currTrace = globalRepo.multiply(currTrace, genId);
-            }
-            if (meta.order > 2) {
-              physicsConstraints.cycles.push({
-                indices: cycleIndices,
-                genId
+          if (meta.order > 1) {
+            const visitedSet = cycleVisited.get(genId);
+            if (visitedSet && !visitedSet.has(elemId)) {
+              const cycleIndices = [];
+              let currTrace = elemId;
+              for (let k = 0; k < meta.order; k++) {
+                visitedSet.add(currTrace);
+                cycleIndices.push(currTrace);
+                currTrace = globalRepo.multiply(currTrace, genId);
+              }
+              if (meta.order > 2) {
+                physicsConstraints.cycles.push({
+                  indices: cycleIndices,
+                  genId
+                });
+              }
+              let os = (meta.order + 1) * (meta.order + 1);
+              const dx = (Math.random() - 0.5) * config.initialOffsetDist * os;
+              const dy = (Math.random() - 0.5) * config.initialOffsetDist * os;
+              const dz = (Math.random() - 0.5) * config.initialOffsetDist * os;
+              cycleIndices.forEach((nodeId) => {
+                const n = nodeObjMap.get(nodeId);
+                if (n) {
+                  n.x += dx;
+                  n.y += dy;
+                  n.z += dz;
+                }
               });
             }
-            let os = (meta.order + 1) * (meta.order + 1);
-            const dx = (Math.random() - 0.5) * config.initialOffsetDist * os;
-            const dy = (Math.random() - 0.5) * config.initialOffsetDist * os;
-            const dz = (Math.random() - 0.5) * config.initialOffsetDist * os;
-            cycleIndices.forEach((nodeId) => {
-              const n = nodeObjMap.get(nodeId);
-              if (n) {
-                n.x += dx;
-                n.y += dy;
-                n.z += dz;
-              }
-            });
           }
         }
       }
@@ -2212,7 +2266,7 @@ var groups = (() => {
       color: m.color,
       genId: m.id
     }));
-    const simulator = new VisualizerCayleyForceSimulator(nodes, physicsConstraints, generators, genMeta, config);
+    const simulator = new VisualizerCayleyForceSimulator(nodes, physicsConstraints, allVisualGenerators, genMeta, config);
     if (config.warmupRuns > 0) {
       simulator.warmup(config.warmupRuns);
     }
@@ -2555,5 +2609,274 @@ var groups = (() => {
       return { data: traces, layout };
     }
   };
+
+  // src/group-utils-coxeter.js
+  function findCoxeterLikeGenerators(inputGenerators, options = {}) {
+    const {
+      beamWidth = 50,
+      generations = 30,
+      forcedBase = null
+    } = options;
+    const inputs = inputGenerators instanceof PermutationSet ? inputGenerators.indices : inputGenerators;
+    const targetSSA = SchreierSimsAlgorithm.compute(inputs);
+    const targetOrder = targetSSA.order;
+    let maxPoint = 0;
+    for (const id of inputs) {
+      const perm = globalRepo.get(id);
+      for (let i = perm.length - 1; i >= 0; i--) {
+        if (perm[i] !== i) {
+          if (i > maxPoint) maxPoint = i;
+          break;
+        }
+      }
+    }
+    const degree = maxPoint + 1;
+    const base = forcedBase || Array.from({ length: degree }, (_, i) => i);
+    const ssa = new SchreierSimsAlgorithm(base);
+    for (const id of inputs) {
+      ssa.siftAndInsert(id);
+    }
+    const candidateGenerators = [];
+    for (let i = 0; i < ssa.base.length; i++) {
+      const currentBasePoint = ssa.base[i];
+      const subGroupGenerators = [];
+      for (let k = i; k < ssa.generators.length; k++) {
+        if (ssa.generators[k]) {
+          for (const g of ssa.generators[k]) subGroupGenerators.push(g);
+        }
+      }
+      if (subGroupGenerators.length === 0) continue;
+      const fullOrbit = _computeOrbit(currentBasePoint, subGroupGenerators);
+      if (fullOrbit.size === 1) continue;
+      const levelGens = [];
+      let coveredOrbit = /* @__PURE__ */ new Set([currentBasePoint]);
+      let loopSafety = 0;
+      while (coveredOrbit.size < fullOrbit.size && loopSafety++ < fullOrbit.size + 10) {
+        const unvisited = /* @__PURE__ */ new Set();
+        for (const p of fullOrbit) {
+          if (!coveredOrbit.has(p)) unvisited.add(p);
+        }
+        let bestTargetPair = null;
+        let minDist = Infinity;
+        for (const u of coveredOrbit) {
+          const candidates = [u + 1, u - 1];
+          let foundAdj = false;
+          for (const v of candidates) {
+            if (unvisited.has(v)) {
+              bestTargetPair = { u, v };
+              minDist = 1;
+              foundAdj = true;
+              break;
+            }
+          }
+          if (foundAdj) break;
+          if (minDist > 1) {
+            for (const v of unvisited) {
+              const d = Math.abs(u - v);
+              if (d < minDist) {
+                minDist = d;
+                bestTargetPair = { u, v };
+              }
+            }
+          }
+        }
+        if (!bestTargetPair) break;
+        const { u: sourcePoint, v: targetPoint } = bestTargetPair;
+        const singleTargetSet = /* @__PURE__ */ new Set([targetPoint]);
+        let bestGen = _beamSearchBestGenerator(
+          subGroupGenerators,
+          sourcePoint,
+          singleTargetSet,
+          beamWidth,
+          generations
+        );
+        if (bestGen === -1) {
+          bestGen = _randomWalkForInvolution(
+            subGroupGenerators,
+            sourcePoint,
+            singleTargetSet,
+            2e3
+          );
+        }
+        if (bestGen === -1) {
+          bestGen = subGroupGenerators.find((id) => {
+            const p = globalRepo.get(id);
+            const img = sourcePoint < p.length ? p[sourcePoint] : sourcePoint;
+            return singleTargetSet.has(img);
+          });
+          if (!bestGen) {
+            bestGen = subGroupGenerators.find((id) => {
+              const p = globalRepo.get(id);
+              const img = sourcePoint < p.length ? p[sourcePoint] : sourcePoint;
+              return unvisited.has(img);
+            });
+          }
+        }
+        if (bestGen !== void 0 && bestGen !== -1) {
+          levelGens.push(bestGen);
+        } else {
+          break;
+        }
+        coveredOrbit = _computeOrbit(currentBasePoint, levelGens);
+      }
+      candidateGenerators.push(...levelGens);
+    }
+    const checkSSA = SchreierSimsAlgorithm.compute(candidateGenerators);
+    if (checkSSA.order < targetOrder) {
+      candidateGenerators.push(...inputs);
+    }
+    const minimalIds = _minimizeGenerators(candidateGenerators, targetOrder);
+    return new PermutationSet(minimalIds, false, false);
+  }
+  function _minimizeGenerators(genIds, targetOrder) {
+    let currentSet = [...new Set(genIds)];
+    currentSet.sort((a, b) => {
+      const permA = globalRepo.get(a);
+      const permB = globalRepo.get(b);
+      const ordA = calcApproxOrder(permA);
+      const ordB = calcApproxOrder(permB);
+      if (ordA !== ordB) {
+        if (ordA === 2) return 1;
+        if (ordB === 2) return -1;
+        return ordB - ordA;
+      }
+      const suppA = _calculateSupport(permA);
+      const suppB = _calculateSupport(permB);
+      if (suppA !== suppB) return suppB - suppA;
+      const dispA = _calculateDisplacement(permA);
+      const dispB = _calculateDisplacement(permB);
+      return dispB - dispA;
+    });
+    const workingSet = [...currentSet];
+    const keptIndices = new Set(workingSet.map((_, i) => i));
+    for (let i = 0; i < workingSet.length; i++) {
+      const testSetIds = [];
+      for (let k = 0; k < workingSet.length; k++) {
+        if (k !== i && keptIndices.has(k)) {
+          testSetIds.push(workingSet[k]);
+        }
+      }
+      const testSSA = SchreierSimsAlgorithm.compute(testSetIds);
+      if (testSSA.order === targetOrder) {
+        keptIndices.delete(i);
+      }
+    }
+    return workingSet.filter((_, i) => keptIndices.has(i));
+  }
+  function _calculateSupport(perm) {
+    let s = 0;
+    for (let i = 0; i < perm.length; i++) if (perm[i] !== i) s++;
+    return s;
+  }
+  function _calculateDisplacement(perm) {
+    let s = 0;
+    for (let i = 0; i < perm.length; i++) s += Math.abs(i - perm[i]);
+    return s;
+  }
+  function _computeOrbit(startPoint, genIds) {
+    const orbit = /* @__PURE__ */ new Set([startPoint]);
+    const queue = [startPoint];
+    const perms = genIds.map((id) => globalRepo.get(id));
+    let ptr = 0;
+    while (ptr < queue.length) {
+      const u = queue[ptr++];
+      for (let i = 0; i < perms.length; i++) {
+        const p = perms[i];
+        const val = u < p.length ? p[u] : u;
+        if (!orbit.has(val)) {
+          orbit.add(val);
+          queue.push(val);
+        }
+      }
+    }
+    return orbit;
+  }
+  function _beamSearchBestGenerator(genIds, sourcePoint, validDestinations, beamWidth, maxGenerations) {
+    const evaluate = (id) => {
+      const perm = globalRepo.get(id);
+      const img = sourcePoint < perm.length ? perm[sourcePoint] : sourcePoint;
+      const isDestValid = validDestinations.has(img);
+      const order = calcApproxOrder(perm);
+      if (!isDestValid) return 1e9;
+      const orderPenalty = order === 2 ? 0 : order * 1e5;
+      const support = _calculateSupport(perm);
+      const dist = Math.abs(img - sourcePoint);
+      const adjacencyPenalty = dist === 1 ? 0 : dist * 100;
+      return orderPenalty + support * 10 + adjacencyPenalty;
+    };
+    let pool = [];
+    const seenIds = /* @__PURE__ */ new Set();
+    const tryAdd = (id) => {
+      if (seenIds.has(id)) return;
+      seenIds.add(id);
+      let s = evaluate(id);
+      if (s > 1e6) {
+        const ord = calcApproxOrder(globalRepo.get(id));
+        if (ord === 2) s = 5e3;
+        else if (ord < 5) s = 1e4;
+      }
+      pool.push({ id, score: s });
+    };
+    genIds.forEach((id) => {
+      tryAdd(id);
+      tryAdd(globalRepo.inverse(id));
+      tryAdd(globalRepo.multiply(id, id));
+    });
+    if (pool.length === 0) return -1;
+    pool.sort((a, b) => a.score - b.score);
+    if (pool[0].score < 100) return pool[0].id;
+    for (let gen = 0; gen < maxGenerations; gen++) {
+      const nextGenCandidates = [];
+      const breeders = pool.slice(0, Math.min(pool.length, beamWidth));
+      for (let i = 0; i < breeders.length; i++) {
+        for (let j = 0; j < breeders.length; j++) {
+          if (i === j) continue;
+          nextGenCandidates.push(globalRepo.multiply(breeders[i].id, breeders[j].id));
+        }
+      }
+      const involutions = breeders.filter((b) => calcApproxOrder(globalRepo.get(b.id)) === 2);
+      const sources = involutions.length > 0 ? involutions : breeders;
+      for (const b of breeders) {
+        const g = b.id;
+        const gInv = globalRepo.inverse(g);
+        for (const h of sources) {
+          const tmp = globalRepo.multiply(g, h.id);
+          nextGenCandidates.push(globalRepo.multiply(tmp, gInv));
+        }
+      }
+      for (const cid of nextGenCandidates) tryAdd(cid);
+      pool.sort((a, b) => a.score - b.score);
+      pool = pool.slice(0, beamWidth);
+      if (pool[0].score < 100) return pool[0].id;
+    }
+    return pool[0].score < 1e6 ? pool[0].id : -1;
+  }
+  function _randomWalkForInvolution(genIds, sourcePoint, validDestinations, maxSteps) {
+    if (genIds.length === 0) return -1;
+    let pool = [...genIds];
+    genIds.forEach((id) => pool.push(globalRepo.inverse(id)));
+    const seen = new Set(pool);
+    for (let i = 0; i < maxSteps; i++) {
+      const a = pool[Math.floor(Math.random() * pool.length)];
+      const b = pool[Math.floor(Math.random() * pool.length)];
+      const prod = globalRepo.multiply(a, b);
+      if (!seen.has(prod)) {
+        pool.push(prod);
+        seen.add(prod);
+        if (pool.length > 300) {
+          pool.splice(0, 100);
+          seen.clear();
+          pool.forEach((x) => seen.add(x));
+        }
+      }
+      const perm = globalRepo.get(prod);
+      const ord = calcApproxOrder(perm);
+      if (ord === 2) {
+        const img = sourcePoint < perm.length ? perm[sourcePoint] : sourcePoint;
+        if (validDestinations.has(img)) return prod;
+      }
+    }
+    return -1;
+  }
   return __toCommonJS(groups_exports);
 })();

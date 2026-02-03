@@ -141,13 +141,12 @@ box.range=function(start,end,step=1,mapper=undefined){
 box.echo=function(...o){
   let str='';
   for(var i of o){
-    if(str!='')str+=', ';
-    if(typeof i==="string" || typeof i==="number" || typeof i==="bigint" ){
-      str += i;
-    }else if(Array.isArray(i) || ArrayBuffer.isView(i)){
+    if(Array.isArray(i) || ArrayBuffer.isView(i)){
       str+=`[${String(i)}]`;
     }else if(typeof i==="object" && i.toString){
       str += i.toString();
+    }else{
+      str+=String(i);
     }
   }
   str=str.replace(/</ig,'&lt;').replace(/>/ig,'&gt;')+'\n';
@@ -819,9 +818,11 @@ box.plot3DLine=function(...xPoints_yPoints_zPoints){
  * Plot the Cayley Graph for the Group
  * @param {*} generators the generators of the Group
  * @param {Map<number, string>} [nameMap=undefined] the name map for the whole group elements
+ * @param {*} [extraGenerators=undefined] extra generators to show in the graph
+ * @returns the name map for the whole group elements
  */
-box.plotCayleyGraph=function(generators,nameMap){
-  let {data, layout, nameMap:_nameMap}=groups.generateCayleyGraphForPlotly(generators, {nameMap});
+box.plotCayleyGraph=function(generators,nameMap=undefined,extraGenerators=undefined){
+  let {data, layout, nameMap:_nameMap}=groups.generateCayleyGraphForPlotly(generators, {nameMap},extraGenerators);
   box.plotly(data,layout);
   return _nameMap;
 }
@@ -900,13 +901,10 @@ box.compile_expr=box.expr=function(e){
 box.eval_expr=function(e,scope){
   return box.compile_expr(e).eval(scope);
 }
-/**
- * Calc derivative of a mathjs expr
- */
-box.deriv=math.derivative;
-box.symplify=math.symplify;
+
 box.mathfrac=math.create({number:'Fraction'},math.all)
 box.mathbn=math.create({number:'BigNumber'},math.all)
+
 /**
  * Get latex string
  * @param  {...any} ex 
