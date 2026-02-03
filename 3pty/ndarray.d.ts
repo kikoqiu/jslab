@@ -900,12 +900,24 @@ declare module "ndwasmarray" {
      */
     export class NDWasmArray {
         /**
+         * Static factory: Creates an uninitialized WASM-resident array.
+         * @param {*} shape - Shape of the array.
+         * @param {*} dtype - Data type.
+         * @returns {NDWasmArray}
+         */
+        static newArray(shape: any, dtype?: any): NDWasmArray;
+        /**
          * Static factory: Creates a WASM-resident array.
          * 1. If source is an NDArray, it calls .push() to move it to WASM.
          * 2. If source is a JS Array, it allocates WASM memory and fills it directly
          *    via recursive traversal to avoid intermediate flattening.
+         * 3. If source is a single number, it creates a 1-element WASM array.
+         * Must dispose() manually to free WASM memory.
+         * @param {NDArray|Array|number} source - Source data.
+         * @param {string} [dtype='float64'] - Data type.
+         * @returns {NDWasmArray}
          */
-        static fromArray(source: any, dtype?: string): NDWasmArray;
+        static fromArray(source: NDArray | any[] | number, dtype?: string): NDWasmArray;
         /**
          * @param {WasmBuffer} buffer - The WASM memory bridge (contains .ptr and .view).
          * @param {Int32Array|Array} shape - Dimensions of the array.
@@ -927,23 +939,19 @@ declare module "ndwasmarray" {
          */
         dispose(): void;
         /**
-         * Internal helper to prepare operands for WASM operations.
-         * Ensures input is converted to NDWasmArray and tracks if it needs auto-disposal.
-         * @private
+         * Matrix Multiplication: C = this * right
+         * @param {NDWasmArray} right
+         * @param {NDWasmArray} result - Pre-allocated result array.
+         * @returns {NDWasmArray} the result array.
          */
-        private _prepareOperand;
-        /**
-         * Matrix Multiplication: C = this * other
-         * @param {NDWasmArray | NDArray} other
-         * @returns {NDWasmArray}
-         */
-        matMul(other: NDWasmArray | NDArray): NDWasmArray;
+        matMul(right: NDWasmArray, result: NDWasmArray): NDWasmArray;
         /**
          * Batched Matrix Multiplication: C[i] = this[i] * other[i]
-         * @param {NDWasmArray | NDArray}
+         * @param {NDWasmArray} other
+         * @param {NDWasmArray} result - Pre-allocated result array.
          * @returns {NDWasmArray}
          */
-        matMulBatch(other: any): NDWasmArray;
+        matMulBatch(right: any, result: NDWasmArray): NDWasmArray;
     }
     import { NDArray } from "ndarray_core";
 }
@@ -2325,8 +2333,8 @@ declare module "ndarray" {
     export * from "ndwasm";
     export * from "ndarray_factory";
     export * from "ndarray_helpers";
+    export * from "ndwasmarray";
     export default NDArray;
-    import { help } from "help";
     import { NDProb } from "ndarray_prob";
     import { NDWasmDecomp } from "ndwasm_decomp";
     import { NDWasmAnalysis } from "ndwasm_analysis";
@@ -2334,8 +2342,8 @@ declare module "ndarray" {
     import { NDWasmSignal } from "ndwasm_signal";
     import { NDWasmImage } from "ndwasm_image";
     import { NDWasmOptimize } from "ndwasm_optimize";
+    import { help } from "help";
     import { NDArray } from "ndarray_core";
     import { DTYPE_MAP } from "ndarray_core";
-    import { NDWasmArray } from "ndwasmarray";
-    export { help, NDProb, NDWasmDecomp, NDWasmAnalysis, NDWasmBlas, NDWasmSignal, NDWasmImage, NDWasmOptimize, NDArray, DTYPE_MAP, NDWasmArray };
+    export { NDProb, NDWasmDecomp, NDWasmAnalysis, NDWasmBlas, NDWasmSignal, NDWasmImage, NDWasmOptimize, help, NDArray, DTYPE_MAP };
 }

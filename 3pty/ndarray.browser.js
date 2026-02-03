@@ -1888,6 +1888,10 @@ var ndarray = (() => {
   };
 
   // src/ndwasmarray.js
+  var ndwasmarray_exports = {};
+  __export(ndwasmarray_exports, {
+    NDWasmArray: () => NDWasmArray
+  });
   var NDWasmArray = class _NDWasmArray {
     /**
      * @param {WasmBuffer} buffer - The WASM memory bridge (contains .ptr and .view).
@@ -1902,10 +1906,26 @@ var ndarray = (() => {
       this.size = this.ndim === 0 ? 1 : this.shape.reduce((a, b) => a * b, 1);
     }
     /**
+     * Static factory: Creates an uninitialized WASM-resident array.
+     * @param {*} shape - Shape of the array.
+     * @param {*} dtype - Data type.
+     * @returns {NDWasmArray}
+     */
+    static newArray(shape, dtype = "float64") {
+      const size = shape.reduce((a, b) => a * b, 1);
+      const buffer = NDWasm.runtime.createBuffer(size, dtype);
+      return new _NDWasmArray(buffer, shape, dtype);
+    }
+    /**
      * Static factory: Creates a WASM-resident array.
      * 1. If source is an NDArray, it calls .push() to move it to WASM.
      * 2. If source is a JS Array, it allocates WASM memory and fills it directly 
      *    via recursive traversal to avoid intermediate flattening.
+     * 3. If source is a single number, it creates a 1-element WASM array.
+     * Must dispose() manually to free WASM memory.
+     * @param {NDArray|Array|number} source - Source data.
+     * @param {string} [dtype='float64'] - Data type.
+     * @returns {NDWasmArray}
      */
     static fromArray(source, dtype = "float64") {
       if (source instanceof NDArray) {
@@ -1964,77 +1984,72 @@ var ndarray = (() => {
       }
     }
     /**
-     * Internal helper to prepare operands for WASM operations.
-     * Ensures input is converted to NDWasmArray and tracks if it needs auto-disposal.
-     * @private
+     * Matrix Multiplication: C = this * right
+     * @param {NDWasmArray} right
+     * @param {NDWasmArray} result - Pre-allocated result array.
+     * @returns {NDWasmArray} the result array.
      */
-    _prepareOperand(operand) {
-      if (operand instanceof _NDWasmArray) {
-        return [operand, false];
+    matMul(right, result) {
+      if (!(right instanceof _NDWasmArray)) {
+        throw new Error("Right operand must be an NDWasmArray.");
       }
-      return [_NDWasmArray.fromArray(operand, this.dtype), true];
-    }
-    /**
-     * Matrix Multiplication: C = this * other
-     * @param {NDWasmArray | NDArray} other
-     * @returns {NDWasmArray}
-     */
-    matMul(other) {
-      const [right, shouldDispose] = this._prepareOperand(other);
-      try {
-        if (this.shape[1] !== right.shape[0]) {
-          throw new Error(`Inner dimensions mismatch: ${this.shape[1]} != ${right.shape[0]}`);
-        }
-        const m = this.shape[0];
-        const n = this.shape[1];
-        const k = right.shape[1];
-        const suffix = NDWasm.runtime._getSuffix(this.dtype);
-        const outBuffer = NDWasm.runtime.createBuffer(m * k, this.dtype);
-        const status = NDWasm.runtime.exports[`MatMul${suffix}`](
-          this.buffer.ptr,
-          right.buffer.ptr,
-          outBuffer.ptr,
-          m,
-          n,
-          k
-        );
-        if (status !== void 0 && status !== 0) throw new Error(`WASM MatMul failed with status: ${status}`);
-        return new _NDWasmArray(outBuffer, [m, k], this.dtype);
-      } finally {
-        if (shouldDispose) right.dispose();
+      if (this.shape[1] !== right.shape[0]) {
+        throw new Error(`Inner dimensions mismatch: ${this.shape[1]} != ${right.shape[0]}`);
       }
+      if (!result || !(result instanceof _NDWasmArray) || result.dtype !== this.dtype) {
+        throw new Error(`Invalid result array. Expected NDWasmArray with dtype ${this.dtype}.`);
+      } else if (result.shape[0] !== this.shape[0] || result.shape[1] !== right.shape[1] || result.ndim !== 2) {
+        throw new Error(`Result array has incorrect shape. Expected [${this.shape[0]}, ${right.shape[1]}], got [${result.shape[0]}, ${result.shape[1]}].`);
+      }
+      const m = this.shape[0];
+      const n = this.shape[1];
+      const k = right.shape[1];
+      const suffix = NDWasm.runtime._getSuffix(this.dtype);
+      const status = NDWasm.runtime.exports[`MatMul${suffix}`](
+        this.buffer.ptr,
+        right.buffer.ptr,
+        result.buffer.ptr,
+        m,
+        n,
+        k
+      );
+      if (status !== void 0 && status !== 0) throw new Error(`WASM MatMul failed with status: ${status}`);
+      return result;
     }
     /**
      * Batched Matrix Multiplication: C[i] = this[i] * other[i]
-     * @param {NDWasmArray | NDArray}
+     * @param {NDWasmArray} other
+     * @param {NDWasmArray} result - Pre-allocated result array.
      * @returns {NDWasmArray}
      */
-    matMulBatch(other) {
-      const [right, shouldDispose] = this._prepareOperand(other);
-      try {
-        if (this.ndim !== 3 || right.ndim !== 3 || this.shape[0] !== right.shape[0]) {
-          throw new Error("Batch dimensions mismatch.");
-        }
-        const batch = this.shape[0];
-        const m = this.shape[1];
-        const n = this.shape[2];
-        const k = right.shape[2];
-        const suffix = NDWasm.runtime._getSuffix(this.dtype);
-        const outBuffer = NDWasm.runtime.createBuffer(batch * m * k, this.dtype);
-        const status = NDWasm.runtime.exports[`MatMulBatch${suffix}`](
-          this.buffer.ptr,
-          right.buffer.ptr,
-          outBuffer.ptr,
-          batch,
-          m,
-          n,
-          k
-        );
-        if (status !== void 0 && status !== 0) throw new Error(`WASM MatMulBatch failed with status: ${status}`);
-        return new _NDWasmArray(outBuffer, [batch, m, k], this.dtype);
-      } finally {
-        if (shouldDispose) right.dispose();
+    matMulBatch(right, result) {
+      if (!(right instanceof _NDWasmArray)) {
+        throw new Error("Right operand must be an NDWasmArray.");
       }
+      if (this.ndim !== 3 || right.ndim !== 3 || this.shape[0] !== right.shape[0]) {
+        throw new Error(`dimensions mismatch. ${this.ndim}D and ${right.ndim}D arrays with batch size ${this.shape[0]} and ${right.shape[0]}.`);
+      }
+      if (!result || !(result instanceof _NDWasmArray) || result.dtype !== this.dtype) {
+        throw new Error(`Invalid result array. Expected NDWasmArray with dtype ${this.dtype}.`);
+      } else if (result.shape[0] !== this.shape[0] || result.shape[1] !== this.shape[1] || result.shape[2] !== right.shape[2] || result.ndim !== 3) {
+        throw new Error(`Invalid result array. Expected shape [${this.shape[0]}, ${this.shape[1]}, ${right.shape[2]}], got [${result.shape[0]}, ${result.shape[1]}, ${result.shape[2]}].`);
+      }
+      const batch = this.shape[0];
+      const m = this.shape[1];
+      const n = this.shape[2];
+      const k = right.shape[2];
+      const suffix = NDWasm.runtime._getSuffix(this.dtype);
+      const status = NDWasm.runtime.exports[`MatMulBatch${suffix}`](
+        this.buffer.ptr,
+        right.buffer.ptr,
+        result.buffer.ptr,
+        batch,
+        m,
+        n,
+        k
+      );
+      if (status !== void 0 && status !== 0) throw new Error(`WASM MatMulBatch failed with status: ${status}`);
+      return result;
     }
   };
 
@@ -9404,11 +9419,78 @@ var ndarray = (() => {
         }
       ]
     },
+    "NDWasmArray.newArray": {
+      longname: "NDWasmArray.newArray",
+      kind: "function",
+      description: "Static factory: Creates an uninitialized WASM-resident array.",
+      params: [
+        {
+          name: "shape",
+          description: "Shape of the array.",
+          type: {
+            names: [
+              "*"
+            ]
+          }
+        },
+        {
+          name: "dtype",
+          description: "Data type.",
+          type: {
+            names: [
+              "*"
+            ]
+          },
+          defaultvalue: "float64"
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDWasmArray"
+            ]
+          }
+        }
+      ]
+    },
     "NDWasmArray.fromArray": {
       longname: "NDWasmArray.fromArray",
       kind: "function",
-      description: "Static factory: Creates a WASM-resident array.\r1. If source is an NDArray, it calls .push() to move it to WASM.\r2. If source is a JS Array, it allocates WASM memory and fills it directly \r   via recursive traversal to avoid intermediate flattening.",
-      params: []
+      description: "Static factory: Creates a WASM-resident array.\r1. If source is an NDArray, it calls .push() to move it to WASM.\r2. If source is a JS Array, it allocates WASM memory and fills it directly \r   via recursive traversal to avoid intermediate flattening.\r3. If source is a single number, it creates a 1-element WASM array.\rMust dispose() manually to free WASM memory.",
+      params: [
+        {
+          name: "source",
+          description: "Source data.",
+          type: {
+            names: [
+              "NDArray",
+              "Array",
+              "number"
+            ]
+          }
+        },
+        {
+          name: "dtype",
+          description: "Data type.",
+          type: {
+            names: [
+              "string"
+            ]
+          },
+          optional: true,
+          defaultvalue: "'float64'"
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDWasmArray"
+            ]
+          }
+        }
+      ]
     },
     "NDWasmArray.prototype.pull": {
       longname: "NDWasmArray#pull",
@@ -9434,23 +9516,25 @@ var ndarray = (() => {
       description: "Manually releases WASM heap memory.",
       params: []
     },
-    "NDWasmArray.prototype._prepareOperand": {
-      longname: "NDWasmArray#_prepareOperand",
-      kind: "function",
-      description: "Internal helper to prepare operands for WASM operations.\rEnsures input is converted to NDWasmArray and tracks if it needs auto-disposal.",
-      params: []
-    },
     "NDWasmArray.prototype.matMul": {
       longname: "NDWasmArray#matMul",
       kind: "function",
-      description: "Matrix Multiplication: C = this * other",
+      description: "Matrix Multiplication: C = this * right",
       params: [
         {
-          name: "other",
+          name: "right",
           type: {
             names: [
-              "NDWasmArray",
-              "NDArray"
+              "NDWasmArray"
+            ]
+          }
+        },
+        {
+          name: "result",
+          description: "Pre-allocated result array.",
+          type: {
+            names: [
+              "NDWasmArray"
             ]
           }
         }
@@ -9461,7 +9545,8 @@ var ndarray = (() => {
             names: [
               "NDWasmArray"
             ]
-          }
+          },
+          description: "the result array."
         }
       ]
     },
@@ -9474,8 +9559,16 @@ var ndarray = (() => {
           name: "other",
           type: {
             names: [
-              "NDWasmArray",
-              "NDArray"
+              "NDWasmArray"
+            ]
+          }
+        },
+        {
+          name: "result",
+          description: "Pre-allocated result array.",
+          type: {
+            names: [
+              "NDWasmArray"
             ]
           }
         }
@@ -11210,7 +11303,7 @@ var ndarray = (() => {
   function registerAll() {
     const rootObjects = {
       NDArray,
-      NDWasmArray,
+      ...ndwasmarray_exports,
       ...ndwasm_exports,
       NDProb,
       NDWasmDecomp,
