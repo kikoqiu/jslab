@@ -540,12 +540,15 @@ workerhelper.writefile = function(content, fileName) {
   });
 };
 
+workerhelper.beginVmSelected = function(){
+  this.vmSelectedBlock=vm.selected;
+}
 workerhelper.setVmSelectedResult = function(cnt){
-  vm.selected.result = cnt;
+  this.vmSelectedBlock.result = cnt;
 }
 
 workerhelper.setVmSelectedResultScript = function(cnt){
-  vm.selected.resultScript = cnt;
+  this.vmSelectedBlock.resultScript = cnt;
 }
 
 workerhelper.lspWorkerEnableLib = function(name){

@@ -13,6 +13,7 @@ box.initOutputBuffer=async function(){
   box.outputBuffer={'result':null,'resultScript':''};
   let {document} = globalThis.linkedom.parseHTML('<html><body></body></html>');
   globalThis.document=document;
+  await workerhelperCall('beginVmSelected');
 }
 
 /**
