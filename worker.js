@@ -8,6 +8,8 @@ const workerLibs = [
     '3pty/math.15.1.0.js',
     'box.js',
 ];
+
+
 async function loadLibs() {
     try {
         globalThis.linkedom = await import('./3pty/linkedom.js');//'./3pty/linkedom-browser/dist/linkedom.browser.min.js'
@@ -21,10 +23,9 @@ async function loadLibs() {
 
         bfjs.gc_ele_limit = 100;
 
+        await box.loadNDArray();
+        await importScripts("3pty/groups.browser.js");
         self.postMessage({ type: 'ready' });
-        //default load nd array async
-        setTimeout(()=>box.loadNDArray(),500);
-        setTimeout(()=>importScripts("3pty/groups.browser.js"),600);
     } catch (error) {
         self.postMessage({ type: 'error', payload: { message: `Failed to load libraries: ${error.message}` } });
     }
