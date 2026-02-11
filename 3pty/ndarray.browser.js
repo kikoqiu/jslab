@@ -43,7 +43,7 @@ var ndarray = (() => {
     WasmRuntime: () => WasmRuntime,
     abs: () => abs,
     add: () => add,
-    analysis: () => analysis2,
+    analysis: () => NDWasmAnalysis,
     arange: () => arange,
     array: () => array,
     bitwise_and: () => bitwise_and,
@@ -52,12 +52,12 @@ var ndarray = (() => {
     bitwise_or: () => bitwise_or,
     bitwise_rshift: () => bitwise_rshift,
     bitwise_xor: () => bitwise_xor,
-    blas: () => blas2,
+    blas: () => NDWasmBlas,
     ceil: () => ceil,
     concat: () => concat,
     cos: () => cos,
     cross: () => cross,
-    decomp: () => decomp2,
+    decomp: () => NDWasmDecomp,
     default: () => ndarray_default,
     div: () => div,
     dot: () => dot,
@@ -69,7 +69,7 @@ var ndarray = (() => {
     fromWasm: () => fromWasm,
     full: () => full,
     help: () => help,
-    image: () => image,
+    image: () => NDWasmImage,
     init: () => init,
     int16: () => int16,
     int32: () => int32,
@@ -80,11 +80,11 @@ var ndarray = (() => {
     mul: () => mul,
     neg: () => neg,
     ones: () => ones,
-    optimize: () => optimize,
+    optimize: () => NDWasmOptimize,
     pow: () => pow,
-    random: () => random,
+    random: () => NDProb,
     round: () => round,
-    signal: () => signal2,
+    signal: () => NDWasmSignal,
     sin: () => sin,
     sqrt: () => sqrt,
     stack: () => stack,
@@ -11330,13 +11330,6 @@ var ndarray = (() => {
     }
   }
   registerAll();
-  var random = NDProb;
-  var image = NDWasmImage;
-  var optimize = NDWasmOptimize;
-  var decomp2 = NDWasmDecomp;
-  var analysis2 = NDWasmAnalysis;
-  var blas2 = NDWasmBlas;
-  var signal2 = NDWasmSignal;
   function init(baseDir = ".") {
     return NDWasm.init(baseDir);
   }

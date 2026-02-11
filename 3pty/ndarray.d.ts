@@ -2220,115 +2220,6 @@ declare module "ndarray_helpers" {
 }
 declare module "ndarray" {
     export function init(baseDir?: string): Promise<void>;
-    export const random: {
-        _cryptoUniform01(size: any): Float64Array<any>;
-        random(shape: any[], low?: number, high?: number, dtype?: string): NDArray;
-        normal(shape: any[], mean?: number, std?: number, dtype?: string): NDArray;
-        bernoulli(shape: any[], p?: number, dtype?: string): NDArray;
-        exponential(shape: any[], lambda?: number, dtype?: string): NDArray;
-        poisson(shape: any[], lambda?: number, dtype?: string): NDArray;
-        _cast(data: any, dtype: any): any;
-    };
-    export const image: {
-        decode(imageBytes: Uint8Array): NDArray | null;
-        encode(ndarray: NDArray, { format, quality }?: {
-            format?: string | undefined;
-            quality?: number | undefined;
-        }): Uint8Array | null;
-        encodePng(ndarray: NDArray): Uint8Array | null;
-        encodeJpeg(ndarray: NDArray, options?: {
-            quality?: number | undefined;
-        }): Uint8Array | null;
-        convertUint8ArrrayToDataurl(uint8array: Uint8Array, mimeType?: string): string;
-    };
-    export const optimize: {
-        linprog(c: NDArray, G: NDArray | null, h: NDArray | null, A: NDArray | null, b: NDArray | null, bounds: any[]): {
-            x: NDArray;
-            fun: number;
-            status: number;
-            message: string;
-        };
-        linearRegression(x: NDArray, y: NDArray): {
-            alpha: number;
-            beta: number;
-        };
-        minimize(func: Function, x0: NDArray, options?: {
-            grad?: Function | undefined;
-        }): {
-            x: NDArray;
-            success: boolean;
-            message: string;
-        };
-    };
-    export const decomp: {
-        solve(a: NDArray, b: NDArray): NDArray;
-        inv(a: NDArray): NDArray;
-        svd(a: NDArray): {
-            u: NDArray;
-            s: NDArray;
-            v: NDArray;
-        };
-        qr(a: NDArray): {
-            q: NDArray;
-            r: NDArray;
-        };
-        cholesky(a: NDArray): NDArray;
-        lu(a: NDArray): NDArray;
-        pinv(a: NDArray): NDArray;
-        det(a: NDArray): number;
-        logDet(a: NDArray): {
-            sign: number;
-            logAbsDet: number;
-        };
-        eigen(a: NDArray): {
-            values: NDArray;
-            vectors: NDArray;
-        };
-    };
-    export const analysis: {
-        argsort(a: NDArray): NDArray;
-        topk(a: NDArray, k: number, largest?: boolean): {
-            values: NDArray;
-            indices: NDArray;
-        };
-        cov(a: NDArray): NDArray;
-        corr(a: NDArray): NDArray;
-        norm(a: NDArray, type?: number): number;
-        rank(a: NDArray, tol?: number): number;
-        cond(a: NDArray, norm?: number): number;
-        eigenSym(a: NDArray, computeVectors?: boolean): {
-            values: NDArray;
-            vectors: NDArray | null;
-        };
-        pairwiseDist(a: NDArray, b: NDArray): NDArray;
-        kmeans(data: NDArray, k: number, maxIter?: number): {
-            centroids: NDArray;
-            labels: NDArray;
-            iterations: number;
-        };
-        kronecker(a: any, b: any): NDArray;
-    };
-    export const blas: {
-        trace(a: NDArray): number;
-        matMul(a: NDArray, b: NDArray): NDArray;
-        matPow(a: NDArray, k: any): NDArray;
-        matMulBatch(a: NDArray, b: NDArray): NDArray;
-        syrk(a: NDArray): NDArray;
-        trsm(a: NDArray, b: NDArray, lower?: boolean): NDArray;
-        matVecMul(a: NDArray, x: NDArray): NDArray;
-        ger(x: NDArray, y: NDArray): NDArray;
-    };
-    export const signal: {
-        fft(a: NDArray): NDArray;
-        ifft(a: NDArray): NDArray;
-        rfft(a: NDArray): NDArray;
-        rifft(a: NDArray, n: number): NDArray;
-        fft2(a: NDArray): NDArray;
-        ifft2(a: NDArray): NDArray;
-        dct(a: NDArray): NDArray;
-        conv2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
-        correlate2d(img: NDArray, kernel: NDArray, stride?: number, padding?: number): NDArray;
-    };
     export { Jit } from "./ndarray_jit.js";
     export * from "ndwasm";
     export * from "ndarray_factory";
@@ -2345,5 +2236,5 @@ declare module "ndarray" {
     import { help } from "help";
     import { NDArray } from "ndarray_core";
     import { DTYPE_MAP } from "ndarray_core";
-    export { NDProb, NDWasmDecomp, NDWasmAnalysis, NDWasmBlas, NDWasmSignal, NDWasmImage, NDWasmOptimize, help, NDArray, DTYPE_MAP };
+    export { NDProb, NDWasmDecomp, NDWasmAnalysis, NDWasmBlas, NDWasmSignal, NDWasmImage, NDWasmOptimize, help, NDProb as random, NDWasmDecomp as decomp, NDWasmAnalysis as analysis, NDWasmBlas as blas, NDWasmSignal as signal, NDWasmImage as image, NDWasmOptimize as optimize, NDArray, DTYPE_MAP };
 }
