@@ -28,5 +28,11 @@ self.onmessage = async (e) => {
             type: 'staticCompletionResult',
             payload: { result, completionId: payload.completionId }
         });
+    }else if(type==='enableLib'){
+        let result=await globalThis.lsp.enableLib(payload.name);
+        self.postMessage({
+            type: 'enableLibResult',
+            payload: { result, completionId: payload.completionId }
+        });
     }
 };

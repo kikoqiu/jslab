@@ -1332,6 +1332,19 @@ box.loadNDArray=async function(){
   
 }
 
+/**
+ * Load the ginac library
+ */
+box.loadGinac=async function(){
+  let v=await importScripts("3pty/ginac.js");
+  let module=await createGinacModule({ locateFile: function(path, prefix) {
+      return "3pty/ginac.wasm";
+  }});
+  await importScripts("3pty/ginac.umd.js");
+  await ginac.initGiNaC(module);
+  await workerhelperCall('lspWorkerEnableLib',"ginac");
+}
+
 
 /**
  * show the image
@@ -1466,4 +1479,19 @@ box.markdown2HTML = function (md, prevLinks = {}) {
 		out += chunk;
 	}
 	return (out + md.substring(last) + flush()).replace(/^\n+|\n+$/g, '');
+}
+
+
+/**
+ * Romberg integeration using bfjs
+ * @param {Function} f function
+ * @param {*} _a start
+ * @param {*} _b end
+ * @param {*} _e Absolute error tolorance default 1e-30
+ * @param {*} _re Relative error tolorance default =_e   (e < _e or re < _re)
+ * @param {Object} info {max_step:20,max_acc:12,max_time:10000,steps:run steps,error:result error evaluation}
+ * @returns result or null
+ */
+box.romberg=function(f,_a,_b,_e=1e-30,_re=_e,info={}){
+  return bfjs.helper.romberg(f,_a,_b,_e,_re,info);
 }

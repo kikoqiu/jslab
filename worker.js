@@ -162,8 +162,8 @@ self.onmessage = async function (e) {
                 box.clear_cell_callbacks(payload.cell_uuid); 
                 
                 let eval1=eval;
-                const result = await eval1(payload.code);
-
+                let result = await eval1(payload.code);
+                result = result ? String(result) : result;
                 await box.runtimeExit();
                 self.postMessage({ type: 'executionResult', payload: { result } });
             } catch (error) {

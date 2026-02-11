@@ -548,6 +548,13 @@ workerhelper.setVmSelectedResultScript = function(cnt){
   vm.selected.resultScript = cnt;
 }
 
+workerhelper.lspWorkerEnableLib = function(name){
+  lspWorker.postMessage({
+      type: 'enableLib',
+      payload: { name, completionId:"" }
+  });
+}
+
 
 class NotExistError extends Error {
   constructor(message) {

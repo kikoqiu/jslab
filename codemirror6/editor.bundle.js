@@ -27134,6 +27134,7 @@ The returned result is directly inserted into the javascript code, any markdown 
     // --- CONFIGURATION ---
     let staticCompletionPromises = new Map();
     let lspWorker = new Worker('lsp_worker.js');
+    globalThis.lspWorker = lspWorker;
     // Handle messages from the LSP worker
     lspWorker.onmessage = function (e) {
         const { type, payload } = e.data;

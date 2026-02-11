@@ -1,7 +1,9 @@
 // lsp_server.js
 'use strict';
 
-globalThis.lsp = {};
+globalThis.lsp = {
+    libs:['ndarray','groups']
+};
 const lspServer = globalThis.lsp;
 
 // =============================================================================
@@ -250,7 +252,7 @@ async function initialize() {
             `./libs/typescript@${tsVersion}/lib/lib.esnext.d.ts`,
             `./libs/typescript@${tsVersion}/lib/lib.dom.d.ts`,
             '3pty/ndarray.d.ts',
-            '3pty/groups.d.ts'
+            '3pty/groups.d.ts'           
         ]);
 
         // Initialize main file
@@ -262,6 +264,14 @@ async function initialize() {
         console.error("LSP: Init failed", e);
     }
 }
+
+lspServer.enableLib = async function(name) {
+    if(this.libs.indexOf(name)==-1){
+        this.libs.push(name);
+        await this.loadDts([`3pty/${name}.d.ts`]);
+    }
+};
+
 
 // =============================================================================
 // 5. Public API
@@ -333,7 +343,8 @@ lspServer.runStaticCompletions = function(context) {
 
     const { fulltext, pos } = context;
 
-    const prefix = "import * as ndarray from 'ndarray';import * as groups from 'groups';\n(async () => {\n";
+    const libs = this.libs.map(l=>`import * as ${l} from '${l}';`).join("");
+    const prefix = libs + "\n(async () => {\n";
     const suffix = "\n})();";
     const wrappedCode = prefix + fulltext + suffix;
     const adjustedPos = pos + prefix.length;
