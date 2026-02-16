@@ -252,7 +252,8 @@ async function initialize() {
             `./libs/typescript@${tsVersion}/lib/lib.esnext.d.ts`,
             `./libs/typescript@${tsVersion}/lib/lib.dom.d.ts`,
             '3pty/ndarray.d.ts',
-            '3pty/groups.d.ts'           
+            '3pty/groups.d.ts',
+            'libbf.js/bf.d.ts'
         ]);
 
         // Initialize main file
@@ -343,7 +344,8 @@ lspServer.runStaticCompletions = function(context) {
 
     const { fulltext, pos } = context;
 
-    const libs = this.libs.map(l=>`import * as ${l} from '${l}';`).join("");
+    let libs = this.libs.map(l=>`import * as ${l} from '${l}';`).join("");
+    libs+="import * as bfjs from 'bf';";
     const prefix = libs + "\n(async () => {\n";
     const suffix = "\n})();";
     const wrappedCode = prefix + fulltext + suffix;

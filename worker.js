@@ -2,9 +2,7 @@
 globalThis.window=globalThis;
 
 // --- Library Initialization ---
-const workerLibs = [
-    'libbf.js/libbf.js',
-    'libbf.js/bf.js',
+const workerLibs = [    
     '3pty/math.15.1.0.js',
     'box.js',
 ];
@@ -15,16 +13,22 @@ async function loadLibs() {
         globalThis.linkedom = await import('./3pty/linkedom.js');//'./3pty/linkedom-browser/dist/linkedom.browser.min.js'
 
         for (const lib of workerLibs) {
-            importScripts(lib);            
+            importScripts(lib);
         }
 
         let { _Op } = await import('./bpo.js');
         self._Op = _Op;
 
-        bfjs.gc_ele_limit = 100;
+        importScripts('libbf.js/libbf.js');
+        importScripts('libbf.js/bf.js');
+        let libbf_module = await createLibbf({ locateFile: function(path, prefix) {
+            return "libbf.js/libbf.wasm";
+        }});
+        bfjs.init(libbf_module);
 
         await box.loadNDArray();
-        await importScripts("3pty/groups.browser.js");
+        importScripts("3pty/groups.browser.js");
+
         self.postMessage({ type: 'ready' });
     } catch (error) {
         self.postMessage({ type: 'error', payload: { message: `Failed to load libraries: ${error.message}` } });
