@@ -140,6 +140,7 @@ const theme = EditorView.theme({
     border: "1px solid #e0e0e0",
     borderRadius: "6px",
     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+    maxWidth: "600px !important",
   },
 });
 

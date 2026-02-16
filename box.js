@@ -1337,13 +1337,16 @@ box.loadNDArray=async function(){
  * Load the ginac library
  */
 box.loadGinac=async function(){
+  if(globalThis.ginac){
+    return;
+  }
   let v=await importScripts("3pty/ginac.js");
   let module=await createGinacModule({ locateFile: function(path, prefix) {
       return "3pty/ginac.wasm";
   }});
-  await importScripts("3pty/ginac.umd.js");
+  importScripts("3pty/ginac.umd.js");
   await ginac.initGiNaC(module);
-  await workerhelperCall('lspWorkerEnableLib',"ginac");
+  workerhelperCall('lspWorkerEnableLib',"ginac");
 }
 
 
@@ -1482,17 +1485,58 @@ box.markdown2HTML = function (md, prevLinks = {}) {
 	return (out + md.substring(last) + flush()).replace(/^\n+|\n+$/g, '');
 }
 
-
 /**
- * Romberg integeration using bfjs
- * @param {Function} f function
- * @param {*} _a start
- * @param {*} _b end
- * @param {*} _e Absolute error tolorance default 1e-30
- * @param {*} _re Relative error tolorance default =_e   (e < _e or re < _re)
- * @param {Object} info {max_step:20,max_acc:12,max_time:10000,steps:run steps,error:result error evaluation}
- * @returns result or null
- */
-box.romberg=function(f,_a,_b,_e=1e-30,_re=_e,info={}){
-  return bfjs.helper.romberg(f,_a,_b,_e,_re,info);
+ * High-precision Numerical Integration using Romberg's Method.
+ *
+ * This function estimates the definite integral of `f` over the interval `[_a, _b]`
+ * using Richardson extrapolation applied to the Trapezoidal rule.
+ * It iteratively refines the interval width and the order of the polynomial approximation
+ * to achieve high precision with relatively few function evaluations.
+ *
+ * @param {Function} f - The integrand function.
+ *        Must accept a BigFloat argument (x) and return a BigFloat result (f(x)).
+ *
+ * @param {number|string|BigFloat} _a - The lower limit of integration.
+ * @param {number|string|BigFloat} _b - The upper limit of integration.
+ *
+ *
+ * @param {Object} [info={}] - Configuration and Status object.
+ *        Configures execution parameters and stores statistical data during/after execution.
+ * @param {number} [info._e=1e-30] - Absolute Error Tolerance.
+ *        The integration stops when the estimated absolute error falls below this threshold.
+
+  * @param {number} [info._re=info._e] - Relative Error Tolerance.
+  *        The integration stops when the estimated relative error falls below this threshold.
+  *        (Condition: error <= _e || rerror <= _re)
+  *        // --- Input Configuration Properties ---
+  * @param {number} [info.max_step=25] - Maximum number of interval halving steps (rows in the Romberg table).
+  *        Note: The number of function evaluations grows exponentially (2^steps).
+  * @param {number} [info.max_acc=12] - Maximum extrapolation order (columns in the Romberg table).
+  *        Limits the depth of Richardson extrapolation to prevent numerical instability from high-order polynomials.
+  * @param {number} [info.max_time=60000] - Maximum execution time in milliseconds.
+  * @param {Function} [info.cb] - Optional callback function executed after each row of the table is computed.
+  * @param {boolean} [info.debug] - Optional flag to enable debug logging to the console.
+  *
+  *        // --- Output Status Properties (Updated during execution) ---
+  * @param {BigFloat|null} info.result - The final calculated integral.
+  *        Returns a BigFloat if converged, or null if failed.
+  * @param {BigFloat} info.lastresult - The best estimate of the integral from the most recent iteration.
+  * @param {string} info.eff_result - String representation of the result based on effective precision.
+  * @param {number} info.steps - Current iteration number (row index `m`).
+  *        Corresponds to dividing the interval into 2^(steps-1) segments.
+  * @param {number} info.exectime - Elapsed execution time in milliseconds.
+  * @param {BigFloat} info.error - Estimated absolute error.
+  *        Calculated as the difference between the two most accurate extrapolations in the current row.
+  * @param {BigFloat} info.rerror - Estimated relative error (`error / lastresult`).
+  * @param {number} info.eff_decimal_precision - Estimated number of significant decimal digits.
+  *        Calculated as `-log10(rerror)`.
+  * @param {Function} info.toString - Helper method.
+  *        Returns a formatted string containing steps, error, result, and execution time.
+  *
+  * @returns {BigFloat|null}
+  *        Returns the BigFloat integral value if tolerances are met.
+  *        Returns `null` if `max_step` or `max_time` is reached without convergence.
+  */
+box.integral=function(f,_a,_b,info){
+  return bfjs.integral(f,_a,_b,_e,_re,info);
 }
