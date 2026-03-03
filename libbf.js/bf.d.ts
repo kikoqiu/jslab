@@ -1512,10 +1512,10 @@ declare module "frac" {
          * 2. Number (Integer): Direct BigInt conversion.
          * 3. String: "1.5", "1/2", "-5".
          * 4. BigInt / BigFraction.
-         * @param {BigFraction | bigint | number | string} [n] - The numerator or the whole value.
+         * @param {BigFraction | bigint | number | string | BigFloat} [n] - The numerator or the whole value.
          * @param {bigint | number | string} [d] - The denominator.
          */
-        constructor(n?: BigFraction | bigint | number | string, d?: bigint | number | string);
+        constructor(n?: BigFraction | bigint | number | string | BigFloat, d?: bigint | number | string);
         n: bigint | undefined;
         d: bigint | undefined;
         /**
