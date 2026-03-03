@@ -24,59 +24,92 @@ var bfjs = (() => {
     BigFloat: () => BigFloat,
     BigFraction: () => BigFraction,
     Complex: () => Complex,
+    Constants: () => Constants,
     E: () => E,
     Flags: () => Flags,
     O: () => O,
     PI: () => PI,
     Poly: () => Poly,
     Scalar: () => Scalar,
+    SparseMatrixCSC: () => SparseMatrixCSC,
+    Vector: () => Vector,
     X: () => X,
     abs: () => abs,
     acos: () => acos,
+    altZeta: () => altZeta,
     asin: () => asin,
     atan: () => atan,
     atan2: () => atan2,
+    bernoulli: () => bernoulli,
+    besseli: () => besseli,
+    besselj: () => besselj,
+    besselk: () => besselk,
+    bessely: () => bessely,
+    beta: () => beta,
     bf: () => bf,
     ceil: () => ceil,
+    clearBernoulliCache: () => clearBernoulliCache,
     complex: () => complex,
     cos: () => cos,
-    decimal_precision: () => decimal_precision,
+    decimalPrecision: () => decimalPrecision,
+    diff: () => diff,
     exp: () => exp,
+    factorial: () => factorial,
     floor: () => floor,
     fminbnd: () => fminbnd,
     fpround: () => fpround,
     frac: () => frac,
     fzero: () => fzero,
+    gamma: () => gamma,
     gc_ele_limit: () => gc_ele_limit,
+    getEpsilon: () => getEpsilon,
+    getGcEleLimit: () => getGcEleLimit,
+    getGlobalFlag: () => getGlobalFlag,
+    getPrecision: () => getPrecision,
     globalFlag: () => globalFlag,
     half: () => half,
+    hankel1: () => hankel1,
+    hankel2: () => hankel2,
+    hyp0f1: () => hyp0f1,
+    identify: () => identify,
     init: () => init,
-    integral: () => romberg,
-    is_ready: () => is_ready,
+    integral: () => quad,
+    isReady: () => isReady,
+    lambertw: () => lambertw,
     libbf: () => libbf,
+    limit: () => limit,
+    linspace: () => linspace,
     log: () => log,
+    logGamma: () => logGamma,
     max: () => max,
+    min: () => min,
     minus_one: () => minus_one,
     neg: () => neg,
+    nsum: () => nsum,
+    ode15s: () => ode15s,
     ode45: () => ode45,
     one: () => one,
+    pdepe: () => pdepe,
     poly: () => poly,
     polyStr: () => polyStr,
     polyfit: () => polyfit,
     polyval: () => polyval,
-    pop_precision: () => pop_precision,
+    popPrecision: () => popPrecision,
     pow: () => pow,
     precision: () => precision,
-    push_decimal_precision: () => push_decimal_precision,
-    push_precision: () => push_precision,
+    primeZeta: () => primeZeta,
+    pushDecimalPrecision: () => pushDecimalPrecision,
+    pushPrecision: () => pushPrecision,
+    quad: () => quad,
     romberg: () => romberg,
     roots: () => roots,
     round: () => round,
     scalar: () => scalar,
+    setGcEleLimit: () => setGcEleLimit,
     setGlobalFlag: () => setGlobalFlag,
     setPrecision: () => setPrecision,
     setThrowExceptionOnInvalidOp: () => setThrowExceptionOnInvalidOp,
-    set_gc_ele_limit: () => set_gc_ele_limit,
+    shanks: () => shanks,
     sign: () => sign,
     sin: () => sin,
     solveLinearSystem: () => solveLinearSystem,
@@ -86,14 +119,15 @@ var bfjs = (() => {
     throwExceptionOnInvalidOp: () => throwExceptionOnInvalidOp,
     trunc: () => trunc,
     two: () => two,
-    zero: () => zero
+    zero: () => zero,
+    zeta: () => zeta
   });
 
   // src/complex.js
   var Complex = class _Complex {
     /**
      * @param {number|string|BigFloat|Complex} re - Real part or Complex object
-     * @param {number|string|BigFloat} [im=0] - Imaginary part
+     * @param {number|string|BigFloat} [im=undefined] - Imaginary part
      */
     constructor(re, im) {
       if (re instanceof _Complex) {
@@ -101,7 +135,7 @@ var bfjs = (() => {
         this.im = re.im;
       } else {
         this.re = bf(re);
-        this.im = im === void 0 ? bf(0) : bf(im);
+        this.im = im === void 0 ? zero : bf(im);
       }
     }
     // --- Basic Arithmetic ---
@@ -129,6 +163,12 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     mul(other) {
+      if (other instanceof BigFloat || typeof other == "number") {
+        const b2 = other instanceof BigFloat ? other : bf(other);
+        const ac2 = this.re.mul(b2);
+        const bc2 = this.im.mul(b2);
+        return new _Complex(ac2, bc2);
+      }
       const b = this._wrap(other);
       const ac = this.re.mul(b.re);
       const bd = this.im.mul(b.im);
@@ -142,15 +182,37 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     div(other) {
+      if (other instanceof BigFloat || typeof other == "number") {
+        const b2 = other instanceof BigFloat ? other : bf(other);
+        const ac2 = this.re.mul(b2);
+        const denom2 = b2.mul(b2);
+        ac2.setdiv(ac2, denom2);
+        const bc2 = this.im.mul(b2);
+        bc2.setdiv(bc2, denom2);
+        return new _Complex(ac2, bc2);
+      }
       const b = this._wrap(other);
-      const denom = b.re.mul(b.re).add(b.im.mul(b.im));
-      if (denom.cmp(bf(0)) === 0) throw new Error("Complex division by zero");
-      const ac = this.re.mul(b.re);
-      const bd = this.im.mul(b.im);
-      const bc = this.im.mul(b.re);
-      const ad = this.re.mul(b.im);
-      const newRe = ac.add(bd).div(denom);
-      const newIm = bc.sub(ad).div(denom);
+      let tmpa = bf(void 0, 10, false, false), tmpb = bf(void 0, 10, false, false);
+      tmpa.setmul(b.re, b.re);
+      tmpb.setmul(b.im, b.im);
+      let denom = bf(void 0, 10, false, false).setadd(tmpa, tmpb);
+      if (denom.isZero()) {
+        tmpa.dispose(false);
+        tmpb.dispose(false);
+        denom.dispose(false);
+        throw new Error("Complex division by zero");
+      }
+      const ac = tmpa.setmul(this.re, b.re);
+      const bd = tmpb.setmul(this.im, b.im);
+      let newRe = ac.add(bd);
+      newRe.setdiv(newRe, denom);
+      const bc = tmpa.setmul(this.im, b.re);
+      const ad = tmpb.setmul(this.re, b.im);
+      let newIm = bc.sub(ad);
+      newIm.setdiv(newIm, denom);
+      tmpa.dispose(false);
+      tmpb.dispose(false);
+      denom.dispose(false);
       return new _Complex(newRe, newIm);
     }
     /**
@@ -171,7 +233,11 @@ var bfjs = (() => {
      * @returns {BigFloat}
      */
     abs() {
-      return this.re.mul(this.re).add(this.im.mul(this.im)).sqrt();
+      let a = this.re.mul(this.re);
+      let b = this.im.mul(this.im);
+      b.setadd(a, b);
+      a.setsqrt(b);
+      return a;
     }
     /**
      * Argument (Angle) arg(z)
@@ -186,8 +252,10 @@ var bfjs = (() => {
      */
     sqrt() {
       const r = this.abs();
-      const re = r.add(this.re).mul(half).sqrt();
-      const im = r.sub(this.re).mul(half).sqrt();
+      let re = r.add(this.re);
+      re = re.setmul(re, half).sqrt();
+      let im = r.sub(this.re);
+      im = im.setmul(im, half).sqrt();
       return new _Complex(re, this.im.cmp(zero) >= 0 ? im : im.neg());
     }
     /**
@@ -214,10 +282,11 @@ var bfjs = (() => {
     sin() {
       const x = this.re;
       const y = this.im;
-      return new _Complex(
-        x.sin().mul(y.cosh()),
-        x.cos().mul(y.sinh())
-      );
+      let re = x.sin();
+      re = re.setmul(re, y.cosh());
+      let im = x.cos();
+      im.setmul(im, y.sinh());
+      return new _Complex(re, im);
     }
     /**
      * Trigonometric Cosine cos(z)
@@ -227,10 +296,12 @@ var bfjs = (() => {
     cos() {
       const x = this.re;
       const y = this.im;
-      return new _Complex(
-        x.cos().mul(y.cosh()),
-        x.sin().mul(y.sinh()).neg()
-      );
+      let re = x.cos();
+      re = re.setmul(re, y.cosh());
+      let im = x.sin();
+      im.setmul(im, y.sinh());
+      im.setneg();
+      return new _Complex(re, im);
     }
     /**
      * Trigonometric Tangent tan(z)
@@ -247,10 +318,11 @@ var bfjs = (() => {
     sinh() {
       const x = this.re;
       const y = this.im;
-      return new _Complex(
-        x.sinh().mul(y.cos()),
-        x.cosh().mul(y.sin())
-      );
+      let re = x.sinh();
+      re.setmul(re, y.cos());
+      let im = x.cosh();
+      im.setmul(im, y.sin());
+      return new _Complex(re, im);
     }
     /**
      * Hyperbolic Cosine cosh(z)
@@ -260,10 +332,11 @@ var bfjs = (() => {
     cosh() {
       const x = this.re;
       const y = this.im;
-      return new _Complex(
-        x.cosh().mul(y.cos()),
-        x.sinh().mul(y.sin())
-      );
+      let re = x.cosh();
+      re.setmul(re, y.cos());
+      let im = x.sinh();
+      im.setmul(im, y.sin());
+      return new _Complex(re, im);
     }
     /**
      * Hyperbolic Tangent tanh(z)
@@ -277,8 +350,8 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     asin() {
-      const i = new _Complex(0, 1);
-      const one2 = new _Complex(1, 0);
+      const i = new _Complex(zero, one2);
+      const one2 = new _Complex(one2, zero);
       const iz = i.mul(this);
       const sqrtPart = one2.sub(this.mul(this)).sqrt();
       return iz.add(sqrtPart).log().mul(i.neg());
@@ -288,8 +361,8 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     acos() {
-      const i = new _Complex(0, 1);
-      const one2 = new _Complex(1, 0);
+      const i = new _Complex(zero, one2);
+      const one2 = new _Complex(one2, zero);
       const sqrtPart = one2.sub(this.mul(this)).sqrt();
       return this.add(i.mul(sqrtPart)).log().mul(i.neg());
     }
@@ -298,8 +371,8 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     atan() {
-      const i = new _Complex(0, 1);
-      const halfI = new _Complex(0, 0.5);
+      const i = new _Complex(zero, one);
+      const halfI = new _Complex(zero, half);
       const numerator = i.add(this);
       const denominator = i.sub(this);
       return numerator.div(denominator).log().mul(halfI.neg());
@@ -309,7 +382,7 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     asinh() {
-      const one2 = new _Complex(1, 0);
+      const one2 = new _Complex(one2, zero);
       return this.add(this.mul(this).add(one2).sqrt()).log();
     }
     /**
@@ -317,7 +390,7 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     acosh() {
-      const one2 = new _Complex(1, 0);
+      const one2 = new _Complex(one2, zero);
       return this.add(this.mul(this).sub(one2).sqrt()).log();
     }
     /**
@@ -325,8 +398,8 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     atanh() {
-      const one2 = new _Complex(1, 0);
-      const half2 = new _Complex(0.5, 0);
+      const one2 = new _Complex(one2, zero);
+      const half2 = new _Complex(half2, zero);
       return one2.add(this).div(one2.sub(this)).log().mul(half2);
     }
     // --- Utilities ---
@@ -370,13 +443,13 @@ var bfjs = (() => {
     /**
      * Converts the complex number to a string.
      * @param {number} [base=10]
-     * @param {number} [precision=20]
+     * @param {number} [precision=-1]
      * @param {boolean} [pretty=false] pretty print
      * @returns {string}
      */
-    toString(base = 10, precision2 = 20, pretty = false) {
-      let rezero = this.re.isZero();
-      let imzero = this.im.isZero();
+    toString(base = 10, precision2 = -1, pretty = false) {
+      let rezero = pretty ? this.re.isAlmostZero() : this.re.isZero();
+      let imzero = pretty ? this.im.isAlmostZero() : this.im.isZero();
       if (rezero && imzero) {
         return "0";
       } else if (imzero) {
@@ -452,6 +525,1479 @@ var bfjs = (() => {
   function complex(re, im) {
     return new Complex(re, im);
   }
+
+  // src/vector.js
+  var Vector = class _Vector {
+    /**
+     * Initializes a Vector from a size, an existing array, or another Vector.
+     * @param {number|Array<number|string|BigFloat>|Vector} data 
+     */
+    constructor(data) {
+      if (typeof data === "number") {
+        this.values = new Array(data).fill(zero);
+      } else if (Array.isArray(data)) {
+        this.values = data.map((v) => v instanceof BigFloat ? v : bf(v));
+      } else if (data instanceof _Vector) {
+        this.values = [...data.values];
+      } else {
+        throw new Error("Vector must be initialized with a size, an array, or another Vector.");
+      }
+    }
+    /**
+     * Returns a string representation of the vector.
+     * Truncates the middle part with "..." if the length exceeds maxItem.
+     * 
+     * @param {number} radix - The base for number representation (e.g., 10).
+     * @param {number} prec - The number of decimal places for BigFloat.
+     * @param {number} maxItem - Maximum number of elements to show before truncating.
+     * @returns {string}
+     */
+    toString(radix = 10, prec = 2, maxItem = 10) {
+      const len = this.length;
+      const parts = [];
+      const format = (i) => this.get(i).toString(radix, prec);
+      if (len <= maxItem) {
+        for (let i = 0; i < len; i++) {
+          parts.push(format(i));
+        }
+      } else {
+        const half2 = Math.floor(maxItem / 2);
+        for (let i = 0; i < half2; i++) {
+          parts.push(format(i));
+        }
+        parts.push("...");
+        const endCount = maxItem - half2;
+        for (let i = len - endCount; i < len; i++) {
+          parts.push(format(i));
+        }
+      }
+      return `Vector (length=${len}): [ ${parts.join(", ")} ]`;
+    }
+    /**
+     * Dimension of the vector.
+     * @returns {number}
+     */
+    get length() {
+      return this.values.length;
+    }
+    /**
+     * Gets the value at index i.
+     * @param {number} i 
+     * @returns {BigFloat}
+     */
+    get(i) {
+      return this.values[i];
+    }
+    /**
+     * Sets the value at index i.
+     * @param {number} i 
+     * @param {number|string|BigFloat} val 
+     */
+    set(i, val) {
+      this.values[i] = val instanceof BigFloat ? val : bf(val);
+    }
+    /**
+     * Adds another vector to this vector (v = this + other).
+     * @param {Vector} other 
+     * @returns {Vector}
+     */
+    add(other) {
+      if (this.length !== other.length) throw new Error("Vector dimension mismatch for addition.");
+      const result = new _Vector(this.length);
+      for (let i = 0; i < this.length; i++) {
+        result.values[i] = this.values[i].add(other.values[i]);
+      }
+      return result;
+    }
+    /**
+     * Subtracts another vector from this vector (v = this - other).
+     * @param {Vector} other 
+     * @returns {Vector}
+     */
+    sub(other) {
+      if (this.length !== other.length) throw new Error("Vector dimension mismatch for subtraction.");
+      const result = new _Vector(this.length);
+      for (let i = 0; i < this.length; i++) {
+        result.values[i] = this.values[i].sub(other.values[i]);
+      }
+      return result;
+    }
+    /**
+     * Multiplies the vector by a scalar (v = this * scalar).
+     * @param {number|string|BigFloat} scalar 
+     * @returns {Vector}
+     */
+    scale(scalar2) {
+      const s = scalar2 instanceof BigFloat ? scalar2 : bf(scalar2);
+      const result = new _Vector(this.length);
+      for (let i = 0; i < this.length; i++) {
+        result.values[i] = this.values[i].mul(s);
+      }
+      return result;
+    }
+    /**
+     * Computes the dot product of this vector and another vector.
+     * @param {Vector} other 
+     * @returns {BigFloat}
+     */
+    dot(other) {
+      if (this.length !== other.length) throw new Error("Vector dimension mismatch for dot product.");
+      let sum = zero;
+      for (let i = 0; i < this.length; i++) {
+        sum = sum.add(this.values[i].mul(other.values[i]));
+      }
+      return sum;
+    }
+    /**
+     * Computes the L2 norm (Euclidean norm) of the vector.
+     * @returns {BigFloat}
+     */
+    norm() {
+      return this.dot(this).sqrt();
+    }
+    /**
+     * Converts the vector to a standard Javascript Array of BigFloats.
+     * @returns {BigFloat[]}
+     */
+    toArray() {
+      return [...this.values];
+    }
+    /**
+     * Deep clones the vector.
+     * @returns {Vector}
+     */
+    clone() {
+      return new _Vector(this);
+    }
+  };
+
+  // src/matrix.js
+  var SparseMatrixCSC = class _SparseMatrixCSC {
+    /**
+     * @param {number} rows - Number of rows.
+     * @param {number} cols - Number of columns.
+     * @param {BigFloat[]} values - Array of non-zero BigFloat values.
+     * @param {Uint32Array|number[]} rowIndices - Row indices for each non-zero value.
+     * @param {Uint32Array|number[]} colPointers - Column pointers of length (cols + 1).
+     */
+    constructor(rows, cols, values, rowIndices, colPointers) {
+      this.rows = rows;
+      this.cols = cols;
+      this.values = values;
+      this.rowIndices = rowIndices instanceof Uint32Array ? rowIndices : new Uint32Array(rowIndices);
+      this.colPointers = colPointers instanceof Uint32Array ? colPointers : new Uint32Array(colPointers);
+      if (this.colPointers.length !== this.cols + 1) {
+        throw new Error(`colPointers length must be cols + 1 (${this.cols + 1}), got ${this.colPointers.length}`);
+      }
+      if (this.values.length !== this.rowIndices.length) {
+        throw new Error("values and rowIndices must have the same length.");
+      }
+      if (this.colPointers[this.cols] !== this.values.length) {
+        throw new Error("The last element of colPointers must equal the number of non-zero elements (nnz).");
+      }
+    }
+    /**
+     * Returns a string representation of the matrix.
+     * Uses the existing `get(row, col)` method and `nnz` property.
+     * 
+     * @param {number} radix - The base for number representation (e.g., 10).
+     * @param {number} prec - The number of decimal places for BigFloat.
+     * @param {number} maxRowItem - Maximum number of rows/cols to show before truncating with "...".
+     * @returns {string}
+     */
+    toString(radix = 10, prec = 2, maxRowItem = 10) {
+      const getDisplayLayout = (total) => {
+        if (total <= maxRowItem) {
+          return {
+            indices: Array.from({ length: total }, (_, i) => i),
+            isTruncated: false
+          };
+        }
+        const half2 = Math.floor(maxRowItem / 2);
+        return {
+          start: Array.from({ length: half2 }, (_, i) => i),
+          end: Array.from({ length: maxRowItem - half2 }, (_, i) => total - (maxRowItem - half2) + i),
+          isTruncated: true
+        };
+      };
+      const rowLayout = getDisplayLayout(this.rows);
+      const colLayout = getDisplayLayout(this.cols);
+      const formatRow = (r) => {
+        const cells = [];
+        if (!colLayout.isTruncated) {
+          colLayout.indices.forEach((c) => cells.push(this.get(r, c).toString(radix, prec)));
+        } else {
+          colLayout.start.forEach((c) => cells.push(this.get(r, c).toString(radix, prec)));
+          cells.push("...");
+          colLayout.end.forEach((c) => cells.push(this.get(r, c).toString(radix, prec)));
+        }
+        return `[ ${cells.join(", ")} ]`;
+      };
+      const output = [];
+      output.push(`SparseMatrixCSC (${this.rows}x${this.cols}, nnz=${this.nnz}):`);
+      if (!rowLayout.isTruncated) {
+        rowLayout.indices.forEach((r) => output.push(formatRow(r)));
+      } else {
+        rowLayout.start.forEach((r) => output.push(formatRow(r)));
+        const colCount = colLayout.isTruncated ? maxRowItem + 1 : colLayout.indices.length;
+        const verticalEllipsis = new Array(colCount).fill("...").join("  ");
+        output.push(`  ${verticalEllipsis}  `);
+        rowLayout.end.forEach((r) => output.push(formatRow(r)));
+      }
+      return output.join("\n");
+    }
+    /**
+     * Number of non-zero elements.
+     * @returns {number}
+     */
+    get nnz() {
+      return this.values.length;
+    }
+    /**
+     * Retrieves the value at the specified row and column.
+     * Uses binary search within the specific column for O(log(nnz_in_col)) performance.
+     * 
+     * @param {number} row 
+     * @param {number} col 
+     * @returns {BigFloat}
+     */
+    get(row, col) {
+      if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) {
+        throw new Error("Matrix indices out of bounds.");
+      }
+      const start = this.colPointers[col];
+      const end = this.colPointers[col + 1];
+      let low = start;
+      let high = end - 1;
+      while (low <= high) {
+        const mid = low + high >>> 1;
+        const r = this.rowIndices[mid];
+        if (r === row) return this.values[mid];
+        if (r < row) low = mid + 1;
+        else high = mid - 1;
+      }
+      return zero;
+    }
+    /**
+     * Sets the value at the specified row and column.
+     * Warning: Modifying the structure of a CSC matrix is O(nnz). 
+     * If you are building a matrix, it is highly recommended to use `fromCOO` instead.
+     * 
+     * @param {number} row 
+     * @param {number} col 
+     * @param {number|string|BigFloat} val 
+     */
+    set(row, col, val) {
+      if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) {
+        throw new Error("Matrix indices out of bounds.");
+      }
+      const value = val instanceof BigFloat ? val : bf(val);
+      const start = this.colPointers[col];
+      const end = this.colPointers[col + 1];
+      let low = start;
+      let high = end - 1;
+      let found = false;
+      let insertPos = start;
+      while (low <= high) {
+        const mid = low + high >>> 1;
+        const r = this.rowIndices[mid];
+        if (r === row) {
+          this.values[mid] = value;
+          found = true;
+          break;
+        }
+        if (r < row) {
+          low = mid + 1;
+          insertPos = low;
+        } else {
+          high = mid - 1;
+          insertPos = mid;
+        }
+      }
+      if (!found) {
+        if (value.isZero()) return;
+        const newNnz = this.nnz + 1;
+        const newValues = new Array(newNnz);
+        const newRowIndices = new Uint32Array(newNnz);
+        for (let i = 0; i < insertPos; i++) {
+          newValues[i] = this.values[i];
+          newRowIndices[i] = this.rowIndices[i];
+        }
+        newValues[insertPos] = value;
+        newRowIndices[insertPos] = row;
+        for (let i = insertPos; i < this.nnz; i++) {
+          newValues[i + 1] = this.values[i];
+          newRowIndices[i + 1] = this.rowIndices[i];
+        }
+        for (let j = col + 1; j <= this.cols; j++) {
+          this.colPointers[j]++;
+        }
+        this.values = newValues;
+        this.rowIndices = newRowIndices;
+      }
+    }
+    /**
+     * Eliminates explicit structural zeros from the matrix.
+     * Sparse operations might leave explicit zeros to avoid shifting arrays.
+     * Call this method to compact the matrix memory.
+     */
+    prune() {
+      let dest = 0;
+      const newColPointers = new Uint32Array(this.cols + 1);
+      newColPointers[0] = 0;
+      for (let j = 0; j < this.cols; j++) {
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        for (let i = start; i < end; i++) {
+          const val = this.values[i];
+          if (!val.isZero()) {
+            this.values[dest] = val;
+            this.rowIndices[dest] = this.rowIndices[i];
+            dest++;
+          }
+        }
+        newColPointers[j + 1] = dest;
+      }
+      this.values.length = dest;
+      this.rowIndices = this.rowIndices.slice(0, dest);
+      this.colPointers = newColPointers;
+    }
+    /**
+     * Transposes the matrix. 
+     * Converts an M x N CSC matrix to an N x M CSC matrix.
+     * This algorithm executes in O(nnz + max(rows, cols)) time.
+     * 
+     * @returns {SparseMatrixCSC}
+     */
+    transpose() {
+      const newRows = this.cols;
+      const newCols = this.rows;
+      const nnz = this.nnz;
+      const transposedValues = new Array(nnz);
+      const transposedRowIndices = new Uint32Array(nnz);
+      const transposedColPointers = new Uint32Array(newCols + 1);
+      const rowCounts = new Uint32Array(newCols);
+      for (let i = 0; i < nnz; i++) {
+        rowCounts[this.rowIndices[i]]++;
+      }
+      transposedColPointers[0] = 0;
+      for (let i = 0; i < newCols; i++) {
+        transposedColPointers[i + 1] = transposedColPointers[i] + rowCounts[i];
+      }
+      const currentOffsets = new Uint32Array(transposedColPointers);
+      for (let j = 0; j < this.cols; j++) {
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        for (let p = start; p < end; p++) {
+          const r = this.rowIndices[p];
+          const dest = currentOffsets[r]++;
+          transposedRowIndices[dest] = j;
+          transposedValues[dest] = this.values[p];
+        }
+      }
+      return new _SparseMatrixCSC(
+        newRows,
+        newCols,
+        transposedValues,
+        transposedRowIndices,
+        transposedColPointers
+      );
+    }
+    /**
+     * Creates a deep copy of the matrix.
+     * @returns {SparseMatrixCSC}
+     */
+    clone() {
+      return new _SparseMatrixCSC(
+        this.rows,
+        this.cols,
+        [...this.values],
+        // Deep enough since BigFloat is immutable mostly, or we map to clone
+        new Uint32Array(this.rowIndices),
+        new Uint32Array(this.colPointers)
+      );
+    }
+    // --- Format Conversions ---
+    /**
+     * Creates a CSC matrix from Coordinate (COO) / Triplet format.
+     * This is the recommended way to build a sparse matrix.
+     * Duplicates are automatically summed.
+     * 
+     * @param {number} rows 
+     * @param {number} cols 
+     * @param {number[]} rowIdx - Array of row coordinates.
+     * @param {number[]} colIdx - Array of column coordinates.
+     * @param {(number|string|BigFloat)[]} vals - Array of values.
+     * @returns {SparseMatrixCSC}
+     */
+    static fromCOO(rows, cols, rowIdx, colIdx, vals) {
+      if (rowIdx.length !== colIdx.length || colIdx.length !== vals.length) {
+        throw new Error("COO arrays must be of the same length.");
+      }
+      const n = vals.length;
+      const perm = new Uint32Array(n);
+      for (let i = 0; i < n; i++) perm[i] = i;
+      perm.sort((a, b) => {
+        if (colIdx[a] !== colIdx[b]) return colIdx[a] - colIdx[b];
+        return rowIdx[a] - rowIdx[b];
+      });
+      const values = [];
+      const rowIndices = [];
+      const colPointers = new Uint32Array(cols + 1);
+      colPointers.fill(0);
+      let lastRow = -1;
+      let lastCol = -1;
+      for (let i = 0; i < n; i++) {
+        const idx = perm[i];
+        const r = rowIdx[idx];
+        const c = colIdx[idx];
+        let v = vals[idx];
+        v = v instanceof BigFloat ? v : bf(v);
+        if (v.isZero()) continue;
+        if (c === lastCol && r === lastRow) {
+          values[values.length - 1] = values[values.length - 1].add(v);
+        } else {
+          values.push(v);
+          rowIndices.push(r);
+          colPointers[c + 1]++;
+          lastRow = r;
+          lastCol = c;
+        }
+      }
+      for (let i = 0; i < cols; i++) {
+        colPointers[i + 1] += colPointers[i];
+      }
+      return new _SparseMatrixCSC(rows, cols, values, new Uint32Array(rowIndices), colPointers);
+    }
+    /**
+     * Converts a Dense Matrix (2D Array) into a Sparse CSC Matrix.
+     * @param {(number|string|BigFloat)[][]} matrix 
+     * @returns {SparseMatrixCSC}
+     */
+    static fromDense(matrix) {
+      const rows = matrix.length;
+      const cols = rows > 0 ? matrix[0].length : 0;
+      const rowIdx = [];
+      const colIdx = [];
+      const vals = [];
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          let v = matrix[i][j];
+          v = v instanceof BigFloat ? v : bf(v);
+          if (!v.isZero()) {
+            rowIdx.push(i);
+            colIdx.push(j);
+            vals.push(v);
+          }
+        }
+      }
+      return _SparseMatrixCSC.fromCOO(rows, cols, rowIdx, colIdx, vals);
+    }
+    /**
+     * Converts the CSC Sparse Matrix back to a Dense Matrix (2D Array of BigFloat).
+     * @returns {BigFloat[][]}
+     */
+    toDense() {
+      const dense = new Array(this.rows);
+      for (let i = 0; i < this.rows; i++) {
+        dense[i] = new Array(this.cols).fill(zero);
+      }
+      for (let j = 0; j < this.cols; j++) {
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        for (let p = start; p < end; p++) {
+          dense[this.rowIndices[p]][j] = this.values[p];
+        }
+      }
+      return dense;
+    }
+    /**
+     * Internal implementation for Matrix Addition and Subtraction.
+     * Utilizes a highly optimized Two-Pointer Merge algorithm, running in O(nnz(A) + nnz(B)) time.
+     * 
+     * @private
+     * @param {SparseMatrixCSC} other - The other matrix.
+     * @param {boolean} isSub - True if subtraction (A - B), False if addition (A + B).
+     * @returns {SparseMatrixCSC}
+     */
+    _addSub(other, isSub) {
+      if (this.rows !== other.rows || this.cols !== other.cols) {
+        throw new Error("Matrix dimensions must match for addition/subtraction.");
+      }
+      const cols = this.cols;
+      const maxNnz = this.nnz + other.nnz;
+      const newColPointers = new Uint32Array(cols + 1);
+      const tempRowIndices = new Uint32Array(maxNnz);
+      const tempValues = new Array(maxNnz);
+      let dest = 0;
+      for (let j = 0; j < cols; j++) {
+        newColPointers[j] = dest;
+        let pA = this.colPointers[j];
+        const endA = this.colPointers[j + 1];
+        let pB = other.colPointers[j];
+        const endB = other.colPointers[j + 1];
+        while (pA < endA && pB < endB) {
+          const rA = this.rowIndices[pA];
+          const rB = other.rowIndices[pB];
+          if (rA < rB) {
+            tempRowIndices[dest] = rA;
+            tempValues[dest] = this.values[pA];
+            pA++;
+            dest++;
+          } else if (rA > rB) {
+            tempRowIndices[dest] = rB;
+            tempValues[dest] = isSub ? other.values[pB].neg() : other.values[pB];
+            pB++;
+            dest++;
+          } else {
+            const valA = this.values[pA];
+            const valB = other.values[pB];
+            const resultVal = isSub ? valA.sub(valB) : valA.add(valB);
+            if (!resultVal.isZero()) {
+              tempRowIndices[dest] = rA;
+              tempValues[dest] = resultVal;
+              dest++;
+            }
+            pA++;
+            pB++;
+          }
+        }
+        while (pA < endA) {
+          tempRowIndices[dest] = this.rowIndices[pA];
+          tempValues[dest] = this.values[pA];
+          pA++;
+          dest++;
+        }
+        while (pB < endB) {
+          tempRowIndices[dest] = other.rowIndices[pB];
+          tempValues[dest] = isSub ? other.values[pB].neg() : other.values[pB];
+          pB++;
+          dest++;
+        }
+      }
+      newColPointers[cols] = dest;
+      return new _SparseMatrixCSC(
+        this.rows,
+        cols,
+        tempValues.slice(0, dest),
+        tempRowIndices.slice(0, dest),
+        newColPointers
+      );
+    }
+    /**
+     * Adds another SparseMatrixCSC to this matrix (C = A + B).
+     * @param {SparseMatrixCSC} other 
+     * @returns {SparseMatrixCSC}
+     */
+    add(other) {
+      return this._addSub(other, false);
+    }
+    /**
+     * Subtracts another SparseMatrixCSC from this matrix (C = A - B).
+     * @param {SparseMatrixCSC} other 
+     * @returns {SparseMatrixCSC}
+     */
+    sub(other) {
+      return this._addSub(other, true);
+    }
+    /**
+     * Matrix-Matrix Multiplication (C = A * B).
+     * Implements Gustavson's Algorithm (Sparse Accumulator variant).
+     * Computes the product in O(flops + nnz(C)) time footprint with zero inner-loop allocation.
+     * 
+     * @param {SparseMatrixCSC} B - The right-hand side matrix.
+     * @returns {SparseMatrixCSC}
+     */
+    mul(B) {
+      if (this.cols !== B.rows) {
+        throw new Error(`Dimension mismatch: Left matrix cols (${this.cols}) must match right matrix rows (${B.rows}).`);
+      }
+      const M = this.rows;
+      const K = this.cols;
+      const N = B.cols;
+      const resultValues = [];
+      const resultRowIndices = [];
+      const resultColPointers = new Uint32Array(N + 1);
+      const x = new Array(M);
+      const marker = new Int32Array(M);
+      marker.fill(-1);
+      const activeRows = new Int32Array(M);
+      for (let j = 0; j < N; j++) {
+        resultColPointers[j] = resultValues.length;
+        let activeCount = 0;
+        const B_start = B.colPointers[j];
+        const B_end = B.colPointers[j + 1];
+        for (let p = B_start; p < B_end; p++) {
+          const k = B.rowIndices[p];
+          const b_kj = B.values[p];
+          const A_start = this.colPointers[k];
+          const A_end = this.colPointers[k + 1];
+          for (let q = A_start; q < A_end; q++) {
+            const i = this.rowIndices[q];
+            const a_ik = this.values[q];
+            const prod = a_ik.mul(b_kj);
+            if (marker[i] !== j) {
+              marker[i] = j;
+              x[i] = prod;
+              activeRows[activeCount++] = i;
+            } else {
+              x[i] = x[i].add(prod);
+            }
+          }
+        }
+        const colRows = activeRows.subarray(0, activeCount);
+        colRows.sort();
+        for (let idx = 0; idx < activeCount; idx++) {
+          const r = colRows[idx];
+          const val = x[r];
+          if (!val.isZero()) {
+            resultValues.push(val);
+            resultRowIndices.push(r);
+          }
+        }
+      }
+      resultColPointers[N] = resultValues.length;
+      return new _SparseMatrixCSC(
+        M,
+        N,
+        resultValues,
+        new Uint32Array(resultRowIndices),
+        resultColPointers
+      );
+    }
+    /**
+     * Matrix-Vector Multiplication (y = A * x).
+     * Linear time execution: O(nnz(A)).
+     * 
+     * @param {Vector|Array<number|string|BigFloat>} vec - The input vector.
+     * @returns {Vector} - The result vector.
+     */
+    mulVec(vec) {
+      let vArray;
+      if (vec instanceof Vector) {
+        vArray = vec.values;
+      } else if (Array.isArray(vec)) {
+        vArray = vec.map((val) => val instanceof BigFloat ? val : bf(val));
+      } else {
+        throw new Error("Input must be a Vector instance or an Array.");
+      }
+      if (this.cols !== vArray.length) {
+        throw new Error(`Dimension mismatch: Matrix columns (${this.cols}) must match vector length (${vArray.length}).`);
+      }
+      const result = new Array(this.rows).fill(zero);
+      for (let j = 0; j < this.cols; j++) {
+        const xj = vArray[j];
+        if (xj.isZero()) continue;
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        for (let p = start; p < end; p++) {
+          const i = this.rowIndices[p];
+          const a_ij = this.values[p];
+          result[i] = result[i].add(a_ij.mul(xj));
+        }
+      }
+      const outputVec = new Vector(this.rows);
+      outputVec.values = result;
+      return outputVec;
+    }
+    /**
+     * Extracts the diagonal elements of the matrix.
+     * @returns {Vector} - A vector containing the diagonal elements.
+     */
+    getDiagonal() {
+      const minDim = Math.min(this.rows, this.cols);
+      const diag = new Vector(minDim);
+      for (let j = 0; j < minDim; j++) {
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        let low = start;
+        let high = end - 1;
+        while (low <= high) {
+          const mid = low + high >>> 1;
+          const r = this.rowIndices[mid];
+          if (r === j) {
+            diag.values[j] = this.values[mid];
+            break;
+          }
+          if (r < j) low = mid + 1;
+          else high = mid - 1;
+        }
+      }
+      return diag;
+    }
+    /**
+     * Computes the Trace of the matrix (sum of diagonal elements).
+     * @returns {BigFloat}
+     */
+    trace() {
+      let sum = zero;
+      const minDim = Math.min(this.rows, this.cols);
+      for (let j = 0; j < minDim; j++) {
+        const val = this.get(j, j);
+        if (!val.isZero()) sum = sum.add(val);
+      }
+      return sum;
+    }
+    /**
+     * Computes the L1 Norm (Maximum absolute column sum).
+     * Executes in O(nnz) time.
+     * @returns {BigFloat}
+     */
+    norm1() {
+      let maxNorm = zero;
+      for (let j = 0; j < this.cols; j++) {
+        let colSum = zero;
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        for (let p = start; p < end; p++) {
+          colSum = colSum.add(this.values[p].abs());
+        }
+        if (colSum.cmp(maxNorm) > 0) maxNorm = colSum;
+      }
+      return maxNorm;
+    }
+    /**
+     * Computes the Infinity Norm (Maximum absolute row sum).
+     * Executes in O(nnz) time footprint.
+     * @returns {BigFloat}
+     */
+    normInf() {
+      const rowSums = new Array(this.rows).fill(zero);
+      for (let j = 0; j < this.cols; j++) {
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        for (let p = start; p < end; p++) {
+          const r = this.rowIndices[p];
+          rowSums[r] = rowSums[r].add(this.values[p].abs());
+        }
+      }
+      let maxNorm = zero;
+      for (let i = 0; i < this.rows; i++) {
+        if (rowSums[i].cmp(maxNorm) > 0) maxNorm = rowSums[i];
+      }
+      return maxNorm;
+    }
+    /**
+     * Computes the Frobenius Norm (Square root of the sum of the squares of elements).
+     * @returns {BigFloat}
+     */
+    normF() {
+      let sumSq = zero;
+      for (let i = 0; i < this.nnz; i++) {
+        const val = this.values[i];
+        sumSq = sumSq.add(val.mul(val));
+      }
+      return sumSq.sqrt();
+    }
+    // --- Direct Solvers for Triangular Matrices ---
+    /**
+     * Forward Substitution to solve L * x = b.
+     * Assumes this matrix is strictly a Lower Triangular matrix.
+     * Column-Oriented approach for CSC layout. O(nnz) time.
+     * 
+     * @param {Vector|Array<number|string|BigFloat>} b - The right-hand side vector.
+     * @returns {Vector} x - The solution vector.
+     */
+    solveLowerTriangular(b) {
+      if (this.rows !== this.cols) throw new Error("Matrix must be square.");
+      const n = this.rows;
+      const bVec = b instanceof Vector ? b : new Vector(b);
+      if (bVec.length !== n) throw new Error("Dimension mismatch.");
+      const x = bVec.toArray();
+      for (let j = 0; j < n; j++) {
+        if (x[j].isZero()) continue;
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        let diagVal = zero;
+        for (let p = start; p < end; p++) {
+          const r = this.rowIndices[p];
+          if (r === j) {
+            diagVal = this.values[p];
+          } else if (r > j) {
+            continue;
+          }
+        }
+        if (diagVal.isZero()) throw new Error(`Singular matrix: zero diagonal at column ${j}`);
+        x[j] = x[j].div(diagVal);
+        const xj = x[j];
+        for (let p = start; p < end; p++) {
+          const r = this.rowIndices[p];
+          if (r > j) {
+            x[r] = x[r].sub(this.values[p].mul(xj));
+          }
+        }
+      }
+      const res = new Vector(n);
+      res.values = x;
+      return res;
+    }
+    /**
+     * Backward Substitution to solve U * x = b.
+     * Assumes this matrix is strictly an Upper Triangular matrix.
+     * Column-Oriented approach for CSC layout. O(nnz) time.
+     * 
+     * @param {Vector|Array<number|string|BigFloat>} b - The right-hand side vector.
+     * @returns {Vector} x - The solution vector.
+     */
+    solveUpperTriangular(b) {
+      if (this.rows !== this.cols) throw new Error("Matrix must be square.");
+      const n = this.rows;
+      const bVec = b instanceof Vector ? b : new Vector(b);
+      if (bVec.length !== n) throw new Error("Dimension mismatch.");
+      const x = bVec.toArray();
+      for (let j = n - 1; j >= 0; j--) {
+        if (x[j].isZero()) continue;
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        let diagVal = zero;
+        for (let p = start; p < end; p++) {
+          const r = this.rowIndices[p];
+          if (r === j) {
+            diagVal = this.values[p];
+          }
+        }
+        if (diagVal.isZero()) throw new Error(`Singular matrix: zero diagonal at column ${j}`);
+        x[j] = x[j].div(diagVal);
+        const xj = x[j];
+        for (let p = start; p < end; p++) {
+          const r = this.rowIndices[p];
+          if (r < j) {
+            x[r] = x[r].sub(this.values[p].mul(xj));
+          }
+        }
+      }
+      const res = new Vector(n);
+      res.values = x;
+      return res;
+    }
+    // --- Iterative Solvers ---
+    /**
+     * Conjugate Gradient (CG) Method.
+     * Solves the linear system A * x = b for Symmetric Positive Definite (SPD) matrices.
+     * 
+     * @param {Vector|Array<number|string|BigFloat>} b - The right-hand side vector.
+     * @param {number|string|BigFloat}[tol="1e-20"] - Convergence tolerance.
+     * @param {number} [maxIter] - Maximum number of iterations. Defaults to matrix dimension.
+     * @returns {Vector} x - The estimated solution vector.
+     */
+    solveCG(b, tol = "1e-20", maxIter = this.cols) {
+      if (this.rows !== this.cols) throw new Error("Matrix must be square for CG.");
+      const n = this.rows;
+      const bVec = b instanceof Vector ? b : new Vector(b);
+      const tolerance = tol instanceof BigFloat ? tol : bf(tol);
+      const tolSq = tolerance.mul(tolerance);
+      const xVals = new Array(n).fill(zero);
+      const rVals = bVec.toArray();
+      const pVals = [...rVals];
+      const ApVals = new Array(n);
+      let rsold = zero;
+      for (let i = 0; i < n; i++) {
+        rsold = rsold.add(rVals[i].mul(rVals[i]));
+      }
+      for (let iter = 0; iter < maxIter; iter++) {
+        if (rsold.cmp(tolSq) <= 0) break;
+        ApVals.fill(zero);
+        for (let j = 0; j < n; j++) {
+          const pj = pVals[j];
+          if (pj.isZero()) continue;
+          const start = this.colPointers[j];
+          const end = this.colPointers[j + 1];
+          for (let k = start; k < end; k++) {
+            const row = this.rowIndices[k];
+            ApVals[row] = ApVals[row].add(this.values[k].mul(pj));
+          }
+        }
+        let pAp = zero;
+        for (let i = 0; i < n; i++) {
+          pAp = pAp.add(pVals[i].mul(ApVals[i]));
+        }
+        if (pAp.isZero()) break;
+        const alpha = rsold.div(pAp);
+        let rsnew = zero;
+        for (let i = 0; i < n; i++) {
+          xVals[i] = xVals[i].add(alpha.mul(pVals[i]));
+          rVals[i] = rVals[i].sub(alpha.mul(ApVals[i]));
+          rsnew = rsnew.add(rVals[i].mul(rVals[i]));
+        }
+        if (rsnew.cmp(tolSq) <= 0) break;
+        const beta2 = rsnew.div(rsold);
+        for (let i = 0; i < n; i++) {
+          pVals[i] = rVals[i].add(beta2.mul(pVals[i]));
+        }
+        rsold = rsnew;
+      }
+      const result = new Vector(n);
+      result.values = xVals;
+      return result;
+    }
+    /**
+     * Extracts the Jacobi Preconditioner (Inverse of the Diagonal).
+     * This is the most memory-efficient and widely used preconditioner for diagonally dominant matrices.
+     * 
+     * @returns {Vector} - A vector representing the diagonal inverse M^{-1}.
+     */
+    getJacobiPreconditioner() {
+      const n = Math.min(this.rows, this.cols);
+      const invDiag = new Vector(n);
+      for (let j = 0; j < n; j++) {
+        const start = this.colPointers[j];
+        const end = this.colPointers[j + 1];
+        let diagVal = zero;
+        for (let p = start; p < end; p++) {
+          if (this.rowIndices[p] === j) {
+            diagVal = this.values[p];
+            break;
+          }
+        }
+        if (diagVal.isZero()) {
+          invDiag.values[j] = one;
+        } else {
+          invDiag.values[j] = one.div(diagVal);
+        }
+      }
+      return invDiag;
+    }
+    /**
+     * Bi-Conjugate Gradient Stabilized (BiCGSTAB) Method.
+     * Solves the linear system A * x = b for non-symmetric square matrices.
+     * 
+     * - Fixed memory footprint (O(N) aux vectors, completely avoids GMRES memory explosion).
+     * - GC-Pause Elimination: Completely pre-allocated functional closures for array vectors.
+     * 
+     * @param {Vector|Array<number|string|BigFloat>} b - The right-hand side vector.
+     * @param {number|string|BigFloat} [tol="1e-20"] - Convergence tolerance.
+     * @param {number}[maxIter] - Maximum number of iterations. Defaults to 2 * matrix dimension.
+     * @param {Vector}[precond] - Optional Jacobi preconditioner vector (M^{-1}).
+     * @returns {Vector} x - The estimated solution vector.
+     */
+    solveBiCGSTAB(b, tol = "1e-20", maxIter = this.cols * 2, precond = null) {
+      if (this.rows !== this.cols) throw new Error("Matrix must be square for BiCGSTAB.");
+      const n = this.rows;
+      const bVec = b instanceof Vector ? b : new Vector(b);
+      const tolerance = tol instanceof BigFloat ? tol : bf(tol);
+      const tolSq = tolerance.mul(tolerance);
+      const x = new Array(n).fill(zero);
+      const r = bVec.toArray();
+      const r_hat = [...r];
+      const p = new Array(n).fill(zero);
+      const v = new Array(n).fill(zero);
+      const s = new Array(n).fill(zero);
+      const t = new Array(n).fill(zero);
+      let rho_prev = one;
+      let alpha = one;
+      let omega = one;
+      const spmv = (inArr, outArr) => {
+        outArr.fill(zero);
+        for (let j = 0; j < n; j++) {
+          const xj = inArr[j];
+          if (xj.isZero()) continue;
+          const start = this.colPointers[j];
+          const end = this.colPointers[j + 1];
+          for (let k = start; k < end; k++) {
+            const i = this.rowIndices[k];
+            outArr[i] = outArr[i].add(this.values[k].mul(xj));
+          }
+        }
+      };
+      const applyPrecond = (inArr, outArr) => {
+        if (!precond) {
+          for (let i = 0; i < n; i++) outArr[i] = inArr[i];
+        } else {
+          for (let i = 0; i < n; i++) outArr[i] = inArr[i].mul(precond.values[i]);
+        }
+      };
+      const dot = (arrA, arrB) => {
+        let sum = zero;
+        for (let i = 0; i < n; i++) sum = sum.add(arrA[i].mul(arrB[i]));
+        return sum;
+      };
+      const tempArr1 = new Array(n).fill(zero);
+      const tempArr2 = new Array(n).fill(zero);
+      for (let iter = 0; iter < maxIter; iter++) {
+        const r_norm_sq = dot(r, r);
+        if (r_norm_sq.cmp(tolSq) <= 0) break;
+        const rho = dot(r_hat, r);
+        if (rho.isZero()) break;
+        if (iter > 0) {
+          const beta2 = rho.div(rho_prev).mul(alpha).div(omega);
+          for (let i = 0; i < n; i++) {
+            const p_minus_omega_v = p[i].sub(omega.mul(v[i]));
+            p[i] = r[i].add(beta2.mul(p_minus_omega_v));
+          }
+        } else {
+          for (let i = 0; i < n; i++) p[i] = r[i];
+        }
+        applyPrecond(p, tempArr1);
+        spmv(tempArr1, v);
+        const r_hat_dot_v = dot(r_hat, v);
+        if (r_hat_dot_v.isZero()) break;
+        alpha = rho.div(r_hat_dot_v);
+        for (let i = 0; i < n; i++) {
+          s[i] = r[i].sub(alpha.mul(v[i]));
+        }
+        if (dot(s, s).cmp(tolSq) <= 0) {
+          applyPrecond(p, tempArr2);
+          for (let i = 0; i < n; i++) x[i] = x[i].add(alpha.mul(tempArr2[i]));
+          break;
+        }
+        applyPrecond(s, tempArr1);
+        spmv(tempArr1, t);
+        const t_dot_t = dot(t, t);
+        if (t_dot_t.isZero()) {
+          omega = zero;
+        } else {
+          omega = dot(t, s).div(t_dot_t);
+        }
+        applyPrecond(p, tempArr2);
+        for (let i = 0; i < n; i++) x[i] = x[i].add(alpha.mul(tempArr2[i]));
+        applyPrecond(s, tempArr1);
+        for (let i = 0; i < n; i++) x[i] = x[i].add(omega.mul(tempArr1[i]));
+        for (let i = 0; i < n; i++) {
+          r[i] = s[i].sub(omega.mul(t[i]));
+        }
+        rho_prev = rho;
+        if (dot(r, r).cmp(tolSq) <= 0) break;
+      }
+      const result = new Vector(n);
+      result.values = x;
+      return result;
+    }
+    /**
+     * Symmetric Rank-k Update (SYRK).
+     * Computes the matrix product A * A^T.
+     * 
+     * @returns {SparseMatrixCSC}
+     */
+    syrk() {
+      return this.mul(this.transpose());
+    }
+    /**
+     * General Rank-1 Update (GER).
+     * Computes A + x * y^T.
+     * Note: Rank-1 updates on sparse matrices usually introduce significant fill-in (dense data).
+     * 
+     * @param {Vector|Array<number|string|BigFloat>} x 
+     * @param {Vector|Array<number|string|BigFloat>} y 
+     * @returns {SparseMatrixCSC}
+     */
+    ger(x, y) {
+      const xVec = x instanceof Vector ? x.values : x;
+      const yVec = y instanceof Vector ? y.values : y;
+      if (this.rows !== xVec.length || this.cols !== yVec.length) {
+        throw new Error("Dimension mismatch for GER: x must match rows, y must match cols.");
+      }
+      const rowIdx = [];
+      const colIdx = [];
+      const vals = [];
+      for (let j = 0; j < yVec.length; j++) {
+        const yj = yVec[j] instanceof BigFloat ? yVec[j] : bf(yVec[j]);
+        if (yj.isZero()) continue;
+        for (let i = 0; i < xVec.length; i++) {
+          const xi = xVec[i] instanceof BigFloat ? xVec[i] : bf(xVec[i]);
+          if (xi.isZero()) continue;
+          rowIdx.push(i);
+          colIdx.push(j);
+          vals.push(xi.mul(yj));
+        }
+      }
+      const XYt = _SparseMatrixCSC.fromCOO(this.rows, this.cols, rowIdx, colIdx, vals);
+      return this.add(XYt);
+    }
+    /**
+     * Triangular Solve with Multiple Right-Hand Sides (TRSM).
+     * Solves A * X = B, where A is this triangular matrix.
+     * 
+     * @param {SparseMatrixCSC} B - The right-hand side sparse matrix.
+     * @param {boolean} [lower=true] - True if A is lower triangular, False if upper triangular.
+     * @returns {SparseMatrixCSC} X - The solution sparse matrix.
+     */
+    trsm(B, lower = true) {
+      if (this.rows !== this.cols) throw new Error("Matrix must be square for TRSM.");
+      if (this.rows !== B.rows) throw new Error("Dimension mismatch: A rows must match B rows.");
+      const M = B.rows;
+      const N = B.cols;
+      const X_vals = [];
+      const X_rowIdx = [];
+      const X_colPtrs = new Uint32Array(N + 1);
+      for (let j = 0; j < N; j++) {
+        X_colPtrs[j] = X_vals.length;
+        const bj = new Vector(M);
+        const start = B.colPointers[j];
+        const end = B.colPointers[j + 1];
+        for (let p = start; p < end; p++) {
+          bj.values[B.rowIndices[p]] = B.values[p];
+        }
+        const xj = lower ? this.solveLowerTriangular(bj) : this.solveUpperTriangular(bj);
+        for (let i = 0; i < M; i++) {
+          if (!xj.values[i].isZero()) {
+            X_rowIdx.push(i);
+            X_vals.push(xj.values[i]);
+          }
+        }
+      }
+      X_colPtrs[N] = X_vals.length;
+      return new _SparseMatrixCSC(M, N, X_vals, new Uint32Array(X_rowIdx), X_colPtrs);
+    }
+    /**
+     * Sparse LU Factorization (Left-Looking / Gilbert-Peierls Algorithm).
+     * Computes A = L * U where L is lower triangular with unit diagonal, and U is upper triangular.
+     * 
+     * @returns {{L: SparseMatrixCSC, U: SparseMatrixCSC}}
+     */
+    lu() {
+      if (this.rows !== this.cols) throw new Error("Square matrix required for LU factorization.");
+      const n = this.rows;
+      const L_vals = [], L_rowIdx = [];
+      const L_colPtrs = new Uint32Array(n + 1);
+      const U_vals = [], U_rowIdx = [];
+      const U_colPtrs = new Uint32Array(n + 1);
+      const x = new Array(n).fill(zero);
+      const active = new Uint8Array(n);
+      const activeRows = [];
+      for (let j = 0; j < n; j++) {
+        L_colPtrs[j] = L_vals.length;
+        U_colPtrs[j] = U_vals.length;
+        const A_start = this.colPointers[j];
+        const A_end = this.colPointers[j + 1];
+        for (let p = A_start; p < A_end; p++) {
+          const r = this.rowIndices[p];
+          x[r] = this.values[p];
+          if (!active[r]) {
+            active[r] = 1;
+            activeRows.push(r);
+          }
+        }
+        for (let i = 0; i < j; i++) {
+          const xi = x[i];
+          if (!xi.isZero()) {
+            const L_start = L_colPtrs[i];
+            const L_end = L_colPtrs[i + 1];
+            for (let p = L_start; p < L_end; p++) {
+              const r = L_rowIdx[p];
+              if (r > i) {
+                x[r] = x[r].sub(L_vals[p].mul(xi));
+                if (!active[r]) {
+                  active[r] = 1;
+                  activeRows.push(r);
+                }
+              }
+            }
+          }
+        }
+        activeRows.sort((a, b) => a - b);
+        const U_jj = x[j];
+        if (U_jj === void 0 || U_jj.isZero()) {
+          throw new Error(`Zero pivot encountered at column ${j}. Sparse LU without pivoting failed.`);
+        }
+        L_rowIdx.push(j);
+        L_vals.push(one);
+        for (let i = 0; i < activeRows.length; i++) {
+          const r = activeRows[i];
+          const val = x[r];
+          if (!val.isZero()) {
+            if (r <= j) {
+              U_rowIdx.push(r);
+              U_vals.push(val);
+            } else {
+              L_rowIdx.push(r);
+              L_vals.push(val.div(U_jj));
+            }
+          }
+          x[r] = zero;
+          active[r] = 0;
+        }
+        activeRows.length = 0;
+      }
+      L_colPtrs[n] = L_vals.length;
+      U_colPtrs[n] = U_vals.length;
+      return {
+        L: new _SparseMatrixCSC(n, n, L_vals, new Uint32Array(L_rowIdx), L_colPtrs),
+        U: new _SparseMatrixCSC(n, n, U_vals, new Uint32Array(U_rowIdx), U_colPtrs)
+      };
+    }
+    /**
+     * Sparse Cholesky Factorization.
+     * Computes A = L * L^T for Symmetric Positive Definite (SPD) matrices.
+     * Extracts factor from the LU Decomposition by scaling L with sqrt(diag(U)).
+     * 
+     * @returns {SparseMatrixCSC} L - The lower triangular Cholesky factor.
+     */
+    cholesky() {
+      const { L, U } = this.lu();
+      const n = this.rows;
+      const Lc_vals = new Array(L.nnz);
+      const Lc_rowIdx = new Uint32Array(L.rowIndices);
+      const Lc_colPtrs = new Uint32Array(L.colPointers);
+      for (let j = 0; j < n; j++) {
+        let U_jj = zero;
+        const U_start = U.colPointers[j];
+        const U_end = U.colPointers[j + 1];
+        for (let p = U_start; p < U_end; p++) {
+          if (U.rowIndices[p] === j) {
+            U_jj = U.values[p];
+            break;
+          }
+        }
+        if (U_jj.cmp(zero) <= 0) {
+          throw new Error("Matrix is not symmetric positive definite.");
+        }
+        const sqrt_Ujj = U_jj.sqrt();
+        const L_start = L.colPointers[j];
+        const L_end = L.colPointers[j + 1];
+        for (let p = L_start; p < L_end; p++) {
+          Lc_vals[p] = L.values[p].mul(sqrt_Ujj);
+        }
+      }
+      return new _SparseMatrixCSC(n, n, Lc_vals, Lc_rowIdx, Lc_colPtrs);
+    }
+    /**
+     * General Direct Solver for A * x = b.
+     * Uses the exact Sparse LU Factorization to compute the solution.
+     * 
+     * @param {Vector|Array<number|string|BigFloat>} b 
+     * @returns {Vector} x
+     */
+    solve(b) {
+      const { L, U } = this.lu();
+      const y = L.solveLowerTriangular(b);
+      const x = U.solveUpperTriangular(y);
+      return x;
+    }
+    /**
+     * Computes the Determinant of the sparse matrix using LU factorization.
+     * det(A) = Product of the diagonals of U.
+     * 
+     * @returns {BigFloat}
+     */
+    det() {
+      if (this.rows !== this.cols) throw new Error("Square matrix required for determinant.");
+      const { U } = this.lu();
+      let d = one;
+      for (let j = 0; j < this.cols; j++) {
+        const start = U.colPointers[j];
+        const end = U.colPointers[j + 1];
+        let diagVal = zero;
+        for (let p = start; p < end; p++) {
+          if (U.rowIndices[p] === j) {
+            diagVal = U.values[p];
+            break;
+          }
+        }
+        d = d.mul(diagVal);
+      }
+      return d;
+    }
+    /**
+     * Computes the Log-Determinant of the matrix (useful for Gaussians and PDFs).
+     * logDet(A) = Sum of the logs of the absolute diagonals of U.
+     * 
+     * @returns {BigFloat}
+     */
+    logDet() {
+      if (this.rows !== this.cols) throw new Error("Square matrix required for logDet.");
+      const { U } = this.lu();
+      let logD = zero;
+      for (let j = 0; j < this.cols; j++) {
+        const start = U.colPointers[j];
+        const end = U.colPointers[j + 1];
+        let diagVal = zero;
+        for (let p = start; p < end; p++) {
+          if (U.rowIndices[p] === j) {
+            diagVal = U.values[p];
+            break;
+          }
+        }
+        if (diagVal.isZero()) throw new Error("Matrix is singular, logDet is undefined.");
+        logD = logD.add(diagVal.abs().log());
+      }
+      return logD;
+    }
+    // ============================================================================
+    // --- Advanced Matrix Algorithms (Part 4): Inversion, QR, SVD & Eigen ---
+    // ============================================================================
+    /**
+     * Computes the Inverse of the sparse matrix.
+     * Warning: The inverse of a sparse matrix is typically dense. 
+     * This uses column-by-column LU solves to construct the inverse dynamically.
+     * 
+     * @returns {SparseMatrixCSC}
+     */
+    inv() {
+      if (this.rows !== this.cols) throw new Error("Matrix must be square to compute inverse.");
+      const n = this.rows;
+      const { L, U } = this.lu();
+      const invVals = [];
+      const invRowIdx = [];
+      const invColPtrs = new Uint32Array(n + 1);
+      const e = new Array(n).fill(zero);
+      for (let j = 0; j < n; j++) {
+        invColPtrs[j] = invVals.length;
+        e[j] = one;
+        if (j > 0) e[j - 1] = zero;
+        const y = L.solveLowerTriangular(e);
+        const x = U.solveUpperTriangular(y);
+        for (let i = 0; i < n; i++) {
+          const val = x.values[i];
+          if (!val.isZero()) {
+            invRowIdx.push(i);
+            invVals.push(val);
+          }
+        }
+      }
+      invColPtrs[n] = invVals.length;
+      return new _SparseMatrixCSC(n, n, invVals, new Uint32Array(invRowIdx), invColPtrs);
+    }
+    /**
+     * Computes the Moore-Penrose Pseudoinverse (A^+).
+     * Uses Normal Equations approach for sparse matrices to avoid full SVD overhead.
+     * 
+     * @returns {SparseMatrixCSC}
+     */
+    pinv() {
+      const At = this.transpose();
+      if (this.rows >= this.cols) {
+        const AtA = At.mul(this);
+        const invAtA = AtA.inv();
+        return invAtA.mul(At);
+      } else {
+        const AAt = this.mul(At);
+        const invAAt = AAt.inv();
+        return At.mul(invAAt);
+      }
+    }
+    /**
+     * Sparse QR Factorization using Left-Looking Modified Gram-Schmidt (MGS).
+     * Computes A = Q * R, where Q is orthogonal and R is upper triangular.
+     * 
+     * @returns {{Q: SparseMatrixCSC, R: SparseMatrixCSC}}
+     */
+    qr() {
+      const m = this.rows;
+      const n = this.cols;
+      const Q_vals = [], Q_rowIdx = [];
+      const Q_colPtrs = new Uint32Array(n + 1);
+      const R_vals = [], R_rowIdx = [];
+      const R_colPtrs = new Uint32Array(n + 1);
+      const v = new Array(m).fill(zero);
+      for (let j = 0; j < n; j++) {
+        Q_colPtrs[j] = Q_vals.length;
+        R_colPtrs[j] = R_vals.length;
+        v.fill(zero);
+        const startA = this.colPointers[j];
+        const endA = this.colPointers[j + 1];
+        for (let p = startA; p < endA; p++) {
+          v[this.rowIndices[p]] = this.values[p];
+        }
+        for (let i = 0; i < j; i++) {
+          let r_ij = zero;
+          const startQ = Q_colPtrs[i];
+          const endQ = Q_colPtrs[i + 1];
+          for (let p = startQ; p < endQ; p++) {
+            const row = Q_rowIdx[p];
+            r_ij = r_ij.add(Q_vals[p].mul(v[row]));
+          }
+          if (!r_ij.isZero()) {
+            R_rowIdx.push(i);
+            R_vals.push(r_ij);
+            for (let p = startQ; p < endQ; p++) {
+              const row = Q_rowIdx[p];
+              v[row] = v[row].sub(r_ij.mul(Q_vals[p]));
+            }
+          }
+        }
+        let normSq = zero;
+        for (let i = 0; i < m; i++) {
+          if (!v[i].isZero()) normSq = normSq.add(v[i].mul(v[i]));
+        }
+        const r_jj = normSq.sqrt();
+        if (!r_jj.isZero()) {
+          R_rowIdx.push(j);
+          R_vals.push(r_jj);
+          const inv_rjj = one.div(r_jj);
+          for (let i = 0; i < m; i++) {
+            if (!v[i].isZero()) {
+              Q_rowIdx.push(i);
+              Q_vals.push(v[i].mul(inv_rjj));
+            }
+          }
+        } else {
+          R_rowIdx.push(j);
+          R_vals.push(zero);
+        }
+      }
+      Q_colPtrs[n] = Q_vals.length;
+      R_colPtrs[n] = R_vals.length;
+      return {
+        Q: new _SparseMatrixCSC(m, n, Q_vals, new Uint32Array(Q_rowIdx), Q_colPtrs),
+        R: new _SparseMatrixCSC(n, n, R_vals, new Uint32Array(R_rowIdx), R_colPtrs)
+      };
+    }
+    /**
+     * Computes the Dominant Eigenpair using Power Iteration.
+     * In sparse libraries, eigenvalue solvers extract top-K values iteratively.
+     * 
+     * @param {number|string|BigFloat} [tol="1e-20"] - Convergence tolerance.
+     * @param {number} [maxIter=1000] - Maximum iterations.
+     * @returns {{eigenvalue: BigFloat, eigenvector: Vector}}
+     */
+    eigen(tol = "1e-20", maxIter = 1e3) {
+      if (this.rows !== this.cols) throw new Error("Matrix must be square for Eigenvalue computation.");
+      const n = this.rows;
+      const tolerance = tol instanceof BigFloat ? tol : bf(tol);
+      let v = new Vector(n);
+      let initialNormSq = zero;
+      for (let i = 0; i < n; i++) {
+        v.values[i] = one;
+        initialNormSq = initialNormSq.add(one);
+      }
+      v = v.scale(one.div(initialNormSq.sqrt()));
+      let eigenvalue = zero;
+      let prevEigenvalue = zero;
+      for (let iter = 0; iter < maxIter; iter++) {
+        const w = this.mulVec(v);
+        eigenvalue = v.dot(w);
+        if (iter > 0 && eigenvalue.sub(prevEigenvalue).abs().cmp(tolerance) <= 0) {
+          let maxResidual = zero;
+          for (let i = 0; i < n; i++) {
+            const diff2 = w.values[i].sub(v.values[i].mul(eigenvalue)).abs();
+            if (diff2.cmp(maxResidual) > 0) {
+              maxResidual = diff2;
+            }
+          }
+          if (maxResidual.cmp(tolerance) <= 0) {
+            break;
+          }
+        }
+        prevEigenvalue = eigenvalue;
+        const wNorm = w.norm();
+        if (wNorm.isZero()) break;
+        v = w.scale(one.div(wNorm));
+      }
+      return { eigenvalue, eigenvector: v };
+    }
+    /**
+     * Computes the Dominant Singular Value and Vectors using Golub-Kahan (Power Method on A^T A).
+     * Extracts the Top-1 Singular component.
+     * 
+     * @param {number|string|BigFloat}[tol="1e-20"]
+     * @param {number} [maxIter=1000]
+     * @returns {{singularValue: BigFloat, u: Vector, v: Vector}}
+     */
+    svd(tol = "1e-20", maxIter = 1e3) {
+      const At = this.transpose();
+      const AtA = At.mul(this);
+      const { eigenvalue: lambda, eigenvector: v } = AtA.eigen(tol, maxIter);
+      if (lambda.cmp(zero) < 0) {
+        throw new Error("Numerical instability: Negative eigenvalue found for A^T A.");
+      }
+      const singularValue = lambda.sqrt();
+      let u = new Vector(this.rows);
+      if (!singularValue.isZero()) {
+        u = this.mulVec(v).scale(one.div(singularValue));
+      }
+      return { singularValue, u, v };
+    }
+  };
 
   // src/polyfit.js
   function polyfit(x, y, order, info = {}) {
@@ -590,8 +2136,8 @@ var bfjs = (() => {
   function ode45(odefun, tspan, y0, info = {}) {
     let _e = bfjs.bf(info._e ?? 1e-16);
     let _re = bfjs.bf(info._re ?? 1e-16);
-    let max_steps_limit = info.max_step || 1e5;
-    let max_time = info.max_time || 6e4;
+    let max_steps_limit = info.max_step || 2e6;
+    let max_time = info.max_time || 12e5;
     const start_time = (/* @__PURE__ */ new Date()).getTime();
     const bf2 = (n) => bfjs.bf(n);
     const bf_zero = bfjs.zero;
@@ -638,7 +2184,27 @@ var bfjs = (() => {
     let h = info.initial_step ? bf2(info.initial_step) : bf_zero;
     let absTol = _e;
     let relTol = _re;
-    let direction = t_final.sub(t_start).sign();
+    let t_span = t_final.sub(t_start);
+    let direction = t_span.sign();
+    let test_progress = void 0;
+    if (info.progress !== void 0) {
+      let progress = info.progress;
+      if (progress <= 0 || progress >= 1) {
+        progress = 0.1;
+      }
+      let last_progress = 0;
+      test_progress = (t2, y) => {
+        let pos = t2.sub(t_start).div(t_span).f64();
+        if (pos - last_progress >= progress) {
+          last_progress = pos;
+          if (info.progressCb) {
+            info.progressCb(pos, t2, y);
+          } else {
+            console.log(`Progress at progress=${(pos * 100).toFixed(1)}%, y=${(Array.isArray(y) ? y : [y]).map((x) => x.f64()).join(",")}`);
+          }
+        }
+      };
+    }
     if (h.isZero()) {
       h = t_final.sub(t_start).mul(rat(1, 100)).abs();
       let min_h = rat(1, 1e6);
@@ -715,6 +2281,7 @@ var bfjs = (() => {
         info.t.push(t);
         info.y.push(y_curr.map((v) => v));
         if (info.cb) info.cb(t, y_curr);
+        if (test_progress !== void 0) test_progress(t, y_curr);
         if (last_step) {
           done = true;
         } else {
@@ -745,13 +2312,722 @@ var bfjs = (() => {
         }
       }
     }
-    if (info.status === "running") info.status = "done";
     info.exectime = (/* @__PURE__ */ new Date()).getTime() - start_time;
     info.steps = steps;
     info.toString = function() {
       return `status=${this.status}, steps=${this.steps}, failed=${this.failed_steps}, t_final=${this.t[this.t.length - 1].toString(10, 6)}`;
     };
-    return { t: info.t, y: info.y };
+    if (info.status === "running") {
+      info.status = "done";
+      return { t: info.t, y: info.y };
+    }
+    return null;
+  }
+
+  // src/ode15s.js
+  function ode15s(odefun, tspan, y0, info = {}) {
+    const safe_bf2 = (n) => n instanceof BigFloat ? n : bf(n);
+    let absTol = safe_bf2(info._e ?? "1e-15");
+    let relTol = info._re === void 0 ? absTol : safe_bf2(info._re);
+    let max_steps_limit = info.max_step || 2e6;
+    let max_time = info.max_time || 12e5;
+    const start_time = (/* @__PURE__ */ new Date()).getTime();
+    let y_curr = Array.isArray(y0) ? y0.map(safe_bf2) : [safe_bf2(y0)];
+    let dim = y_curr.length;
+    let t_start = safe_bf2(tspan[0]);
+    let t_final = safe_bf2(tspan[1]);
+    let t = t_start;
+    if (t_start.cmp(t_final) === 0) return null;
+    let t_span = t_final.sub(t_start);
+    let direction = t_span.sign();
+    let test_progress = void 0;
+    if (info.progress !== void 0) {
+      let progress = info.progress;
+      if (progress <= 0 || progress >= 1) {
+        progress = 0.1;
+      }
+      let last_progress = 0;
+      test_progress = (t2, y) => {
+        let pos = t2.sub(t_start).div(t_span).f64();
+        if (pos - last_progress >= progress) {
+          last_progress = pos;
+          if (info.progressCb) {
+            info.progressCb(pos, t2, y);
+          } else {
+            console.log(`Progress at progress=${(pos * 100).toFixed(1)}%, y=${(Array.isArray(y) ? y : [y]).map((x) => x.f64()).join(",")}`);
+          }
+        }
+      };
+    }
+    const prec = decimalPrecision();
+    const machine_eps = getEpsilon();
+    const time_tolerance = t_final.abs().add(one).mul(machine_eps).mul(bf("1e4"));
+    const min_h_limit = bf("1e-" + Math.floor(prec * 0.9));
+    const jacobian_eps = bf("1e-" + Math.max(Math.floor(prec / 2), 8));
+    const tiny_lte = Math.pow(10, -Math.floor(prec * 0.6667));
+    const m_zero_tol = bf("1e-" + Math.floor(prec * 0.8));
+    const bf_0_2 = bf("0.2");
+    const bf_0_5 = bf("0.5");
+    const bf_newton_tol = bf("0.05");
+    const bf_k_arr = [zero, one, bf("2"), bf("3"), bf("4"), bf("5"), bf("6")];
+    let h = info.initial_step ? safe_bf2(info.initial_step).abs() : t_final.sub(t_start).abs().mul(bf("0.01"));
+    if (h.cmp(bf("1e-12")) < 0) h = bf("1e-12");
+    h = h.mul(bf(direction));
+    const BDF = [
+      null,
+      // 0
+      { alpha: [bf("1")], beta: bf("1") },
+      // 1st Order (Backward Euler)
+      { alpha: [bf("4").div(bf("3")), bf("-1").div(bf("3"))], beta: bf("2").div(bf("3")) },
+      // 2nd
+      { alpha: [bf("18").div(bf("11")), bf("-9").div(bf("11")), bf("2").div(bf("11"))], beta: bf("6").div(bf("11")) },
+      // 3rd
+      { alpha: [bf("48").div(bf("25")), bf("-36").div(bf("25")), bf("16").div(bf("25")), bf("-3").div(bf("25"))], beta: bf("12").div(bf("25")) },
+      // 4th
+      { alpha: [bf("300").div(bf("137")), bf("-300").div(bf("137")), bf("200").div(bf("137")), bf("-75").div(bf("137")), bf("12").div(bf("137"))], beta: bf("60").div(bf("137")) }
+      // 5th
+    ];
+    info.t = [t];
+    info.y = [y_curr.map((v) => v)];
+    info.dy = [];
+    info.steps = 0;
+    info.failed_steps = 0;
+    info.status = "running";
+    let k = 1;
+    let res0 = odefun(t, y_curr);
+    let M0 = Array.isArray(res0) ? null : res0.M;
+    let f0 = Array.isArray(res0) ? res0 : res0.f;
+    if (!Array.isArray(f0)) f0 = [f0];
+    let dy0 = [];
+    for (let d = 0; d < dim; d++) {
+      let m_val = M0 ? M0[d] : one;
+      if (m_val.abs().cmp(m_zero_tol) <= 0) {
+        dy0.push(zero);
+      } else {
+        dy0.push(f0[d].div(m_val));
+      }
+    }
+    info.dy.push(dy0);
+    let history = [{ t, y: y_curr, f: f0, M: M0 }];
+    const computeDividedDifferences = (pts) => {
+      let m = pts.length - 1;
+      let D = [];
+      for (let i = 0; i <= m; i++) D.push([pts[i].y.map((v) => v)]);
+      for (let j = 1; j <= m; j++) {
+        for (let i = 0; i <= m - j; i++) {
+          let dx = pts[i].t.sub(pts[i + j].t);
+          let inv_dx = one.div(dx);
+          let diff2 = [];
+          for (let d = 0; d < dim; d++) {
+            diff2.push(D[i][j - 1][d].sub(D[i + 1][j - 1][d]).mul(inv_dx));
+          }
+          D[i].push(diff2);
+        }
+      }
+      return D;
+    };
+    const evalPoly = (pts, D, t_target) => {
+      let m = pts.length - 1;
+      let res = new Array(dim).fill(zero);
+      let term = one;
+      for (let j = 0; j <= m; j++) {
+        for (let d = 0; d < dim; d++) res[d] = res[d].add(D[0][j][d].mul(term));
+        if (j < m) term = term.mul(t_target.sub(pts[j].t));
+      }
+      return res;
+    };
+    const getJacobian = (t_val, y_val, f_val) => {
+      if (info.Jacobian) {
+        let J_user = info.Jacobian(t_val, y_val, f_val);
+        if (Array.isArray(J_user) && Array.isArray(J_user[0])) {
+          let rowIdx2 = [], colIdx2 = [], vals2 = [];
+          for (let i = 0; i < J_user.length; i++) {
+            for (let j = 0; j < J_user[i].length; j++) {
+              let v = J_user[i][j];
+              if (!v.isZero()) {
+                rowIdx2.push(i);
+                colIdx2.push(j);
+                vals2.push(v);
+              }
+            }
+          }
+          return { rowIdx: rowIdx2, colIdx: colIdx2, vals: vals2 };
+        }
+        return J_user;
+      }
+      let rowIdx = [];
+      let colIdx = [];
+      let vals = [];
+      for (let j = 0; j < dim; j++) {
+        let y_pert = [...y_val];
+        let delta = y_val[j].abs().mul(jacobian_eps);
+        if (delta.isZero()) delta = jacobian_eps;
+        let inv_delta = one.div(delta);
+        y_pert[j] = y_pert[j].add(delta);
+        let res_pert = odefun(t_val, y_pert);
+        let f_pert = Array.isArray(res_pert) ? res_pert : res_pert.f;
+        if (!Array.isArray(f_pert)) f_pert = [f_pert];
+        for (let i = 0; i < dim; i++) {
+          let diff2 = f_pert[i].sub(f_val[i]).mul(inv_delta);
+          if (!diff2.isZero()) {
+            rowIdx.push(i);
+            colIdx.push(j);
+            vals.push(diff2);
+          }
+        }
+      }
+      return { rowIdx, colIdx, vals };
+    };
+    let global_error;
+    if (!!info.estimate_error) {
+      global_error = new Array(dim).fill(zero);
+      info.global_error_history = [global_error.map((v) => v.f64())];
+    }
+    let update_jacobian = true;
+    let update_LU = true;
+    let steps_since_jacobian = 0;
+    let last_h_beta = zero;
+    let J_M = null;
+    let J_f = null;
+    let lu_res = null;
+    let done = false;
+    let steps = 0;
+    while (!done) {
+      if (steps >= max_steps_limit) {
+        info.status = "max_steps";
+        break;
+      }
+      if ((/* @__PURE__ */ new Date()).getTime() - start_time > max_time) {
+        info.status = "timeout";
+        break;
+      }
+      let dist_to_end = t_final.sub(t);
+      let dist_abs = dist_to_end.abs();
+      if (dist_abs.cmp(time_tolerance) <= 0) {
+        done = true;
+        break;
+      }
+      let last_step = false;
+      if (h.abs().cmp(dist_abs) >= 0) {
+        h = dist_to_end;
+        last_step = true;
+        update_LU = true;
+      }
+      let t_next = t.add(h);
+      let pts = history.slice(0, k + 1);
+      let y_pred, y_star = [];
+      let D_old;
+      if (pts.length === 1) {
+        y_pred = [];
+        let M_start = pts[0].M;
+        let f_start = pts[0].f;
+        for (let d = 0; d < dim; d++) {
+          let m_val = M_start ? M_start[d] : one;
+          if (m_val.abs().cmp(m_zero_tol) <= 0) {
+            y_pred.push(pts[0].y[d]);
+          } else {
+            y_pred.push(pts[0].y[d].add(h.mul(f_start[d].div(m_val))));
+          }
+        }
+        y_star = [pts[0].y];
+      } else {
+        D_old = computeDividedDifferences(pts);
+        y_pred = evalPoly(pts, D_old, t_next);
+        for (let j = 1; j <= k; j++) {
+          y_star.push(evalPoly(pts, D_old, t_next.sub(h.mul(bf_k_arr[j]))));
+        }
+      }
+      let C = new Array(dim).fill(zero);
+      for (let j = 1; j <= k; j++) {
+        let alpha_j = BDF[k].alpha[j - 1];
+        for (let d = 0; d < dim; d++) C[d] = C[d].add(alpha_j.mul(y_star[j - 1][d]));
+      }
+      let beta_k = BDF[k].beta;
+      let h_beta = h.mul(beta_k);
+      if (steps_since_jacobian >= 400) update_jacobian = true;
+      if (update_jacobian) {
+        let res_pred = odefun(t_next, y_pred);
+        let f_pred = Array.isArray(res_pred) ? res_pred : res_pred.f;
+        if (!Array.isArray(f_pred)) f_pred = [f_pred];
+        J_M = Array.isArray(res_pred) ? null : res_pred.M;
+        J_f = getJacobian(t_next, y_pred, f_pred);
+        steps_since_jacobian = 0;
+        update_LU = true;
+        update_jacobian = false;
+      }
+      if (!update_LU) {
+        let h_beta_ratio = h_beta.div(last_h_beta);
+        let h_beta_ratio_n = Math.abs(h_beta_ratio.f64());
+        if (h_beta_ratio_n > 1.25 || h_beta_ratio_n < 0.8) {
+          update_LU = true;
+        }
+      }
+      if (update_LU) {
+        let rowIdx = [];
+        let colIdx = [];
+        let vals = [];
+        for (let i = 0; i < dim; i++) {
+          let m_val = J_M ? J_M[i] : one;
+          if (!m_val.isZero()) {
+            rowIdx.push(i);
+            colIdx.push(i);
+            vals.push(m_val);
+          }
+        }
+        for (let i = 0; i < J_f.vals.length; i++) {
+          let r = J_f.rowIdx[i];
+          let c = J_f.colIdx[i];
+          let v = J_f.vals[i];
+          let J_term = h_beta.mul(v).neg();
+          rowIdx.push(r);
+          colIdx.push(c);
+          vals.push(J_term);
+        }
+        try {
+          let JG_sparse = SparseMatrixCSC.fromCOO(dim, dim, rowIdx, colIdx, vals);
+          lu_res = JG_sparse.lu();
+          last_h_beta = h_beta;
+          update_LU = false;
+        } catch (e) {
+          h = h.mul(bf_0_2);
+          info.failed_steps++;
+          last_step = false;
+          update_jacobian = true;
+          continue;
+        }
+      }
+      let y_tmp_curr = y_pred.map((v) => v);
+      let newton_converged = false;
+      let M_curr = null;
+      let old_delta_norm = null;
+      for (let iter = 0; iter < 5; iter++) {
+        let res_curr = odefun(t_next, y_tmp_curr);
+        M_curr = Array.isArray(res_curr) ? null : res_curr.M;
+        let f_curr = Array.isArray(res_curr) ? res_curr : res_curr.f;
+        if (!Array.isArray(f_curr)) f_curr = [f_curr];
+        let negG = [];
+        for (let d = 0; d < dim; d++) {
+          let y_diff = y_tmp_curr[d].sub(C[d]);
+          let m_term = M_curr ? M_curr[d].mul(y_diff) : y_diff;
+          let G_val = m_term.sub(h_beta.mul(f_curr[d]));
+          negG.push(G_val.neg());
+        }
+        let y_tmp = lu_res.L.solveLowerTriangular(negG);
+        let delta_y = lu_res.U.solveUpperTriangular(y_tmp).values;
+        let step_converged = true;
+        let current_delta_norm = zero;
+        for (let d = 0; d < dim; d++) {
+          y_tmp_curr[d] = y_tmp_curr[d].add(delta_y[d]);
+          let max_y = y_curr[d].abs().cmp(y_tmp_curr[d].abs()) > 0 ? y_curr[d].abs() : y_tmp_curr[d].abs();
+          let sc = absTol.add(relTol.mul(max_y));
+          let ratio = delta_y[d].abs().div(sc);
+          if (ratio.cmp(current_delta_norm) > 0) current_delta_norm = ratio;
+          if (delta_y[d].abs().cmp(sc.mul(bf_newton_tol)) > 0) {
+            step_converged = false;
+          }
+        }
+        if (step_converged) {
+          newton_converged = true;
+          break;
+        }
+        if (iter > 0 && old_delta_norm !== null) {
+          let theta = current_delta_norm.div(old_delta_norm).f64();
+          if (theta > 0.8) {
+            break;
+          }
+        }
+        old_delta_norm = current_delta_norm;
+      }
+      if (!newton_converged) {
+        if (steps_since_jacobian > 0) {
+          update_jacobian = true;
+          continue;
+        }
+        h = h.mul(bf_0_5);
+        info.failed_steps++;
+        last_step = false;
+        update_jacobian = true;
+        continue;
+      }
+      let LTE_norm = 0;
+      let inv_k_plus_1 = one.div(bf_k_arr[k + 1]);
+      for (let d = 0; d < dim; d++) {
+        let m_val = M_curr ? M_curr[d] : one;
+        if (m_val.abs().cmp(m_zero_tol) <= 0) continue;
+        let err_val = y_tmp_curr[d].sub(y_pred[d]).mul(inv_k_plus_1);
+        let max_y = y_curr[d].abs().cmp(y_tmp_curr[d].abs()) > 0 ? y_curr[d].abs() : y_tmp_curr[d].abs();
+        let sc = absTol.add(relTol.mul(max_y));
+        let ratio = err_val.abs().div(sc).f64();
+        if (ratio > LTE_norm) LTE_norm = ratio;
+      }
+      if (LTE_norm <= 1) {
+        if (!!info.estimate_error) {
+          let rhs_E = [];
+          for (let d = 0; d < dim; d++) {
+            let m_val = M_curr ? M_curr[d] : one;
+            if (m_val.abs().cmp(m_zero_tol) <= 0) {
+              rhs_E.push(global_error[d]);
+            } else {
+              let err_val_true = y_tmp_curr[d].sub(y_pred[d]).mul(inv_k_plus_1);
+              rhs_E.push(global_error[d].add(err_val_true));
+            }
+          }
+          try {
+            let E_tmp = lu_res.L.solveLowerTriangular(rhs_E);
+            global_error = lu_res.U.solveUpperTriangular(E_tmp).values;
+          } catch (e) {
+            for (let d = 0; d < dim; d++) global_error[d] = rhs_E[d];
+          }
+          info.global_error_history.push(global_error.map((v) => v.f64()));
+        }
+        steps_since_jacobian++;
+        t = t_next;
+        y_curr = y_tmp_curr;
+        let res_final = odefun(t, y_curr);
+        let f_final = Array.isArray(res_final) ? res_final : res_final.f;
+        let M_final = Array.isArray(res_final) ? null : res_final.M;
+        if (!Array.isArray(f_final)) f_final = [f_final];
+        history.unshift({ t, y: y_curr, f: f_final, M: M_final });
+        if (history.length > 7) history.pop();
+        let dy_curr = new Array(dim);
+        for (let d = 0; d < dim; d++) dy_curr[d] = y_curr[d].sub(C[d]).div(h_beta);
+        info.t.push(t);
+        info.y.push(y_curr.map((v) => v));
+        info.dy.push(dy_curr);
+        if (info.cb) info.cb(t, y_curr);
+        if (test_progress !== void 0) test_progress(t, y_curr);
+        steps++;
+        if (last_step) {
+          done = true;
+          break;
+        }
+        let D_new = computeDividedDifferences(history);
+        let L_hist = history.length;
+        let max_h_opt = 0;
+        let next_k = k;
+        for (let m = Math.max(1, k - 1); m <= Math.min(5, k + 1); m++) {
+          let err_norm_m = 0;
+          if (m === k) {
+            err_norm_m = LTE_norm;
+          } else if (m + 1 < L_hist) {
+            let term = one;
+            for (let i = 1; i <= m + 1; i++) term = term.mul(history[0].t.sub(history[i].t));
+            let inv_m_plus_1 = one.div(bf_k_arr[m + 1]);
+            for (let d = 0; d < dim; d++) {
+              let m_val = M_final ? M_final[d] : one;
+              if (m_val.abs().cmp(m_zero_tol) <= 0) continue;
+              let err_val = D_new[0][m + 1][d].mul(term).mul(inv_m_plus_1);
+              let sc = absTol.add(relTol.mul(y_curr[d].abs()));
+              let ratio = err_val.abs().div(sc).f64();
+              if (ratio > err_norm_m) err_norm_m = ratio;
+            }
+          } else {
+            continue;
+          }
+          if (err_norm_m < tiny_lte) err_norm_m = tiny_lte;
+          let h_opt_m = 0.9 * Math.pow(err_norm_m, -1 / (m + 1));
+          if (m === k - 1) h_opt_m *= 1.2;
+          if (m === k + 1) h_opt_m *= 0.8;
+          if (h_opt_m > max_h_opt) {
+            max_h_opt = h_opt_m;
+            next_k = m;
+          }
+        }
+        let factor = Math.max(0.2, Math.min(5, max_h_opt));
+        if (factor >= 1.5 || factor <= 0.8 || next_k !== k) {
+          h = h.mul(bf(factor));
+          k = next_k;
+        }
+      } else {
+        info.failed_steps++;
+        last_step = false;
+        update_jacobian = true;
+        if (LTE_norm < tiny_lte) LTE_norm = tiny_lte;
+        let factor = 0.9 * Math.pow(LTE_norm, -1 / (k + 1));
+        factor = Math.max(0.1, factor);
+        h = h.mul(bf(factor));
+        if (h.abs().cmp(min_h_limit) < 0) {
+          console.warn(`ode15s: Step size underflow limit reached. Function represents aggressive structural singularities or impossibly strict relative limits.`);
+          info.status = "underflow";
+          break;
+        }
+      }
+    }
+    info.exectime = (/* @__PURE__ */ new Date()).getTime() - start_time;
+    info.steps = steps;
+    info.toString = function() {
+      return `status=${this.status}, steps=${this.steps}, failed=${this.failed_steps}, final_order=${k}, t_final=${this.t[this.t.length - 1].toString(10, 6)}`;
+    };
+    if (!!info.estimate_error) {
+      info.global_error = global_error;
+    }
+    if (info.status === "running") {
+      info.status = "done";
+      return { t: info.t, y: info.y, dy: info.dy };
+    }
+    return null;
+  }
+
+  // src/pdepe.js
+  function pdepe(m, pdefun, icfun, bcfun, xmesh, tspan, info = {}) {
+    const safe_bf2 = (n) => n instanceof BigFloat ? n : bf(n);
+    const m_val = parseInt(m.toString(), 10);
+    const m_plus_1 = bf(m_val + 1);
+    const N = xmesh.length;
+    if (N < 3) throw new Error("pdepe: xmesh must contain at least 3 spatial points.");
+    const X2 = xmesh.map(safe_bf2);
+    const tspan_bf = tspan.map(safe_bf2);
+    const prec = decimalPrecision();
+    const eps = getEpsilon();
+    const bf_0_5 = bf("0.5");
+    const bf_2 = bf("2");
+    const bf_3 = bf("3");
+    const h_min_tol = bf("1e4").mul(eps);
+    const zero_tol = bf("1e-" + Math.floor(prec * 0.9));
+    const q_zero_tol = bf("1e-" + Math.floor(prec * 0.8));
+    const is_sym_left = m_val > 0 && X2[0].cmp(zero) === 0;
+    const Xmid = new Array(N - 1);
+    const dx = new Array(N - 1);
+    const pre_inv_dx = new Array(N - 1);
+    for (let i = 0; i < N - 1; i++) {
+      Xmid[i] = X2[i].add(X2[i + 1]).mul(bf_0_5);
+      dx[i] = X2[i + 1].sub(X2[i]);
+      pre_inv_dx[i] = one.div(dx[i]);
+    }
+    const pre_inv_dx_2 = new Array(N - 1);
+    for (let i = 1; i < N - 1; i++) {
+      pre_inv_dx_2[i] = one.div(dx[i - 1].add(dx[i]));
+    }
+    const powM = (x_bf) => {
+      if (m_val === 0) return one;
+      if (m_val === 1) return x_bf;
+      if (m_val === 2) return x_bf.mul(x_bf);
+      return x_bf.pow(m_val);
+    };
+    const powMp1 = (x_bf) => {
+      if (m_val === 0) return x_bf;
+      if (m_val === 1) return x_bf.mul(x_bf);
+      return x_bf.pow(m_val + 1);
+    };
+    const powM_X = X2.map(powM);
+    const powM_Xmid = Xmid.map(powM);
+    const V = new Array(N);
+    const pre_inv_V = new Array(N);
+    for (let i = 0; i < N; i++) {
+      let left_edge = i === 0 ? X2[0] : Xmid[i - 1];
+      let right_edge = i === N - 1 ? X2[N - 1] : Xmid[i];
+      V[i] = powMp1(right_edge).sub(powMp1(left_edge)).div(m_plus_1);
+      pre_inv_V[i] = one.div(V[i]);
+    }
+    const toArr = (val) => Array.isArray(val) ? val : [val];
+    const _pdefun = (x_bf, t_bf, u_bf, dudx_bf) => {
+      let res2 = pdefun(x_bf, t_bf, u_bf, dudx_bf);
+      return { c: toArr(res2.c), f: toArr(res2.f), s: toArr(res2.s) };
+    };
+    const _bcfun = (xl, ul, xr, ur, t) => {
+      let res2 = bcfun(xl, ul, xr, ur, t);
+      return { pl: toArr(res2.pl), ql: toArr(res2.ql), pr: toArr(res2.pr), qr: toArr(res2.qr) };
+    };
+    let U0_flat = [];
+    let D = 0;
+    for (let i = 0; i < N; i++) {
+      let u0_res = toArr(icfun(X2[i]));
+      if (i === 0) D = u0_res.length;
+      for (let d = 0; d < D; d++) U0_flat.push(u0_res[d]);
+    }
+    const getU = (Y, i) => Y.slice(i * D, (i + 1) * D);
+    const ode_sys = (t, Y) => {
+      let dY = new Array(N * D);
+      let M = new Array(N * D);
+      let F_mid = new Array(N - 1);
+      for (let i = 0; i < N - 1; i++) {
+        let u_L = getU(Y, i);
+        let u_R = getU(Y, i + 1);
+        let u_mid = new Array(D);
+        let dudx_mid = new Array(D);
+        for (let d = 0; d < D; d++) {
+          u_mid[d] = u_L[d].add(u_R[d]).mul(bf_0_5);
+          dudx_mid[d] = u_R[d].sub(u_L[d]).mul(pre_inv_dx[i]);
+        }
+        F_mid[i] = _pdefun(Xmid[i], t, u_mid, dudx_mid).f;
+      }
+      let C_node = new Array(N);
+      let S_node = new Array(N);
+      for (let i = 0; i < N; i++) {
+        let u_node = getU(Y, i);
+        let dudx_node = new Array(D);
+        if (i === 0) {
+          let u_R = getU(Y, 1);
+          for (let d = 0; d < D; d++) dudx_node[d] = u_R[d].sub(u_node[d]).mul(pre_inv_dx[0]);
+        } else if (i === N - 1) {
+          let u_L = getU(Y, N - 2);
+          for (let d = 0; d < D; d++) dudx_node[d] = u_node[d].sub(u_L[d]).mul(pre_inv_dx[N - 2]);
+        } else {
+          let u_L = getU(Y, i - 1);
+          let u_R = getU(Y, i + 1);
+          for (let d = 0; d < D; d++) dudx_node[d] = u_R[d].sub(u_L[d]).mul(pre_inv_dx_2[i]);
+        }
+        let pde_res = _pdefun(X2[i], t, u_node, dudx_node);
+        C_node[i] = pde_res.c;
+        S_node[i] = pde_res.s;
+        if (i > 0 && i < N - 1) {
+          for (let d = 0; d < D; d++) {
+            let flux_R = powM_Xmid[i].mul(F_mid[i][d]);
+            let flux_L = powM_Xmid[i - 1].mul(F_mid[i - 1][d]);
+            let flux_diff = flux_R.sub(flux_L).mul(pre_inv_V[i]);
+            let c_val = C_node[i][d];
+            if (c_val.abs().cmp(zero_tol) < 0) {
+              c_val = c_val.sign() >= 0 ? zero_tol : zero_tol.neg();
+            }
+            M[i * D + d] = c_val;
+            dY[i * D + d] = flux_diff.add(S_node[i][d]);
+          }
+        }
+      }
+      let bc_res = _bcfun(X2[0], getU(Y, 0), X2[N - 1], getU(Y, N - 1), t);
+      if (is_sym_left) {
+        for (let d = 0; d < D; d++) {
+          let flux_R = powM_Xmid[0].mul(F_mid[0][d]);
+          let flux_L = zero;
+          let flux_diff = flux_R.sub(flux_L).mul(pre_inv_V[0]);
+          let c_val = C_node[0][d];
+          if (c_val.abs().cmp(zero_tol) < 0) {
+            c_val = c_val.sign() >= 0 ? zero_tol : zero_tol.neg();
+          }
+          M[d] = c_val;
+          dY[d] = flux_diff.add(S_node[0][d]);
+        }
+      } else {
+        for (let d = 0; d < D; d++) {
+          if (bc_res.ql[d].abs().cmp(q_zero_tol) <= 0) {
+            M[d] = zero;
+            dY[d] = bc_res.pl[d];
+          } else {
+            let f_L = bc_res.pl[d].neg().div(bc_res.ql[d]);
+            let flux_R = powM_Xmid[0].mul(F_mid[0][d]);
+            let flux_L = powM_X[0].mul(f_L);
+            let flux_diff = flux_R.sub(flux_L).mul(pre_inv_V[0]);
+            let c_val = C_node[0][d];
+            if (c_val.abs().cmp(zero_tol) < 0) {
+              c_val = c_val.sign() >= 0 ? zero_tol : zero_tol.neg();
+            }
+            M[d] = c_val;
+            dY[d] = flux_diff.add(S_node[0][d]);
+          }
+        }
+      }
+      let offset = (N - 1) * D;
+      for (let d = 0; d < D; d++) {
+        if (bc_res.qr[d].abs().cmp(q_zero_tol) <= 0) {
+          M[offset + d] = zero;
+          dY[offset + d] = bc_res.pr[d];
+        } else {
+          let f_R = bc_res.pr[d].neg().div(bc_res.qr[d]);
+          let flux_R = powM_X[N - 1].mul(f_R);
+          let flux_L = powM_Xmid[N - 2].mul(F_mid[N - 2][d]);
+          let flux_diff = flux_R.sub(flux_L).mul(pre_inv_V[N - 1]);
+          let c_val = C_node[N - 1][d];
+          if (c_val.abs().cmp(zero_tol) < 0) {
+            c_val = c_val.sign() >= 0 ? zero_tol : zero_tol.neg();
+          }
+          M[offset + d] = c_val;
+          dY[offset + d] = flux_diff.add(S_node[N - 1][d]);
+        }
+      }
+      return { M, f: dY };
+    };
+    const tmpInfo = Object.assign({
+      _e: "1e-5",
+      _re: "1e-4",
+      max_step: 1e7,
+      max_time: 1e7
+    }, info);
+    Object.assign(info, tmpInfo);
+    if (!info.Jacobian) {
+      const jacobian_eps = bf("1e-" + Math.max(Math.floor(prec / 2), 8));
+      info.Jacobian = (t_val, y_val, f_val) => {
+        let rowIdx = [];
+        let colIdx = [];
+        let vals = [];
+        for (let color = 0; color < 3; color++) {
+          for (let d = 0; d < D; d++) {
+            let y_pert = [...y_val];
+            let deltas = new Array(N).fill(zero);
+            let has_pert = false;
+            for (let i = color; i < N; i += 3) {
+              let j = i * D + d;
+              let delta = y_val[j].abs().mul(jacobian_eps);
+              if (delta.isZero()) delta = jacobian_eps;
+              deltas[i] = delta;
+              y_pert[j] = y_pert[j].add(delta);
+              has_pert = true;
+            }
+            if (!has_pert) continue;
+            let res_pert = ode_sys(t_val, y_pert);
+            let f_pert = res_pert.f;
+            for (let i = color; i < N; i += 3) {
+              let j = i * D + d;
+              let inv_delta = one.div(deltas[i]);
+              let start_node = Math.max(0, i - 1);
+              let end_node = Math.min(N - 1, i + 1);
+              for (let node = start_node; node <= end_node; node++) {
+                for (let d_aff = 0; d_aff < D; d_aff++) {
+                  let r = node * D + d_aff;
+                  let diff2 = f_pert[r].sub(f_val[r]).mul(inv_delta);
+                  if (!diff2.isZero()) {
+                    rowIdx.push(r);
+                    colIdx.push(j);
+                    vals.push(diff2);
+                  }
+                }
+              }
+            }
+          }
+        }
+        return { rowIdx, colIdx, vals };
+      };
+    }
+    let res = ode15s(ode_sys, [tspan_bf[0], tspan_bf[tspan_bf.length - 1]], U0_flat, info);
+    info.Jacobian = void 0;
+    if (!res) throw new Error("pdepe: Underlying ode15s integration failed catastrophically.");
+    let ode_t = res.t;
+    let ode_y = res.y;
+    let ode_dy = res.dy;
+    let sol = [];
+    let k = 0;
+    for (let ts of tspan_bf) {
+      while (k < ode_t.length - 2 && ode_t[k + 1].cmp(ts) < 0) k++;
+      let t0 = ode_t[k], t1 = ode_t[k + 1];
+      let y0 = ode_y[k], y1 = ode_y[k + 1];
+      let dy0 = ode_dy[k], dy1 = ode_dy[k + 1];
+      let h = t1.sub(t0);
+      let state_at_ts = new Array(N * D);
+      if (ts.cmp(t0) === 0 || h.abs().cmp(h_min_tol) <= 0) {
+        state_at_ts = y0;
+      } else if (ts.cmp(t1) === 0) {
+        state_at_ts = y1;
+      } else {
+        let s = ts.sub(t0).div(h);
+        let s2 = s.mul(s), s3 = s2.mul(s);
+        let h00 = one.sub(bf_3.mul(s2)).add(bf_2.mul(s3));
+        let h01 = bf_3.mul(s2).sub(bf_2.mul(s3));
+        let h10 = h.mul(s.sub(bf_2.mul(s2)).add(s3));
+        let h11 = h.mul(s3.sub(s2));
+        for (let j = 0; j < N * D; j++) {
+          state_at_ts[j] = h00.mul(y0[j]).add(h01.mul(y1[j])).add(h10.mul(dy0[j])).add(h11.mul(dy1[j]));
+        }
+      }
+      let grid_out = [];
+      for (let i = 0; i < N; i++) {
+        let eq_out = [];
+        for (let d = 0; d < D; d++) {
+          eq_out.push(state_at_ts[i * D + d]);
+        }
+        grid_out.push(D === 1 ? eq_out[0] : eq_out);
+      }
+      sol.push(grid_out);
+    }
+    return sol;
   }
 
   // src/fminbnd.js
@@ -793,7 +3069,7 @@ var bfjs = (() => {
       info.min_value = currentMinVal;
       info.error = errorBound;
       if (errorBound.cmp(bf_zero) === 0) {
-        info.eff_decimal_precision = decimal_precision();
+        info.eff_decimal_precision = decimalPrecision();
       } else {
         info.eff_decimal_precision = Math.floor(-errorBound.log().f64() / Math.log(10));
       }
@@ -801,8 +3077,8 @@ var bfjs = (() => {
         info.eff_decimal_precision = 0;
         info.eff_result = "";
       } else {
-        let limit = decimal_precision();
-        let prec = info.eff_decimal_precision > limit ? limit : info.eff_decimal_precision;
+        let limit2 = decimalPrecision();
+        let prec = info.eff_decimal_precision > limit2 ? limit2 : info.eff_decimal_precision;
         info.eff_result = x.toString(10, prec);
       }
     };
@@ -937,7 +3213,7 @@ var bfjs = (() => {
       info.error = max_err;
       let c = max_err.cmp(zero2);
       if (c === 0) {
-        info.eff_decimal_precision = decimal_precision();
+        info.eff_decimal_precision = decimalPrecision();
       } else if (c < 0) {
         info.eff_decimal_precision = 0;
       } else {
@@ -1063,7 +3339,7 @@ var bfjs = (() => {
       info.residual = residual;
       info.error = errorBound;
       if (errorBound.cmp(bf_zero) === 0) {
-        info.eff_decimal_precision = decimal_precision();
+        info.eff_decimal_precision = decimalPrecision();
       } else {
         info.eff_decimal_precision = Math.floor(-errorBound.log().f64() / Math.log(10));
       }
@@ -1071,8 +3347,8 @@ var bfjs = (() => {
         info.eff_decimal_precision = 0;
         info.eff_result = "";
       } else {
-        let limit = decimal_precision();
-        let prec = info.eff_decimal_precision > limit ? limit : info.eff_decimal_precision;
+        let limit2 = decimalPrecision();
+        let prec = info.eff_decimal_precision > limit2 ? limit2 : info.eff_decimal_precision;
         info.eff_result = b.toString(10, prec);
       }
     };
@@ -1167,6 +3443,273 @@ var bfjs = (() => {
     return null;
   }
 
+  // src/quad.js
+  function quad(f, _a, _b, info = {}) {
+    function safeAdd(val1, val2) {
+      if (val1 === null) return val2;
+      if (val2 === null) return val1;
+      if (typeof val1.im === "undefined" && typeof val2.im !== "undefined") {
+        return val2.add(val1);
+      }
+      return val1.add(val2);
+    }
+    function updateInfoBase(info_obj) {
+      if (!info_obj.rerror) {
+        info_obj.eff_decimal_precision = 0;
+        info_obj.eff_result = "";
+        return;
+      }
+      if (info_obj.rerror.isAlmostZero && info_obj.rerror.isAlmostZero() || info_obj.rerror === 0) {
+        info_obj.eff_decimal_precision = decimalPrecision();
+      } else {
+        let logRerr = info_obj.rerror.log();
+        let logVal = logRerr.f64();
+        info_obj.eff_decimal_precision = Math.floor(-logVal / Math.log(10));
+      }
+      if (info_obj.eff_decimal_precision <= 0) {
+        info_obj.eff_decimal_precision = 0;
+        info_obj.eff_result = "";
+      } else {
+        let lr = info_obj.lastresult;
+        if (info_obj.eff_decimal_precision > decimalPrecision()) {
+          info_obj.eff_result = lr.toString(10);
+        } else {
+          info_obj.eff_result = lr.toString(10, info_obj.eff_decimal_precision);
+        }
+      }
+    }
+    let max_step = info.max_step || 15, max_time = info.max_time || 6e4;
+    let _e = info._e ?? 1e-50;
+    let _re = info._re ?? _e;
+    if (typeof _e != "number" || typeof _re != "number" || typeof info != "object") {
+      throw new Error("arguments error");
+    }
+    let start_time = (/* @__PURE__ */ new Date()).getTime();
+    info.toString = function() {
+      return `lastresult=${this.lastresult ? this.lastresult.toString() : "N/A"}, 
+        effective_result=${this.eff_result},
+        steps=${this.steps}/${max_step}, 
+        error=${this.error ? this.error.toString(10, 3) : "N/A"},
+        rerror=${this.rerror ? this.rerror.toString(10, 3) : "N/A"},
+        eff_decimal_precision=${this.eff_decimal_precision}, 	  
+        exectime=${this.exectime}/${max_time}`;
+    };
+    if (Array.isArray(_a) && _b === void 0) {
+      let points = _a;
+      if (points.length < 2) return bf(0);
+      let total_integral = null;
+      let total_error = bf(0);
+      let max_steps = 0;
+      for (let i = 0; i < points.length - 1; i++) {
+        let sub_info = Object.assign({}, info);
+        delete sub_info.cb;
+        delete sub_info.toString;
+        let res = quad(f, points[i], points[i + 1], sub_info);
+        if (res === null) {
+          info.result = null;
+          return null;
+        }
+        total_integral = safeAdd(total_integral, res);
+        total_error = total_error.add(sub_info.error);
+        if (sub_info.steps > max_steps) max_steps = sub_info.steps;
+      }
+      info.exectime = (/* @__PURE__ */ new Date()).getTime() - start_time;
+      info.steps = max_steps;
+      info.error = total_error;
+      info.lastresult = total_integral;
+      info.result = total_integral;
+      let abs_val = total_integral.abs();
+      info.rerror = abs_val.isAlmostZero() ? total_error : total_error.div(abs_val);
+      updateInfoBase(info);
+      return total_integral;
+    }
+    function parseBound(val) {
+      if (val === "-Infinity" || val === "Infinity") return val;
+      if (typeof val === "string") {
+        if (val.includes("i") || val.includes("I")) return Complex.fromString(val);
+      }
+      if (typeof val === "number" || typeof val === "string") return bf(val);
+      return val;
+    }
+    let a = parseBound(_a);
+    let b = parseBound(_b);
+    let a_str = a.toString();
+    let b_str = b.toString();
+    let a_is_inf = a_str === "-Infinity" || a_str === "Infinity";
+    let b_is_inf = b_str === "-Infinity" || b_str === "Infinity";
+    let e = bf(_e), re = bf(_re);
+    let sign2 = 1;
+    if (a_is_inf || b_is_inf) {
+      let is_greater = false;
+      if (a_str === "Infinity" && b_str !== "Infinity") is_greater = true;
+      if (a_str !== "-Infinity" && b_str === "-Infinity") is_greater = true;
+      if (a_str === "Infinity" && b_str === "-Infinity") is_greater = true;
+      if (is_greater) {
+        let tmp = a;
+        a = b;
+        b = tmp;
+        let tmp_inf = a_is_inf;
+        a_is_inf = b_is_inf;
+        b_is_inf = tmp_inf;
+        let tmp_str = a_str;
+        a_str = b_str;
+        b_str = tmp_str;
+        sign2 = -1;
+      }
+    } else {
+      if (a.im !== void 0 || b.im !== void 0) {
+        if (a.im === void 0) a = new Complex(a);
+        if (b.im === void 0) b = new Complex(b);
+      }
+    }
+    const PI2 = PI;
+    const f0p5 = half;
+    const bf_0 = zero;
+    const bf_1 = one;
+    const bf_2 = two;
+    const bf_m2 = bf(-2);
+    const pi_over_2 = PI2.mul(f0p5);
+    function isAtBoundary(x) {
+      if (!a_is_inf && a !== void 0 && a !== null) {
+        if (x.equals(a)) return true;
+      }
+      if (!b_is_inf && b !== void 0 && b !== null) {
+        if (x.equals(b)) return true;
+      }
+      return false;
+    }
+    let calc_x_w = null;
+    if (!a_is_inf && !b_is_inf) {
+      let m = a.add(b).mul(f0p5);
+      let c = b.sub(a).mul(f0p5);
+      let c2 = b.sub(a);
+      calc_x_w = (v, dv) => {
+        let ch = v.cosh();
+        let w = c.mul(dv).div(ch.mul(ch));
+        let x;
+        if (typeof v.im === "undefined" && typeof a.im === "undefined" && typeof b.im === "undefined") {
+          let sign_v = v.toNumber();
+          if (sign_v > 0) {
+            let exp_2v = v.mul(bf_2).exp();
+            let offset = c2.div(exp_2v.add(bf_1));
+            x = b.sub(offset);
+          } else if (sign_v < 0) {
+            let exp_m2v = v.mul(bf_m2).exp();
+            let offset = c2.div(exp_m2v.add(bf_1));
+            x = a.add(offset);
+          } else {
+            x = m;
+          }
+        } else {
+          let th = v.tanh();
+          x = m.add(c.mul(th));
+        }
+        return { x, w };
+      };
+    } else if (!a_is_inf && b_str === "Infinity") {
+      calc_x_w = (v, dv) => {
+        let ev = v.exp();
+        let x = a.add(ev);
+        let w = ev.mul(dv);
+        return { x, w };
+      };
+    } else if (a_str === "-Infinity" && !b_is_inf) {
+      calc_x_w = (v, dv) => {
+        let ev = v.exp();
+        let x = b.sub(ev);
+        let w = ev.mul(dv);
+        return { x, w };
+      };
+    } else if (a_str === "-Infinity" && b_str === "Infinity") {
+      calc_x_w = (v, dv) => {
+        let x = v.sinh();
+        let w = v.cosh().mul(dv);
+        return { x, w };
+      };
+    } else {
+      info.result = bf_0;
+      updateInfoBase(info);
+      return info.result;
+    }
+    function eval_sum(h, k_start, k_step) {
+      let sum = null;
+      let k = k_start;
+      let consecutive_zeros = 0;
+      if (k === 0) {
+        let p0 = calc_x_w(bf_0, pi_over_2);
+        if (!p0.w.isAlmostZero() && !isAtBoundary(p0.x)) {
+          sum = f(p0.x).mul(p0.w);
+        } else {
+          sum = bf_0;
+        }
+        k += k_step;
+      }
+      while (true) {
+        let t = h.mul(k);
+        let v_plus = t.sinh().mul(pi_over_2);
+        let dv_plus = t.cosh().mul(pi_over_2);
+        let p_plus = calc_x_w(v_plus, dv_plus);
+        let p_minus = calc_x_w(v_plus.neg(), dv_plus);
+        let term_plus;
+        if (p_plus.w.isAlmostZero() || isAtBoundary(p_plus.x)) {
+          term_plus = bf_0;
+        } else {
+          term_plus = f(p_plus.x).mul(p_plus.w);
+        }
+        let term_minus;
+        if (p_minus.w.isAlmostZero() || isAtBoundary(p_minus.x)) {
+          term_minus = bf_0;
+        } else {
+          term_minus = f(p_minus.x).mul(p_minus.w);
+        }
+        let term_sum = safeAdd(term_plus, term_minus);
+        sum = safeAdd(sum, term_sum);
+        if (term_plus.isAlmostZero() && term_minus.isAlmostZero() || p_plus.w.isAlmostZero() && p_minus.w.isAlmostZero()) {
+          consecutive_zeros++;
+          if (consecutive_zeros > 3) break;
+        } else {
+          consecutive_zeros = 0;
+        }
+        if (k > 1e5) break;
+        k += k_step;
+      }
+      return sum === null ? bf_0 : sum;
+    }
+    let h0 = one;
+    let T = eval_sum(h0, 0, 1).mul(h0);
+    for (let m = 1; m <= max_step; ++m) {
+      let h = one.div(bf(2 ** m));
+      let sum_new = eval_sum(h, 1, 2);
+      let Tm = safeAdd(T.mul(f0p5), sum_new.mul(h));
+      let diff2 = typeof Tm.im === "undefined" && typeof T.im !== "undefined" ? T.sub(Tm) : Tm.sub(T);
+      let err = diff2.abs();
+      let rerr = Tm.isAlmostZero() ? err : err.div(Tm.abs());
+      if (!!info.debug && m > 2) {
+        console.log("Level[" + m + "]=" + Tm.toString());
+        console.log("Error: " + err.toString(10, 3));
+      }
+      info.exectime = (/* @__PURE__ */ new Date()).getTime() - start_time;
+      info.lastresult = sign2 < 0 ? Tm.neg() : Tm;
+      info.steps = m;
+      info.error = err;
+      info.rerror = rerr;
+      if (m > 3 && (err.cmp(e) <= 0 || rerr.cmp(re) <= 0)) {
+        info.result = info.lastresult;
+        updateInfoBase(info);
+        return info.result;
+      } else if (m == max_step || info.exectime > max_time) {
+        updateInfoBase(info);
+        info.result = null;
+        return info.result;
+      }
+      if (info.cb) {
+        updateInfoBase(info);
+        info.cb();
+      }
+      T = Tm;
+    }
+  }
+
   // src/romberg.js
   function romberg(f, _a, _b, info = {}) {
     let max_step = info.max_step || 25, max_acc = info.max_acc || 12, max_time = info.max_time || 6e4;
@@ -1194,7 +3737,7 @@ var bfjs = (() => {
     }
     var updateInfo = () => {
       if (info.rerror.isZero()) {
-        info.eff_decimal_precision = decimal_precision();
+        info.eff_decimal_precision = decimalPrecision();
       } else {
         info.eff_decimal_precision = Math.floor(-info.rerror.log().f64() / Math.log(10));
       }
@@ -1202,7 +3745,7 @@ var bfjs = (() => {
         info.eff_decimal_precision = 0;
         info.eff_result = "";
       } else {
-        if (info.eff_decimal_precision > decimal_precision()) {
+        if (info.eff_decimal_precision > decimalPrecision()) {
           info.eff_result = info.lastresult.toString(10);
         } else {
           info.eff_result = info.lastresult.toString(10, info.eff_decimal_precision);
@@ -1258,6 +3801,1003 @@ var bfjs = (() => {
       }
       T = Tm;
     }
+  }
+
+  // src/limit.js
+  function limit(f, point, info = {}) {
+    let max_step = info.max_step || 100, max_acc = info.max_acc || 15, max_time = info.max_time || 6e4;
+    let _e = info._e ?? 1e-30;
+    let _re = info._re ?? _e;
+    let useExp = !!info.useExp;
+    let baseNumber = typeof info.useExp == "number" ? info.useExp : 2;
+    let direction = info.direction || 1;
+    if (typeof _e != "number" || typeof _re != "number" || typeof info != "object") {
+      throw new Error("arguments error");
+    }
+    let start_time = (/* @__PURE__ */ new Date()).getTime();
+    info.toString = function() {
+      return `lastresult=${this.lastresult}, 
+        effective_result=${this.eff_result},
+        steps=${this.steps}/${max_step}, 
+        error=${this.error ? this.error.toString(10, 3) : "N/A"},
+        rerror=${this.rerror ? this.rerror.toString(10, 3) : "N/A"},
+        eff_decimal_precision=${this.eff_decimal_precision}, 
+        exectime=${this.exectime}/${max_time}`;
+    };
+    let target;
+    let func = f;
+    let h;
+    let pointStr = String(point).toLowerCase();
+    if (pointStr === "inf" || pointStr === "+inf" || pointStr === "infinity" || pointStr === "+infinity") {
+      target = bf(0);
+      if (useExp) {
+        func = (t) => f(pow(baseNumber, bf(1).div(t)));
+      } else {
+        func = (t) => f(bf(1).div(t));
+      }
+      h = bf(1);
+    } else if (pointStr === "-inf" || pointStr === "-infinity") {
+      target = bf(0);
+      if (useExp) {
+        func = (t) => f(pow(baseNumber, bf(1).div(t)).neg());
+      } else {
+        func = (t) => f(bf(-1).div(t));
+      }
+      h = bf(1);
+    } else {
+      target = bf(point);
+      let bfDirection = bf(direction);
+      if (useExp) {
+        func = (t) => {
+          let displacement = pow(baseNumber, bf(1).div(t).neg());
+          return f(target.add(bfDirection.mul(displacement)));
+        };
+        h = bf(1);
+      } else {
+        func = f;
+        h = bf(direction);
+      }
+    }
+    let e = bf(_e), re = bf(_re);
+    let updateInfo = () => {
+      let prec = 0;
+      if (!info.rerror || info.rerror.isZero() || info.rerror.isNaN()) {
+        prec = decimalPrecision();
+      } else {
+        try {
+          let logErr = info.rerror.log();
+          if (logErr.isFinite()) {
+            prec = Math.floor(-logErr.f64() / Math.log(10));
+          } else {
+            prec = decimalPrecision();
+          }
+        } catch (err) {
+          prec = decimalPrecision();
+        }
+      }
+      if (!Number.isFinite(prec) || prec <= 0) {
+        prec = 0;
+        info.eff_decimal_precision = 0;
+        info.eff_result = "";
+      } else {
+        info.eff_decimal_precision = prec;
+        if (info.eff_decimal_precision > decimalPrecision()) {
+          info.eff_result = info.lastresult.toString(10);
+        } else {
+          info.eff_result = info.lastresult.toString(10, info.eff_decimal_precision);
+        }
+      }
+    };
+    let T = [];
+    let x0 = target.add(h);
+    T[0] = func(x0);
+    info.lastresult = T[0];
+    info.error = bf(1e100);
+    info.rerror = bf(1e100);
+    let globalBest = T[0];
+    let globalMinErr = bf(1e100);
+    for (let m = 1; m <= max_step; ++m) {
+      let Tm = [];
+      h.setdiv(h, bf(2));
+      let x = target.add(h);
+      Tm[0] = func(x);
+      for (let j = 1; j <= max_acc && j <= m; ++j) {
+        let factor = bf(2).pow(j);
+        let denom = factor.sub(bf(1));
+        let num = Tm[j - 1].mul(factor).sub(T[j - 1]);
+        Tm[j] = num.div(denom);
+      }
+      let bestEst = Tm[0];
+      let minErr = Tm[0].sub(T[0]).abs();
+      for (let j = 1; j < Tm.length; j++) {
+        if (j - 1 < T.length) {
+          let est = Tm[j].sub(T[j - 1]).abs();
+          if (!est.isNaN() && est.cmp(minErr) < 0) {
+            minErr = est;
+            bestEst = Tm[j];
+          }
+        }
+      }
+      let err = minErr;
+      let rerr;
+      if (!bestEst.isZero()) {
+        rerr = err.div(bestEst.abs());
+      } else {
+        rerr = err;
+      }
+      if (!!info.debug && m > 2) {
+        console.log(`Limit[${m}]: val=${bestEst.toString(10, 10)}, err=${err.toString(10, 3)}`);
+      }
+      info.exectime = (/* @__PURE__ */ new Date()).getTime() - start_time;
+      info.lastresult = bestEst;
+      info.steps = m;
+      info.error = err;
+      info.rerror = rerr;
+      if (err.cmp(globalMinErr) < 0) {
+        globalMinErr = err;
+        globalBest = bestEst;
+      }
+      if (m > 3 && (err.cmp(e) <= 0 || rerr.cmp(re) <= 0)) {
+        info.result = info.lastresult;
+        updateInfo();
+        return info.result;
+      } else if (m == max_step || info.exectime > max_time) {
+        updateInfo();
+        info.result = null;
+        return info.result;
+      }
+      if (info.cb) {
+        updateInfo();
+        info.cb();
+      }
+      T = Tm;
+    }
+    return null;
+  }
+  function diff(f, x, n = 1, info = {}) {
+    const _x = bf(x);
+    const order = Math.floor(n);
+    const isSingular = !!info.singular;
+    if (order < 0) {
+      throw new Error("Derivative order must be a non-negative integer.");
+    }
+    if (order === 0) return f(_x);
+    const binom = [bf(1)];
+    for (let i = 1; i <= order; i++) {
+      let prev = binom[i - 1];
+      let val = prev.mul(bf(order - i + 1)).div(bf(i));
+      binom.push(val);
+    }
+    const differenceQuotient = (h) => {
+      let sum = bf(0);
+      let offset = isSingular ? 1 : 0;
+      for (let k = 0; k <= order; k++) {
+        let step = bf(k + offset).mul(h);
+        let samplePoint = _x.add(step);
+        let term = f(samplePoint).mul(binom[k]);
+        if ((order - k) % 2 === 1) {
+          sum.setsub(sum, term);
+        } else {
+          sum.setadd(sum, term);
+        }
+      }
+      return sum.div(h.pow(bf(order)));
+    };
+    return limit(differenceQuotient, 0, info);
+  }
+
+  // src/nsum.js
+  function nsum(f, range, info = {}) {
+    let max_step = info.max_step || 20, max_acc = info.max_acc || 15, max_time = info.max_time || 6e4;
+    let _e = info._e ?? 1e-30;
+    let _re = info._re ?? _e;
+    if (typeof _e != "number" || typeof _re != "number" || typeof info != "object" || !Array.isArray(range)) {
+      throw new Error("arguments error: invalid info object or range array");
+    }
+    let start_time = (/* @__PURE__ */ new Date()).getTime();
+    info.toString = function() {
+      return `lastresult=${this.lastresult}, 
+        effective_result=${this.eff_result},
+        steps=${this.steps}/${max_step}, 
+        terms_eval=${this.terms_count},
+        error=${this.error ? this.error.toString(10, 3) : "N/A"},
+        rerror=${this.rerror ? this.rerror.toString(10, 3) : "N/A"},
+        eff_decimal_precision=${this.eff_decimal_precision}, 
+        exectime=${this.exectime}/${max_time}`;
+    };
+    let n_start = bf(range[0]);
+    let end_val = range[1];
+    let isInfinite = false;
+    let n_end = null;
+    let endStr = String(end_val).toLowerCase();
+    if (endStr === "inf" || endStr === "+inf" || endStr === "infinity" || endStr === "+infinity") {
+      isInfinite = true;
+    } else {
+      n_end = bf(end_val);
+    }
+    let e = bf(_e), re = bf(_re);
+    let updateInfo = () => {
+      if (!info.rerror || info.rerror.isZero()) {
+        info.eff_decimal_precision = decimalPrecision();
+      } else {
+        info.eff_decimal_precision = Math.floor(-info.rerror.log().f64() / Math.log(10));
+      }
+      if (info.eff_decimal_precision <= 0) {
+        info.eff_decimal_precision = 0;
+        info.eff_result = "";
+      } else {
+        if (info.eff_decimal_precision > decimalPrecision()) {
+          info.eff_result = info.lastresult.toString(10);
+        } else {
+          info.eff_result = info.lastresult.toString(10, info.eff_decimal_precision);
+        }
+      }
+    };
+    let T = [];
+    let current_partial_sum = bf(0);
+    let current_n = bf(n_start);
+    let terms_evaluated = 0;
+    if (!isInfinite && current_n.cmp(n_end) > 0) {
+      info.result = bf(0);
+      return info.result;
+    }
+    let term0 = f(current_n);
+    current_partial_sum = term0.clone();
+    current_n.setadd(current_n, bf(1));
+    terms_evaluated++;
+    T[0] = current_partial_sum;
+    info.lastresult = T[0];
+    info.error = bf(1e100);
+    info.rerror = bf(1e100);
+    info.terms_count = terms_evaluated;
+    if (!isInfinite && current_n.cmp(n_end) > 0) {
+      info.result = current_partial_sum;
+      info.steps = 0;
+      info.error = bf(0);
+      info.rerror = bf(0);
+      updateInfo();
+      return info.result;
+    }
+    for (let m = 1; m <= max_step; ++m) {
+      let Tm = [];
+      let count_to_add = Math.pow(2, m - 1);
+      let stop_iteration = false;
+      for (let k = 0; k < count_to_add; k++) {
+        if (k % 1e3 === 0 && (/* @__PURE__ */ new Date()).getTime() - start_time > max_time) {
+          break;
+        }
+        if (!isInfinite && current_n.cmp(n_end) > 0) {
+          stop_iteration = true;
+          break;
+        }
+        let term = f(current_n);
+        current_partial_sum.setadd(current_partial_sum, term);
+        current_n.setadd(current_n, one);
+        terms_evaluated++;
+      }
+      info.terms_count = terms_evaluated;
+      if (stop_iteration) {
+        info.result = current_partial_sum;
+        info.steps = m;
+        info.error = bf(0);
+        info.rerror = bf(0);
+        info.exectime = (/* @__PURE__ */ new Date()).getTime() - start_time;
+        updateInfo();
+        return info.result;
+      }
+      Tm[0] = bf(current_partial_sum);
+      for (let j = 1; j <= max_acc && j <= m; ++j) {
+        let factor = two.pow(j);
+        let denom = factor.sub(one);
+        let num = Tm[j - 1].mul(factor).sub(T[j - 1]);
+        Tm[j] = num.div(denom);
+      }
+      let lastIdx = Tm.length - 1;
+      let bestEst = Tm[lastIdx];
+      let err = bestEst.sub(T[T.length - 1]).abs();
+      let rerr;
+      if (!bestEst.isZero()) {
+        rerr = err.div(bestEst.abs());
+      } else {
+        rerr = err;
+      }
+      info.exectime = (/* @__PURE__ */ new Date()).getTime() - start_time;
+      info.lastresult = bestEst;
+      info.steps = m;
+      info.error = err;
+      info.rerror = rerr;
+      if (!!info.debug && m > 2) {
+        console.log(`NSum[${m}]: terms=${terms_evaluated}, val=${bestEst.toString(10, 10)}, err=${err.toString(10, 3)}`);
+      }
+      if (m > 3 && (err.cmp(e) <= 0 || rerr.cmp(re) <= 0)) {
+        info.result = info.lastresult;
+        updateInfo();
+        return info.result;
+      } else if (m == max_step || info.exectime > max_time) {
+        updateInfo();
+        info.result = null;
+        return info.result;
+      }
+      if (info.cb) {
+        updateInfo();
+        info.cb();
+      }
+      T = Tm;
+    }
+    return null;
+  }
+
+  // src/shanks.js
+  function shanks(f, info = {}) {
+    let max_step = info.max_step || 200, max_time = info.max_time || 3e4;
+    let isArray = Array.isArray(f);
+    if (isArray) {
+      max_step = Math.min(max_step, f.length - 1);
+      let fa = f;
+      f = (n) => fa[n] instanceof BigFloat ? fa[n] : bf(fa[n]);
+    }
+    let _e = info._e ?? 1e-30;
+    let _re = info._re ?? _e;
+    if (typeof _e != "number" || typeof _re != "number" || typeof info != "object") {
+      throw new Error("arguments error");
+    }
+    let start_time = (/* @__PURE__ */ new Date()).getTime();
+    info.toString = function() {
+      return `lastresult=${this.lastresult}, 
+        effective_result=${this.eff_result},
+        steps=${this.steps}/${max_step}, 
+        error=${this.error ? this.error.toString(10, 3) : "N/A"},
+        rerror=${this.rerror ? this.rerror.toString(10, 3) : "N/A"},
+        eff_decimal_precision=${this.eff_decimal_precision}, 
+        exectime=${this.exectime}/${max_time}`;
+    };
+    let e = bf(_e), re = bf(_re);
+    let one2 = bf(1);
+    let updateInfo = () => {
+      let prec = 0;
+      if (!info.rerror || info.rerror.isZero() || info.rerror.isNaN()) {
+        prec = decimalPrecision();
+      } else {
+        try {
+          let logErr = info.rerror.log();
+          if (logErr.isFinite()) {
+            prec = Math.floor(-logErr.f64() / Math.log(10));
+          } else {
+            prec = decimalPrecision();
+          }
+        } catch (err) {
+          prec = decimalPrecision();
+        }
+      }
+      if (!Number.isFinite(prec) || prec <= 0) {
+        prec = 0;
+        info.eff_decimal_precision = 0;
+        info.eff_result = "";
+      } else {
+        info.eff_decimal_precision = prec;
+        if (info.eff_decimal_precision > decimalPrecision()) {
+          info.eff_result = info.lastresult.toString(10);
+        } else {
+          info.eff_result = info.lastresult.toString(10, info.eff_decimal_precision);
+        }
+      }
+    };
+    let table = [];
+    info.lastresult = bf(0);
+    info.error = bf(1e100);
+    info.rerror = bf(1e100);
+    for (let n = 0; n <= max_step; ++n) {
+      let currentRow = [];
+      let val = f(n);
+      currentRow[0] = val;
+      for (let k = 1; k <= n; ++k) {
+        let prevRow = table[n - 1];
+        let diff2 = currentRow[k - 1].sub(prevRow[k - 1]);
+        if (diff2.isZero()) {
+          currentRow[k] = currentRow[k - 1];
+          break;
+        }
+        let term2 = one2.div(diff2);
+        let term1;
+        if (k === 1) {
+          term1 = bf(0);
+        } else {
+          term1 = prevRow[k - 2];
+        }
+        currentRow[k] = term1.add(term2);
+      }
+      table[n] = currentRow;
+      let bestEst = currentRow[0];
+      let currentMinErr = bf(1e100);
+      if (n > 0) {
+        currentMinErr = currentRow[0].sub(table[n - 1][0]).abs();
+      }
+      for (let k = 2; k < currentRow.length; k += 2) {
+        if (!currentRow[k]) continue;
+        if (table[n - 1] && table[n - 1].length > k) {
+          let estErr = currentRow[k].sub(table[n - 1][k]).abs();
+          if (!estErr.isNaN() && estErr.cmp(currentMinErr) < 0) {
+            currentMinErr = estErr;
+            bestEst = currentRow[k];
+          }
+        }
+      }
+      let rerr;
+      if (!bestEst.isZero()) {
+        rerr = currentMinErr.div(bestEst.abs());
+      } else {
+        rerr = currentMinErr;
+      }
+      info.exectime = (/* @__PURE__ */ new Date()).getTime() - start_time;
+      info.lastresult = bestEst;
+      info.steps = n;
+      info.error = currentMinErr;
+      info.rerror = rerr;
+      if (!!info.debug && n > 2) {
+        console.log(`Shanks[${n}]: val=${bestEst.toString(10, 10)}, err=${currentMinErr.toString(10, 3)}`);
+      }
+      if (!isArray && n > 2 && (currentMinErr.cmp(e) <= 0 || rerr.cmp(re) <= 0)) {
+        info.result = info.lastresult;
+        updateInfo();
+        return info.result;
+      }
+      if (info.exectime > max_time) {
+        updateInfo();
+        info.result = null;
+        return info.result;
+      }
+      if (info.cb) {
+        updateInfo();
+        info.cb();
+      }
+    }
+    updateInfo();
+    if (isArray) {
+      info.result = info.lastresult;
+      return info.result;
+    }
+    info.result = null;
+    return null;
+  }
+
+  // src/identify.js
+  function identify(_x, options = {}) {
+    const x = bf(_x);
+    if (x.isZero()) return "0";
+    const tol = bf(options.tol || "1e-25");
+    const max_den = options.max_den || 1e6;
+    const base_constants = options.constants || [
+      { name: "PI", val: PI },
+      { name: "E", val: E },
+      { name: "SQRT2", val: bf(2).sqrt() },
+      { name: "LN2", val: bf(2).log() },
+      { name: "PHI", val: bf(5).sqrt().add(1).div(2) }
+      // Golden Ratio
+    ];
+    function toRational(v, max_q) {
+      let val = bf(v);
+      let sign2 = val.cmp(0) < 0 ? -1 : 1;
+      val = val.abs();
+      let h0 = bf(0), h1 = bf(1);
+      let k0 = bf(1), k1 = bf(0);
+      let x_n = val;
+      for (let i = 0; i < 50; i++) {
+        let a_n = x_n.floor();
+        let h_next = a_n.mul(h1).add(h0);
+        let k_next = a_n.mul(k1).add(k0);
+        if (k_next.cmp(max_q) > 0) break;
+        h0 = h1;
+        h1 = h_next;
+        k0 = k1;
+        k1 = k_next;
+        let current_val = h1.div(k1);
+        let diff2 = val.sub(current_val).abs();
+        if (diff2.cmp(tol) < 0) {
+          return { p: h1.mul(sign2), q: k1, diff: diff2 };
+        }
+        let residue = x_n.sub(a_n);
+        if (residue.isZero() || i > 40) break;
+        x_n = bf(1).div(residue);
+      }
+      return { p: h1.mul(sign2), q: k1, diff: val.sub(h1.div(k1)).abs() };
+    }
+    function format(p, q, constName) {
+      let ps = p.toString(10);
+      let qs = q.toString(10);
+      let res = "";
+      if (constName) {
+        if (ps === "1") res = constName;
+        else if (ps === "-1") res = "-" + constName;
+        else res = ps + "*" + constName;
+      } else {
+        res = ps;
+      }
+      if (qs !== "1") {
+        return `(${res})/${qs}`;
+      }
+      return res;
+    }
+    let rat = toRational(x, max_den);
+    if (rat.diff.cmp(tol) < 0) return format(rat.p, rat.q);
+    for (let c of base_constants) {
+      let ratC = toRational(x.div(c.val), max_den);
+      if (ratC.diff.cmp(tol) < 0) return format(ratC.p, ratC.q, c.name);
+    }
+    for (let c of base_constants) {
+      let ratI = toRational(c.val.div(x), max_den);
+      if (ratI.diff.cmp(tol) < 0) return format(ratI.q, ratI.p, c.name);
+    }
+    let x2 = x.mul(x);
+    let rat2 = toRational(x2, max_den);
+    if (rat2.diff.cmp(tol) < 0) {
+      return `sqrt(${format(rat2.p, rat2.q)})`;
+    }
+    for (let c of base_constants) {
+      for (let r = -5; r <= 5; r++) {
+        if (r === 0) continue;
+        let target = x.sub(r);
+        let ratT = toRational(target.div(c.val), 1e3);
+        if (ratT.diff.cmp(tol) < 0) {
+          let term1 = format(ratT.p, ratT.q, c.name);
+          return `${term1}${r > 0 ? "+" : ""}${r}`;
+        }
+      }
+    }
+    try {
+      let lx = x.log();
+      let ratL = toRational(lx, 1e3);
+      if (ratL.diff.cmp(tol) < 0) return `exp(${format(ratL.p, ratL.q)})`;
+    } catch (e) {
+    }
+    return x.toString(10);
+  }
+
+  // src/bernoulli.js
+  var B_CACHE = [];
+  function clearBernoulliCache() {
+    B_CACHE = [];
+  }
+  function bernoulli(n) {
+    if (B_CACHE.length == 0) {
+      B_CACHE.push(new BigFloat(bf(1), 10, false, true));
+      B_CACHE.push(new BigFloat(bf(-1).div(2), 10, false, true));
+    }
+    if (n < 0) throw new Error("Index must be non-negative");
+    if (n > 1 && n % 2 !== 0) return bf(0);
+    if (B_CACHE[n] !== void 0) return B_CACHE[n];
+    if (n < 40) {
+      let s = bf(0);
+      const n_plus_1 = n + 1;
+      let binom = bf(1);
+      for (let k2 = 0; k2 < n; k2++) {
+        s = s.add(binom.mul(bernoulli(k2)));
+        binom = binom.mul(bf(n_plus_1 - k2)).div(bf(k2 + 1));
+      }
+      const res2 = s.div(bf(n_plus_1)).neg();
+      B_CACHE[n] = res2;
+      return res2;
+    }
+    const k = n / 2;
+    const pi = PI;
+    const twoPi = pi.mul(bf(2));
+    let fact = bf(1);
+    for (let i = 2; i <= n; i++) fact = fact.mul(bf(i));
+    let z = bf(1);
+    const eps = bf(getEpsilon() * 1e-3);
+    for (let m = 2; m < 1e3; m++) {
+      const term = bf(m).pow(bf(-n));
+      z = z.add(term);
+      if (term.cmp(eps) < 0) break;
+    }
+    let res = bf(2).mul(fact).mul(z).div(twoPi.pow(bf(n)));
+    if ((k + 1) % 2 !== 0) res = res.neg();
+    B_CACHE[n] = new BigFloat(res, 10, false, true);
+    return B_CACHE[n];
+  }
+
+  // src/gamma.js
+  function stirlingSeries(z, numTerms) {
+    const zInv = new Complex(1).div(z);
+    const zInvSq = zInv.mul(zInv);
+    let termPow = zInv;
+    let sum = new Complex(0);
+    for (let k = 1; k <= numTerms; k++) {
+      const n = 2 * k;
+      const b = bernoulli(n);
+      const denom = bf(n).mul(bf(n - 1));
+      const term = termPow.mul(new Complex(b.div(denom)));
+      sum = sum.add(term);
+      termPow = termPow.mul(zInvSq);
+    }
+    return sum;
+  }
+  function logGamma(z) {
+    let _z = z instanceof Complex ? z : new Complex(z);
+    const prec = decimalPrecision();
+    const pi = PI;
+    if (_z.im.isZero() && _z.re.cmp(zero) <= 0 && _z.re.round().equals(_z.re)) {
+      return new Complex(Infinity, 0);
+    }
+    if (_z.re.cmp(half) < 0) {
+      const c_pi = new Complex(pi);
+      const sinPiZ = _z.mul(c_pi).sin();
+      return c_pi.log().sub(sinPiZ.log()).sub(logGamma(new Complex(1).sub(_z)));
+    }
+    let currentZ = _z;
+    let shiftLogSum = new Complex(0);
+    const threshold = bf(Math.floor(prec * 0.6) + 10);
+    while (currentZ.re.cmp(threshold) < 0) {
+      shiftLogSum = shiftLogSum.add(currentZ.log());
+      currentZ = currentZ.add(new Complex(1));
+    }
+    const lnSqrt2Pi = bf(2).mul(pi).log().mul(half);
+    const numTerms = Math.floor(prec * 0.4) + 2;
+    let res = currentZ.sub(new Complex(0.5)).mul(currentZ.log()).sub(currentZ).add(new Complex(lnSqrt2Pi)).add(stirlingSeries(currentZ, numTerms));
+    return res.sub(shiftLogSum);
+  }
+  function gamma(z) {
+    const _z = z instanceof Complex ? z : new Complex(z);
+    if (_z.im.isZero() && _z.re.cmp(zero) > 0) {
+      const val = _z.re.toNumber();
+      if (Number.isInteger(val) && val < 50) {
+        let res = bf(1);
+        for (let i = 1; i < val; i++) res = res.mul(bf(i));
+        return new Complex(res);
+      }
+    }
+    if (_z.im.isExactZero() && _z.re.cmp(zero) <= 0 && _z.re.floor().equals(_z.re)) {
+      throw new Error("Gamma function pole at " + _z.re.toString());
+    }
+    return logGamma(_z).exp();
+  }
+  function factorial(n) {
+    if (Number.isInteger(n) && n > 0) {
+      let ret2 = bf(1);
+      for (let i = 2; i <= n; ++i) {
+        ret2.setmul(ret2, i);
+      }
+      return ret2;
+    }
+    const _n = n instanceof Complex ? n : new Complex(n);
+    let ret = gamma(_n.add(new Complex(1)));
+    if (n instanceof Complex) {
+      return ret;
+    }
+    return ret.re;
+  }
+  function beta(x, y) {
+    const _x = x instanceof Complex ? x : new Complex(x);
+    const _y = y instanceof Complex ? y : new Complex(y);
+    const logB = logGamma(_x).add(logGamma(_y)).sub(logGamma(_x.add(_y)));
+    return logB.exp();
+  }
+
+  // src/zeta.js
+  function zeta(s, a = "1") {
+    let _s = s instanceof Complex ? s : new Complex(s);
+    let _a = a instanceof Complex ? a : new Complex(a);
+    const prec = decimalPrecision();
+    if (_s.re.equals(one) && _s.im.isZero()) {
+      return new Complex(Infinity, 0);
+    }
+    if (_a.re.equals(one) && _a.im.isZero() && _s.re.cmp(zero) < 0) {
+      const c_pi = new Complex(PI);
+      const c_one = new Complex(one);
+      const log2 = new Complex(2).log();
+      const logPi = c_pi.log();
+      const term_sLog2 = _s.mul(log2);
+      const term_sMinus1LogPi = _s.sub(c_one).mul(logPi);
+      const term_logGamma = logGamma(c_one.sub(_s));
+      const expTerm = term_sLog2.add(term_sMinus1LogPi).add(term_logGamma).exp();
+      const sinTerm = _s.mul(c_pi.div(new Complex(2))).sin();
+      const zetaTerm = zeta(c_one.sub(_s));
+      return expTerm.mul(sinTerm).mul(zetaTerm);
+    }
+    if (_a.re.cmp(new Complex(0.5).re) === 0 && _a.im.isZero()) {
+      const c_two = new Complex(2);
+      const c_one = new Complex(1);
+      return c_two.pow(_s).sub(c_one).mul(zeta(_s, 1));
+    }
+    const absS = _s.abs().toNumber();
+    const N = Math.floor(prec * 0.6) + Math.floor(absS * 0.5) + 15;
+    const M = Math.floor(prec * 0.4) + Math.floor(absS * 0.1) + 5;
+    return zetaEulerMaclaurin(_s, _a, N, M);
+  }
+  function altZeta(s) {
+    const _s = s instanceof Complex ? s : new Complex(s);
+    const c_one = new Complex(one);
+    if (_s.re.equals(one) && _s.im.isZero()) {
+      return new Complex(2).log();
+    }
+    const c_two = new Complex(2);
+    const exponent = c_one.sub(_s);
+    const term = c_one.sub(c_two.pow(exponent));
+    return term.mul(zeta(_s));
+  }
+  function zetaEulerMaclaurin(s, a, N, M) {
+    const c_one = new Complex(one);
+    const negS = s.neg();
+    let sum1 = new Complex(0);
+    for (let k = 0; k < N; k++) {
+      sum1 = sum1.add(a.add(new Complex(k)).pow(negS));
+    }
+    const X2 = a.add(new Complex(N));
+    const sMinus1 = s.sub(c_one);
+    const sum2 = X2.pow(c_one.sub(s)).div(sMinus1);
+    const sum3 = X2.pow(negS).mul(new Complex(0.5));
+    let sum4 = new Complex(0);
+    let Xpow = X2.pow(negS.sub(c_one));
+    const XinvSq = c_one.div(X2.mul(X2));
+    let falling = s;
+    for (let k = 1; k <= M; k++) {
+      const n = 2 * k;
+      const bk = bernoulli(n);
+      const denom = factorial(n);
+      const coeff = new Complex(bk.div(denom));
+      const term = Xpow.mul(coeff).mul(falling);
+      sum4 = sum4.add(term);
+      if (k < M) {
+        falling = falling.mul(s.add(new Complex(2 * k - 1)));
+        falling = falling.mul(s.add(new Complex(2 * k)));
+        Xpow = Xpow.mul(XinvSq);
+      }
+    }
+    return sum1.add(sum2).add(sum3).add(sum4);
+  }
+  function primeZeta(s) {
+    const _s = s instanceof Complex ? s : new Complex(s);
+    if (_s.re.cmp(one) <= 0) {
+      throw new Error("PrimeZeta diverges for Re(s) <= 1");
+    }
+    const prec = decimalPrecision();
+    const maxTerms = Math.floor(prec * 1.2) + 20;
+    let sum = new Complex(0);
+    for (let n = 1; n < maxTerms; n++) {
+      const mu = getMobius(n);
+      if (mu === 0) continue;
+      const ns = _s.mul(new Complex(n));
+      const logZ = zeta(ns).log();
+      const weight = new Complex(bf(mu).div(bf(n)));
+      const term = logZ.mul(weight);
+      sum = sum.add(term);
+      if (n > 2 && term.abs().cmp(bf(10).pow(bf(-prec))) < 0) break;
+    }
+    return sum;
+  }
+  function getMobius(n) {
+    if (n === 1) return 1;
+    let p = 0;
+    let temp = n;
+    for (let i = 2; i * i <= temp; i++) {
+      if (temp % i === 0) {
+        temp /= i;
+        if (temp % i === 0) return 0;
+        p++;
+      }
+    }
+    if (temp > 1) p++;
+    return p % 2 === 0 ? 1 : -1;
+  }
+
+  // src/lambertw.js
+  function lambertw(z, k = 0) {
+    let _z = z instanceof Complex ? z : new Complex(z);
+    if (_z.re.isZero() && _z.im.isZero()) {
+      if (k === 0) return new Complex(0);
+      return new Complex(-Infinity, 0);
+    }
+    const E2 = new Complex(E);
+    const branch_pt = new Complex(-1).div(E2);
+    if (_z.re.cmp(branch_pt.re) === 0 && _z.im.isZero()) {
+      if (k === 0 || k === -1) {
+        return new Complex(-1);
+      }
+    }
+    const ONE = new Complex(one);
+    const TWO = new Complex(two);
+    const THREE = new Complex(three);
+    let w;
+    let re = _z.re.toNumber();
+    let im = _z.im.toNumber();
+    let abs_z = Math.sqrt(re * re + im * im);
+    let dist_bp = Math.sqrt((re + 0.36787944117144233) ** 2 + im * im);
+    if (k === 0) {
+      if (dist_bp < 0.3) {
+        let p = TWO.mul(E2.mul(_z).add(ONE)).sqrt();
+        w = new Complex(-1).add(p).sub(p.mul(p).div(THREE));
+      } else if (re > -0.3 && abs_z < 2.5) {
+        w = _z.div(_z.add(ONE));
+      } else {
+        let L1 = _z.log();
+        let L2 = L1.log();
+        w = L1.sub(L2).add(L2.div(L1));
+      }
+    } else if (k === -1) {
+      if (dist_bp < 0.3) {
+        let p = TWO.mul(E2.mul(_z).add(ONE)).sqrt().mul(new Complex(-1));
+        w = new Complex(-1).add(p).sub(p.mul(p).div(THREE));
+      } else if (re < 0 && abs_z < 0.5) {
+        let L1 = _z.neg().log();
+        let L2 = L1.neg().log();
+        w = L1.sub(L2).add(L2.div(L1));
+      } else {
+        let L1 = _z.log().add(new Complex(0, PI.mul(bf(-2))));
+        let L2 = L1.log();
+        w = L1.sub(L2).add(L2.div(L1));
+      }
+    } else {
+      let L1 = _z.log().add(new Complex(0, PI.mul(bf(2 * k))));
+      let L2 = L1.log();
+      w = L1.sub(L2).add(L2.div(L1));
+    }
+    const max_iter = 1e3;
+    let prev_w = w;
+    let prev2_w = w;
+    for (let i = 0; i < max_iter; i++) {
+      let w_re = w.re.toNumber();
+      let w_next;
+      let wPlus1 = w.add(ONE);
+      if (wPlus1.re.isZero() && wPlus1.im.isZero()) {
+        break;
+      }
+      let wPlus2 = w.add(TWO);
+      if (w_re > 0) {
+        let emw = w.neg().exp();
+        let delta = w.sub(_z.mul(emw));
+        let term2 = wPlus2.mul(delta).div(wPlus1.mul(TWO));
+        let denom = wPlus1.sub(term2);
+        if (denom.re.isZero() && denom.im.isZero()) break;
+        w_next = w.sub(delta.div(denom));
+      } else {
+        let ew = w.exp();
+        let p = w.mul(ew).sub(_z);
+        let term2 = wPlus2.mul(p).div(wPlus1.mul(TWO));
+        let denom = ew.mul(wPlus1).sub(term2);
+        if (denom.re.isZero() && denom.im.isZero()) break;
+        w_next = w.sub(p.div(denom));
+      }
+      if (w_next.re.cmp(w.re) === 0 && w_next.im.cmp(w.im) === 0) {
+        w = w_next;
+        break;
+      }
+      if (i > 0 && w_next.re.cmp(prev2_w.re) === 0 && w_next.im.cmp(prev2_w.im) === 0) {
+        w = w_next;
+        break;
+      }
+      prev2_w = prev_w;
+      prev_w = w;
+      w = w_next;
+    }
+    return w;
+  }
+
+  // src/bessel.js
+  function isInteger(c) {
+    if (!c.im.isZero()) return false;
+    let num = c.re.toNumber();
+    if (Math.abs(num) < Number.MAX_SAFE_INTEGER) {
+      return num % 1 === 0;
+    }
+    return c.re.cmp(c.re.floor()) === 0;
+  }
+  function hyp0f1(a, z, max_iter = 1e4) {
+    let _a = a instanceof Complex ? a : new Complex(a);
+    let _z = z instanceof Complex ? z : new Complex(z);
+    const ONE = new Complex(one);
+    let term = ONE;
+    let sum = ONE;
+    let prev_sum = ONE;
+    let prev2_sum = ONE;
+    for (let k = 1; k < max_iter; k++) {
+      let k_cplx = new Complex(k);
+      let a_plus_k_minus_1 = _a.add(new Complex(k - 1));
+      term = term.mul(_z).div(k_cplx.mul(a_plus_k_minus_1));
+      let next_sum = sum.add(term);
+      if (next_sum.re.cmp(sum.re) === 0 && next_sum.im.cmp(sum.im) === 0) {
+        sum = next_sum;
+        break;
+      }
+      if (k > 1 && next_sum.re.cmp(prev2_sum.re) === 0 && next_sum.im.cmp(prev2_sum.im) === 0) {
+        sum = next_sum;
+        break;
+      }
+      prev2_sum = prev_sum;
+      prev_sum = sum;
+      sum = next_sum;
+    }
+    return sum;
+  }
+  function besselj(nu, z) {
+    let _nu = nu instanceof Complex ? nu : new Complex(nu);
+    let _z = z instanceof Complex ? z : new Complex(z);
+    if (_z.re.isZero() && _z.im.isZero()) {
+      if (_nu.re.isZero() && _nu.im.isZero()) return new Complex(one);
+      if (_nu.re.toNumber() > 0) return new Complex(0);
+      return new Complex(Infinity, 0);
+    }
+    if (isInteger(_nu) && _nu.re.toNumber() < 0) {
+      let n = Math.abs(Math.round(_nu.re.toNumber()));
+      let sign2 = n % 2 === 0 ? new Complex(one) : new Complex(-1);
+      return sign2.mul(besselj(_nu.neg(), _z));
+    }
+    const TWO = new Complex(two);
+    const ONE = new Complex(one);
+    let z_over_2 = _z.div(TWO);
+    let prefactor = z_over_2.pow(_nu);
+    let gamma_nu_plus_1 = gamma(_nu.add(ONE));
+    let z_sq_over_4_neg = _z.mul(_z).div(new Complex(4)).neg();
+    let h = hyp0f1(_nu.add(ONE), z_sq_over_4_neg);
+    return prefactor.mul(h).div(gamma_nu_plus_1);
+  }
+  function besseli(nu, z) {
+    let _nu = nu instanceof Complex ? nu : new Complex(nu);
+    let _z = z instanceof Complex ? z : new Complex(z);
+    if (_z.re.isZero() && _z.im.isZero()) {
+      if (_nu.re.isZero() && _nu.im.isZero()) return new Complex(one);
+      if (_nu.re.toNumber() > 0) return new Complex(0);
+      return new Complex(Infinity, 0);
+    }
+    if (isInteger(_nu) && _nu.re.toNumber() < 0) {
+      return besseli(_nu.neg(), _z);
+    }
+    const TWO = new Complex(two);
+    const ONE = new Complex(one);
+    let z_over_2 = _z.div(TWO);
+    let prefactor = z_over_2.pow(_nu);
+    let gamma_nu_plus_1 = gamma(_nu.add(ONE));
+    let z_sq_over_4 = _z.mul(_z).div(new Complex(4));
+    let h = hyp0f1(_nu.add(ONE), z_sq_over_4);
+    return prefactor.mul(h).div(gamma_nu_plus_1);
+  }
+  function bessely(nu, z) {
+    let _nu = nu instanceof Complex ? nu : new Complex(nu);
+    let _z = z instanceof Complex ? z : new Complex(z);
+    if (_z.re.isZero() && _z.im.isZero()) {
+      return new Complex(-Infinity, 0);
+    }
+    if (isInteger(_nu)) {
+      let eps = new Complex(1e-12);
+      _nu = _nu.add(eps);
+    }
+    let pi = new Complex(PI || Math.PI);
+    let nu_pi = _nu.mul(pi);
+    let j_nu = besselj(_nu, _z);
+    let j_minus_nu = besselj(_nu.neg(), _z);
+    let cos_nu_pi = nu_pi.cos();
+    let sin_nu_pi = nu_pi.sin();
+    let num = j_nu.mul(cos_nu_pi).sub(j_minus_nu);
+    return num.div(sin_nu_pi);
+  }
+  function besselk(nu, z) {
+    let _nu = nu instanceof Complex ? nu : new Complex(nu);
+    let _z = z instanceof Complex ? z : new Complex(z);
+    if (_z.re.isZero() && _z.im.isZero()) {
+      return new Complex(Infinity, 0);
+    }
+    if (isInteger(_nu)) {
+      let eps = new Complex(1e-12);
+      _nu = _nu.add(eps);
+    }
+    let pi = new Complex(PI || Math.PI);
+    let nu_pi = _nu.mul(pi);
+    let i_nu = besseli(_nu, _z);
+    let i_minus_nu = besseli(_nu.neg(), _z);
+    let sin_nu_pi = nu_pi.sin();
+    let num = i_minus_nu.sub(i_nu);
+    let half_pi = pi.div(new Complex(two));
+    return half_pi.mul(num).div(sin_nu_pi);
+  }
+  function hankel1(nu, z) {
+    let j = besselj(nu, z);
+    let y = bessely(nu, z);
+    let i = new Complex(0, 1);
+    return j.add(i.mul(y));
+  }
+  function hankel2(nu, z) {
+    let j = besselj(nu, z);
+    let y = bessely(nu, z);
+    let i = new Complex(0, 1);
+    return j.sub(i.mul(y));
   }
 
   // src/frac.js
@@ -2156,13 +5696,13 @@ var bfjs = (() => {
         }
         return true;
       }
-      const limit = Math.min(this.o, B.o);
+      const limit2 = Math.min(this.o, B.o);
       let i = 0, j = 0;
       while (i < this.degs.length || j < B.degs.length) {
         const degA = i < this.degs.length ? this.degs[i] : Infinity;
         const degB = j < B.degs.length ? B.degs[j] : Infinity;
         const minDeg = Math.min(degA, degB);
-        if (minDeg >= limit) break;
+        if (minDeg >= limit2) break;
         if (degA === degB) {
           if (!cmp(this.coefs[i], B.coefs[j])) return false;
           i++;
@@ -2280,13 +5820,13 @@ var bfjs = (() => {
         if (deg >= relPrec) break;
         deltaMap.set(deg, this.coefs[i].div(c));
       }
-      const limit = relPrec;
+      const limit2 = relPrec;
       const b = [new this.coefType(1)];
-      const a = new Array(limit + 1).fill(null);
+      const a = new Array(limit2 + 1).fill(null);
       for (const [deg, val] of deltaMap) {
-        if (deg <= limit) a[deg] = val;
+        if (deg <= limit2) a[deg] = val;
       }
-      for (let k = 1; k < limit; k++) {
+      for (let k = 1; k < limit2; k++) {
         let sum = new this.coefType(0);
         for (let j = 1; j <= k; j++) {
           if (a[j]) {
@@ -3067,11 +6607,11 @@ var bfjs = (() => {
     gcing = true;
     let ele = [...gc_array].sort(
       (a, b) => {
-        let diff = b.visited - a.visited;
-        if (diff > 2 ** 31 || diff < -(2 ** 31)) {
-          diff *= -1;
+        let diff2 = b.visited - a.visited;
+        if (diff2 > 2 ** 31 || diff2 < -(2 ** 31)) {
+          diff2 *= -1;
         }
-        return diff;
+        return diff2;
       }
     );
     let gcstartpos = Math.floor(gc_ele_limit / 2);
@@ -3082,10 +6622,10 @@ var bfjs = (() => {
     gc_array = new Set(ele.slice(0, gcstartpos));
     gcing = false;
   }
-  var visit_index = 0;
+  var visit_index = 1;
   function gc_track(f, addToArray = true) {
     f.visited = visit_index;
-    visit_index = (visit_index + 1) % 2 ** 32;
+    visit_index = (visit_index + 1 & 4294967295) + 1;
     if (addToArray) {
       gc_array.add(f);
       if (gc_array.size >= gc_ele_limit) {
@@ -3108,36 +6648,49 @@ var bfjs = (() => {
     }
     return libbf._new_();
   }
-  var precision = 500;
+  var precision = 352;
   function setPrecision(p) {
     precision = p;
   }
+  function getPrecision() {
+    return precision;
+  }
   var precision_array = [];
-  function push_precision(prec) {
+  function pushPrecision(prec) {
     precision_array.push(precision);
     precision = prec;
   }
-  function pop_precision() {
+  function popPrecision() {
     if (precision.length) {
       precision = precision_array.pop();
     }
   }
-  function decimal_precision(dp) {
+  function decimalPrecision(dp) {
     if (dp != void 0) {
       precision = Math.ceil(dp * Math.log2(10));
     } else {
       return Math.ceil(precision / Math.log2(10));
     }
   }
-  function push_decimal_precision(dp) {
-    push_precision(0);
-    decimal_precision(dp);
+  function pushDecimalPrecision(dp) {
+    pushPrecision(0);
+    decimalPrecision(dp);
   }
-  var gc_ele_limit = 200;
-  function set_gc_ele_limit(l) {
+  var EPSILONS_cache = [];
+  function getEpsilon() {
+    if (void 0 === EPSILONS_cache[precision]) {
+      EPSILONS_cache[precision] = bf().setEPSILON().f64();
+    }
+    return EPSILONS_cache[precision];
+  }
+  var gc_ele_limit = 4e3;
+  function setGcEleLimit(l) {
     gc_ele_limit = l;
   }
-  function is_ready() {
+  function getGcEleLimit() {
+    return gc_ele_limit;
+  }
+  function isReady() {
     return !!libbf;
   }
   var throwExceptionOnInvalidOp = false;
@@ -3146,6 +6699,9 @@ var bfjs = (() => {
   }
   var libbf = null;
   var globalFlag = 0;
+  function getGlobalFlag() {
+    return globalFlag;
+  }
   function setGlobalFlag(f) {
     globalFlag = f;
   }
@@ -3186,7 +6742,6 @@ var bfjs = (() => {
     }
     return `${intPart}.${newDecPart}`;
   };
-  var EPSILONS_cache = [];
   var BigFloat = class _BigFloat {
     /**
      * Creates a new BigFloat instance.
@@ -3219,6 +6774,7 @@ var bfjs = (() => {
         default:
           throw new Error("BigFloat: invalid constructor oprand " + typeof val);
       }
+      this.visited = 0;
       this.visit();
       this.constant = constant;
     }
@@ -3754,28 +7310,18 @@ var bfjs = (() => {
       return libbf._is_zero_(this.geth());
     }
     /**
-     * Checks if this BigFloat is almost zero.
+     * Checks if this BigFloat is zero.
      * @returns {boolean}
      */
     isZero() {
-      return this.isAlmostZero();
-    }
-    /**
-     * Gets the epsilon value for the current precision.
-     * @returns {number}
-     */
-    getEpsilon() {
-      if (void 0 === EPSILONS_cache[precision]) {
-        EPSILONS_cache[precision] = bf().setEPSILON().f64();
-      }
-      return EPSILONS_cache[precision];
+      return this.isExactZero();
     }
     /**
      * Checks if this BigFloat is almost zero.
      * @returns {boolean}
      */
     isAlmostZero() {
-      return Math.abs(this.f64()) <= this.getEpsilon();
+      return Math.abs(this.f64()) <= getEpsilon();
     }
     /**
      * Copies the value of another BigFloat to this one.
@@ -4141,6 +7687,48 @@ var bfjs = (() => {
      * @param {number} [prec=0] 
      * @returns {BigFloat}
      */
+    cosh(prec = 0) {
+      let exp2 = bf(void 0, 10, false, false).setexp(this, prec);
+      let one_div_exp = bf(void 0, 10, false, false).setdiv(one, exp2, prec);
+      let ret = bf(void 0).setadd(exp2, one_div_exp, prec);
+      ret.setmul(ret, half, prec);
+      exp2.dispose(false);
+      one_div_exp.dispose(false);
+      return ret;
+    }
+    /**
+     * @param {number} [prec=0] 
+     * @returns {BigFloat}
+     */
+    sinh(prec = 0) {
+      let exp2 = bf(void 0, 10, false, false).setexp(this, prec);
+      let one_div_exp = bf(void 0, 10, false, false).setdiv(one, exp2, prec);
+      let ret = bf(void 0).setsub(exp2, one_div_exp, prec);
+      ret.setmul(ret, half, prec);
+      exp2.dispose(false);
+      one_div_exp.dispose(false);
+      return ret;
+    }
+    /**
+     * @param {number} [prec=0] 
+     * @returns {BigFloat}
+     */
+    tanh(prec = 0) {
+      let exp2 = bf(void 0, 10, false, false).setexp(this, prec);
+      let one_div_exp = bf(void 0, 10, false, false).setdiv(one, exp2, prec);
+      let s = bf(void 0, 10, false, false).setsub(exp2, one_div_exp, prec);
+      let c = bf(void 0, 10, false, false).setadd(exp2, one_div_exp, prec);
+      let ret = bf(void 0).setdiv(s, c, prec);
+      exp2.dispose(false);
+      one_div_exp.dispose(false);
+      s.dispose(false);
+      c.dispose(false);
+      return ret;
+    }
+    /**
+     * @param {number} [prec=0] 
+     * @returns {BigFloat}
+     */
     tan(prec = 0) {
       return this.callFunc(this.settan, 2, prec);
     }
@@ -4196,6 +7784,40 @@ var bfjs = (() => {
   var three = null;
   var PI = null;
   var E = null;
+  var Constants = {
+    /** @type {BigFloat | null} */
+    get minus_one() {
+      return minus_one;
+    },
+    /** @type {BigFloat | null} */
+    get zero() {
+      return zero;
+    },
+    /** @type {BigFloat | null} */
+    get half() {
+      return half;
+    },
+    /** @type {BigFloat | null} */
+    get one() {
+      return one;
+    },
+    /** @type {BigFloat | null} */
+    get two() {
+      return two;
+    },
+    /** @type {BigFloat | null} */
+    get three() {
+      return three;
+    },
+    /** @type {BigFloat | null} */
+    get PI() {
+      return PI;
+    },
+    /** @type {BigFloat | null} */
+    get E() {
+      return E;
+    }
+  };
   var inited = false;
   async function init(m) {
     if (inited) {
@@ -4215,10 +7837,20 @@ var bfjs = (() => {
     return true;
   }
   function max(...args) {
-    let t = args.map((v) => v instanceof BigFloat ? v : bf(v));
+    args = args.map((v) => v instanceof BigFloat ? v : bf(v));
     let ret = args[0];
     for (let i = 1; i < args.length; ++i) {
       if (args[i].cmp(ret) > 0) {
+        ret = args[i];
+      }
+    }
+    return ret;
+  }
+  function min(...args) {
+    args = args.map((v) => v instanceof BigFloat ? v : bf(v));
+    let ret = args[0];
+    for (let i = 1; i < args.length; ++i) {
+      if (args[i].cmp(ret) < 0) {
         ret = args[i];
       }
     }
@@ -4280,6 +7912,18 @@ var bfjs = (() => {
   }
   function acos(v, prec = 0) {
     return bf(v).acos(prec);
+  }
+  function safe_bf(v) {
+    return v instanceof BigFloat ? v : bf(v);
+  }
+  function linspace(start, end, n) {
+    const arr = [];
+    start = safe_bf(start);
+    end = safe_bf(end);
+    n = typeof n == "number" ? n : safe_bf(n).toNumber();
+    const step = end.sub(start).div(n - 1);
+    for (let i = 0; i < n; i++) arr.push(start.add(step.mul(i)));
+    return arr;
   }
   return __toCommonJS(bf_exports);
 })();

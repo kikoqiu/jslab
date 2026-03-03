@@ -883,6 +883,113 @@ async function createWasm() {
   var __abort_js = () =>
       abort('native code called abort()');
 
+  var runtimeKeepaliveCounter = 0;
+  var __emscripten_runtime_keepalive_clear = () => {
+      noExitRuntime = false;
+      runtimeKeepaliveCounter = 0;
+    };
+
+  var timers = {
+  };
+  
+  var handleException = (e) => {
+      // Certain exception types we do not treat as errors since they are used for
+      // internal control flow.
+      // 1. ExitStatus, which is thrown by exit()
+      // 2. "unwind", which is thrown by emscripten_unwind_to_js_event_loop() and others
+      //    that wish to return to JS event loop.
+      if (e instanceof ExitStatus || e == 'unwind') {
+        return EXITSTATUS;
+      }
+      checkStackCookie();
+      if (e instanceof WebAssembly.RuntimeError) {
+        if (_emscripten_stack_get_current() <= 0) {
+          err('Stack overflow detected.  You can try increasing -sSTACK_SIZE (currently set to 65536)');
+        }
+      }
+      quit_(1, e);
+    };
+  
+  
+  var keepRuntimeAlive = () => noExitRuntime || runtimeKeepaliveCounter > 0;
+  var _proc_exit = (code) => {
+      EXITSTATUS = code;
+      if (!keepRuntimeAlive()) {
+        Module['onExit']?.(code);
+        ABORT = true;
+      }
+      quit_(code, new ExitStatus(code));
+    };
+  
+  
+  /** @param {boolean|number=} implicit */
+  var exitJS = (status, implicit) => {
+      EXITSTATUS = status;
+  
+      checkUnflushedContent();
+  
+      // if exit() was called explicitly, warn the user if the runtime isn't actually being shut down
+      if (keepRuntimeAlive() && !implicit) {
+        var msg = `program exited (with status: ${status}), but keepRuntimeAlive() is set (counter=${runtimeKeepaliveCounter}) due to an async operation, so halting execution but not exiting the runtime or preventing further async execution (you can use emscripten_force_exit, if you want to force a true shutdown)`;
+        readyPromiseReject?.(msg);
+        err(msg);
+      }
+  
+      _proc_exit(status);
+    };
+  var _exit = exitJS;
+  
+  
+  var maybeExit = () => {
+      if (!keepRuntimeAlive()) {
+        try {
+          _exit(EXITSTATUS);
+        } catch (e) {
+          handleException(e);
+        }
+      }
+    };
+  var callUserCallback = (func) => {
+      if (ABORT) {
+        err('user callback triggered after runtime exited or application aborted.  Ignoring.');
+        return;
+      }
+      try {
+        return func();
+      } catch (e) {
+        handleException(e);
+      } finally {
+        maybeExit();
+      }
+    };
+  
+  
+  var _emscripten_get_now = () => performance.now();
+  var __setitimer_js = (which, timeout_ms) => {
+      // First, clear any existing timer.
+      if (timers[which]) {
+        clearTimeout(timers[which].id);
+        delete timers[which];
+      }
+  
+      // A timeout of zero simply cancels the current timeout so we have nothing
+      // more to do.
+      if (!timeout_ms) return 0;
+  
+      var id = setTimeout(() => {
+        assert(which in timers);
+        delete timers[which];
+        callUserCallback(() => __emscripten_timeout(which, _emscripten_get_now()));
+      }, timeout_ms);
+      timers[which] = { id, timeout_ms };
+      return 0;
+    };
+
+  var _emscripten_date_now = () => Date.now();
+
+  var _emscripten_err = (str) => err(UTF8ToString(str));
+
+
   var getHeapMax = () =>
       // Stay one Wasm page short of 4GB: while e.g. Chrome is able to allocate
       // full 4GB Wasm memories, the size will wrap back to 0 bytes in Wasm side
@@ -962,6 +1069,131 @@ async function createWasm() {
       return false;
     };
 
+  var ENV = {
+  };
+  
+  var getExecutableName = () => thisProgram || './this.program';
+  var getEnvStrings = () => {
+      if (!getEnvStrings.strings) {
+        // Default values.
+        // Browser language detection #8751
+        var lang = (globalThis.navigator?.language ?? 'C').replace('-', '_') + '.UTF-8';
+        var env = {
+          'USER': 'web_user',
+          'LOGNAME': 'web_user',
+          'PATH': '/',
+          'PWD': '/',
+          'HOME': '/home/web_user',
+          'LANG': lang,
+          '_': getExecutableName()
+        };
+        // Apply the user-provided values, if any.
+        for (var x in ENV) {
+          // x is a key in ENV; if ENV[x] is undefined, that means it was
+          // explicitly set to be so. We allow user code to do that to
+          // force variables with default values to remain unset.
+          if (ENV[x] === undefined) delete env[x];
+          else env[x] = ENV[x];
+        }
+        var strings = [];
+        for (var x in env) {
+          strings.push(`${x}=${env[x]}`);
+        }
+        getEnvStrings.strings = strings;
+      }
+      return getEnvStrings.strings;
+    };
+  
+  var stringToUTF8Array = (str, heap, outIdx, maxBytesToWrite) => {
+      assert(typeof str === 'string', `stringToUTF8Array expects a string (got ${typeof str})`);
+      // Parameter maxBytesToWrite is not optional. Negative values, 0, null,
+      // undefined and false each don't write out any bytes.
+      if (!(maxBytesToWrite > 0))
+        return 0;
+  
+      var startIdx = outIdx;
+      var endIdx = outIdx + maxBytesToWrite - 1; // -1 for string null terminator.
+      for (var i = 0; i < str.length; ++i) {
+        // For UTF8 byte structure, see http://en.wikipedia.org/wiki/UTF-8#Description
+        // and https://www.ietf.org/rfc/rfc2279.txt
+        // and https://tools.ietf.org/html/rfc3629
+        var u = str.codePointAt(i);
+        if (u <= 0x7F) {
+          if (outIdx >= endIdx) break;
+          heap[outIdx++] = u;
+        } else if (u <= 0x7FF) {
+          if (outIdx + 1 >= endIdx) break;
+          heap[outIdx++] = 0xC0 | (u >> 6);
+          heap[outIdx++] = 0x80 | (u & 63);
+        } else if (u <= 0xFFFF) {
+          if (outIdx + 2 >= endIdx) break;
+          heap[outIdx++] = 0xE0 | (u >> 12);
+          heap[outIdx++] = 0x80 | ((u >> 6) & 63);
+          heap[outIdx++] = 0x80 | (u & 63);
+        } else {
+          if (outIdx + 3 >= endIdx) break;
+          if (u > 0x10FFFF) warnOnce('Invalid Unicode code point ' + ptrToString(u) + ' encountered when serializing a JS string to a UTF-8 string in wasm memory! (Valid unicode code points should be in range 0-0x10FFFF).');
+          heap[outIdx++] = 0xF0 | (u >> 18);
+          heap[outIdx++] = 0x80 | ((u >> 12) & 63);
+          heap[outIdx++] = 0x80 | ((u >> 6) & 63);
+          heap[outIdx++] = 0x80 | (u & 63);
+          // Gotcha: if codePoint is over 0xFFFF, it is represented as a surrogate pair in UTF-16.
+          // We need to manually skip over the second code unit for correct iteration.
+          i++;
+        }
+      }
+      // Null-terminate the pointer to the buffer.
+      heap[outIdx] = 0;
+      return outIdx - startIdx;
+    };
+  var stringToUTF8 = (str, outPtr, maxBytesToWrite) => {
+      assert(typeof maxBytesToWrite == 'number', 'stringToUTF8(str, outPtr, maxBytesToWrite) is missing the third parameter that specifies the length of the output buffer!');
+      return stringToUTF8Array(str, HEAPU8, outPtr, maxBytesToWrite);
+    };
+  var _environ_get = (__environ, environ_buf) => {
+      var bufSize = 0;
+      var envp = 0;
+      for (var string of getEnvStrings()) {
+        var ptr = environ_buf + bufSize;
+        HEAPU32[(((__environ)+(envp))>>2)] = ptr;
+        bufSize += stringToUTF8(string, ptr, Infinity) + 1;
+        envp += 4;
+      }
+      return 0;
+    };
+
+  
+  var lengthBytesUTF8 = (str) => {
+      var len = 0;
+      for (var i = 0; i < str.length; ++i) {
+        // Gotcha: charCodeAt returns a 16-bit word that is a UTF-16 encoded code
+        // unit, not a Unicode code point of the character! So decode
+        // UTF16->UTF32->UTF8.
+        // See http://unicode.org/faq/utf_bom.html#utf16-3
+        var c = str.charCodeAt(i); // possibly a lead surrogate
+        if (c <= 0x7F) {
+          len++;
+        } else if (c <= 0x7FF) {
+          len += 2;
+        } else if (c >= 0xD800 && c <= 0xDFFF) {
+          len += 4; ++i;
+        } else {
+          len += 3;
+        }
+      }
+      return len;
+    };
+  var _environ_sizes_get = (penviron_count, penviron_buf_size) => {
+      var strings = getEnvStrings();
+      HEAPU32[((penviron_count)>>2)] = strings.length;
+      var bufSize = 0;
+      for (var string of strings) {
+        bufSize += lengthBytesUTF8(string) + 1;
+      }
+      HEAPU32[((penviron_buf_size)>>2)] = bufSize;
+      return 0;
+    };
+
   var SYSCALLS = {
   varargs:undefined,
   getStr(ptr) {
@@ -1022,6 +1254,26 @@ async function createWasm() {
       return 0;
     };
 
+
+  var initRandomFill = () => {
+      // This block is not needed on v19+ since crypto.getRandomValues is builtin
+      if (ENVIRONMENT_IS_NODE) {
+        var nodeCrypto = require('node:crypto');
+        return (view) => nodeCrypto.randomFillSync(view);
+      }
+  
+      return (view) => crypto.getRandomValues(view);
+    };
+  var randomFill = (view) => {
+      // Lazily init on the first invocation.
+      (randomFill = initRandomFill())(view);
+    };
+  var _random_get = (buffer, size) => {
+      randomFill(HEAPU8.subarray(buffer, buffer + size));
+      return 0;
+    };
+
+
   var getCFunc = (ident) => {
       var func = Module['_' + ident]; // closure exported function
       assert(func, 'Cannot call unknown function ' + ident + ', make sure it is exported');
@@ -1033,73 +1285,7 @@ async function createWasm() {
       HEAP8.set(array, buffer);
     };
   
-  var lengthBytesUTF8 = (str) => {
-      var len = 0;
-      for (var i = 0; i < str.length; ++i) {
-        // Gotcha: charCodeAt returns a 16-bit word that is a UTF-16 encoded code
-        // unit, not a Unicode code point of the character! So decode
-        // UTF16->UTF32->UTF8.
-        // See http://unicode.org/faq/utf_bom.html#utf16-3
-        var c = str.charCodeAt(i); // possibly a lead surrogate
-        if (c <= 0x7F) {
-          len++;
-        } else if (c <= 0x7FF) {
-          len += 2;
-        } else if (c >= 0xD800 && c <= 0xDFFF) {
-          len += 4; ++i;
-        } else {
-          len += 3;
-        }
-      }
-      return len;
-    };
   
-  var stringToUTF8Array = (str, heap, outIdx, maxBytesToWrite) => {
-      assert(typeof str === 'string', `stringToUTF8Array expects a string (got ${typeof str})`);
-      // Parameter maxBytesToWrite is not optional. Negative values, 0, null,
-      // undefined and false each don't write out any bytes.
-      if (!(maxBytesToWrite > 0))
-        return 0;
-  
-      var startIdx = outIdx;
-      var endIdx = outIdx + maxBytesToWrite - 1; // -1 for string null terminator.
-      for (var i = 0; i < str.length; ++i) {
-        // For UTF8 byte structure, see http://en.wikipedia.org/wiki/UTF-8#Description
-        // and https://www.ietf.org/rfc/rfc2279.txt
-        // and https://tools.ietf.org/html/rfc3629
-        var u = str.codePointAt(i);
-        if (u <= 0x7F) {
-          if (outIdx >= endIdx) break;
-          heap[outIdx++] = u;
-        } else if (u <= 0x7FF) {
-          if (outIdx + 1 >= endIdx) break;
-          heap[outIdx++] = 0xC0 | (u >> 6);
-          heap[outIdx++] = 0x80 | (u & 63);
-        } else if (u <= 0xFFFF) {
-          if (outIdx + 2 >= endIdx) break;
-          heap[outIdx++] = 0xE0 | (u >> 12);
-          heap[outIdx++] = 0x80 | ((u >> 6) & 63);
-          heap[outIdx++] = 0x80 | (u & 63);
-        } else {
-          if (outIdx + 3 >= endIdx) break;
-          if (u > 0x10FFFF) warnOnce('Invalid Unicode code point ' + ptrToString(u) + ' encountered when serializing a JS string to a UTF-8 string in wasm memory! (Valid unicode code points should be in range 0-0x10FFFF).');
-          heap[outIdx++] = 0xF0 | (u >> 18);
-          heap[outIdx++] = 0x80 | ((u >> 12) & 63);
-          heap[outIdx++] = 0x80 | ((u >> 6) & 63);
-          heap[outIdx++] = 0x80 | (u & 63);
-          // Gotcha: if codePoint is over 0xFFFF, it is represented as a surrogate pair in UTF-16.
-          // We need to manually skip over the second code unit for correct iteration.
-          i++;
-        }
-      }
-      // Null-terminate the pointer to the buffer.
-      heap[outIdx] = 0;
-      return outIdx - startIdx;
-    };
-  var stringToUTF8 = (str, outPtr, maxBytesToWrite) => {
-      assert(typeof maxBytesToWrite == 'number', 'stringToUTF8(str, outPtr, maxBytesToWrite) is missing the third parameter that specifies the length of the output buffer!');
-      return stringToUTF8Array(str, HEAPU8, outPtr, maxBytesToWrite);
-    };
   
   var stackAlloc = (sz) => __emscripten_stack_alloc(sz);
   var stringToUTF8OnStack = (str) => {
@@ -1267,7 +1453,6 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
   'setTempRet0',
   'createNamedFunction',
   'zeroMemory',
-  'exitJS',
   'withStackSave',
   'strError',
   'inetPton4',
@@ -1278,16 +1463,11 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
   'writeSockaddr',
   'readEmAsmArgs',
   'jstoi_q',
-  'getExecutableName',
   'autoResumeAudioContext',
   'getDynCaller',
   'dynCall',
-  'handleException',
-  'keepRuntimeAlive',
   'runtimeKeepalivePush',
   'runtimeKeepalivePop',
-  'callUserCallback',
-  'maybeExit',
   'asyncLoad',
   'asmjsMangle',
   'mmapAlloc',
@@ -1361,12 +1541,9 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
   'jsStackTrace',
   'getCallstack',
   'convertPCtoSourceLocation',
-  'getEnvStrings',
   'checkWasiClock',
   'wasiRightsToMuslOFlags',
   'wasiOFlagsToMuslOFlags',
-  'initRandomFill',
-  'randomFill',
   'safeSetTimeout',
   'setImmediateWrapped',
   'safeRequestAnimationFrame',
@@ -1451,6 +1628,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'stackRestore',
   'stackAlloc',
   'ptrToString',
+  'exitJS',
   'getHeapMax',
   'growMemory',
   'ENV',
@@ -1461,6 +1639,11 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'timers',
   'warnOnce',
   'readEmAsmArgsArray',
+  'getExecutableName',
+  'handleException',
+  'keepRuntimeAlive',
+  'callUserCallback',
+  'maybeExit',
   'alignMemory',
   'wasmTable',
   'wasmMemory',
@@ -1490,7 +1673,10 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'restoreOldWindowedStyle',
   'UNWIND_CACHE',
   'ExitStatus',
+  'getEnvStrings',
   'flush_NO_FILESYSTEM',
+  'initRandomFill',
+  'randomFill',
   'emSetImmediate',
   'emClearImmediate_deps',
   'emClearImmediate',
@@ -1664,6 +1850,7 @@ function checkIncomingModuleAPI() {
 // Imports from the Wasm binary.
 var _init_context_ = Module['_init_context_'] = makeInvalidEarlyAccess('_init_context_');
 var _new_ = Module['_new_'] = makeInvalidEarlyAccess('_new_');
+var _realloc = makeInvalidEarlyAccess('_realloc');
 var _delete_ = Module['_delete_'] = makeInvalidEarlyAccess('_delete_');
 var _free = Module['_free'] = makeInvalidEarlyAccess('_free');
 var _is_finite_ = Module['_is_finite_'] = makeInvalidEarlyAccess('_is_finite_');
@@ -1682,7 +1869,30 @@ var _malloc = Module['_malloc'] = makeInvalidEarlyAccess('_malloc');
 var _fflush = makeInvalidEarlyAccess('_fflush');
 var _emscripten_stack_get_end = makeInvalidEarlyAccess('_emscripten_stack_get_end');
 var _emscripten_stack_get_base = makeInvalidEarlyAccess('_emscripten_stack_get_base');
+var __emscripten_timeout = makeInvalidEarlyAccess('__emscripten_timeout');
+var _strdup = Module['_strdup'] = makeInvalidEarlyAccess('_strdup');
 var _strerror = makeInvalidEarlyAccess('_strerror');
+var _strndup = Module['_strndup'] = makeInvalidEarlyAccess('_strndup');
+var __ZdaPv = Module['__ZdaPv'] = makeInvalidEarlyAccess('__ZdaPv');
+var __ZdaPvm = Module['__ZdaPvm'] = makeInvalidEarlyAccess('__ZdaPvm');
+var __ZdlPv = Module['__ZdlPv'] = makeInvalidEarlyAccess('__ZdlPv');
+var __ZdlPvm = Module['__ZdlPvm'] = makeInvalidEarlyAccess('__ZdlPvm');
+var __Znaj = Module['__Znaj'] = makeInvalidEarlyAccess('__Znaj');
+var __ZnajSt11align_val_t = Module['__ZnajSt11align_val_t'] = makeInvalidEarlyAccess('__ZnajSt11align_val_t');
+var __Znwj = Module['__Znwj'] = makeInvalidEarlyAccess('__Znwj');
+var __ZnwjSt11align_val_t = Module['__ZnwjSt11align_val_t'] = makeInvalidEarlyAccess('__ZnwjSt11align_val_t');
+var ___libc_calloc = Module['___libc_calloc'] = makeInvalidEarlyAccess('___libc_calloc');
+var ___libc_free = Module['___libc_free'] = makeInvalidEarlyAccess('___libc_free');
+var ___libc_malloc = Module['___libc_malloc'] = makeInvalidEarlyAccess('___libc_malloc');
+var ___libc_realloc = Module['___libc_realloc'] = makeInvalidEarlyAccess('___libc_realloc');
+var _calloc = makeInvalidEarlyAccess('_calloc');
+var _emscripten_builtin_calloc = Module['_emscripten_builtin_calloc'] = makeInvalidEarlyAccess('_emscripten_builtin_calloc');
+var _emscripten_builtin_free = Module['_emscripten_builtin_free'] = makeInvalidEarlyAccess('_emscripten_builtin_free');
+var _emscripten_builtin_malloc = Module['_emscripten_builtin_malloc'] = makeInvalidEarlyAccess('_emscripten_builtin_malloc');
+var _emscripten_builtin_realloc = Module['_emscripten_builtin_realloc'] = makeInvalidEarlyAccess('_emscripten_builtin_realloc');
+var _malloc_size = Module['_malloc_size'] = makeInvalidEarlyAccess('_malloc_size');
+var _malloc_usable_size = Module['_malloc_usable_size'] = makeInvalidEarlyAccess('_malloc_usable_size');
+var _reallocf = Module['_reallocf'] = makeInvalidEarlyAccess('_reallocf');
 var _emscripten_stack_init = makeInvalidEarlyAccess('_emscripten_stack_init');
 var _emscripten_stack_get_free = makeInvalidEarlyAccess('_emscripten_stack_get_free');
 var __emscripten_stack_restore = makeInvalidEarlyAccess('__emscripten_stack_restore');
@@ -1695,6 +1905,7 @@ var wasmMemory = makeInvalidEarlyAccess('wasmMemory');
 function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['init_context_'] != 'undefined', 'missing Wasm export: init_context_');
   assert(typeof wasmExports['new_'] != 'undefined', 'missing Wasm export: new_');
+  assert(typeof wasmExports['realloc'] != 'undefined', 'missing Wasm export: realloc');
   assert(typeof wasmExports['delete_'] != 'undefined', 'missing Wasm export: delete_');
   assert(typeof wasmExports['free'] != 'undefined', 'missing Wasm export: free');
   assert(typeof wasmExports['is_finite_'] != 'undefined', 'missing Wasm export: is_finite_');
@@ -1713,7 +1924,30 @@ function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['fflush'] != 'undefined', 'missing Wasm export: fflush');
   assert(typeof wasmExports['emscripten_stack_get_end'] != 'undefined', 'missing Wasm export: emscripten_stack_get_end');
   assert(typeof wasmExports['emscripten_stack_get_base'] != 'undefined', 'missing Wasm export: emscripten_stack_get_base');
+  assert(typeof wasmExports['_emscripten_timeout'] != 'undefined', 'missing Wasm export: _emscripten_timeout');
+  assert(typeof wasmExports['strdup'] != 'undefined', 'missing Wasm export: strdup');
   assert(typeof wasmExports['strerror'] != 'undefined', 'missing Wasm export: strerror');
+  assert(typeof wasmExports['strndup'] != 'undefined', 'missing Wasm export: strndup');
+  assert(typeof wasmExports['_ZdaPv'] != 'undefined', 'missing Wasm export: _ZdaPv');
+  assert(typeof wasmExports['_ZdaPvm'] != 'undefined', 'missing Wasm export: _ZdaPvm');
+  assert(typeof wasmExports['_ZdlPv'] != 'undefined', 'missing Wasm export: _ZdlPv');
+  assert(typeof wasmExports['_ZdlPvm'] != 'undefined', 'missing Wasm export: _ZdlPvm');
+  assert(typeof wasmExports['_Znaj'] != 'undefined', 'missing Wasm export: _Znaj');
+  assert(typeof wasmExports['_ZnajSt11align_val_t'] != 'undefined', 'missing Wasm export: _ZnajSt11align_val_t');
+  assert(typeof wasmExports['_Znwj'] != 'undefined', 'missing Wasm export: _Znwj');
+  assert(typeof wasmExports['_ZnwjSt11align_val_t'] != 'undefined', 'missing Wasm export: _ZnwjSt11align_val_t');
+  assert(typeof wasmExports['__libc_calloc'] != 'undefined', 'missing Wasm export: __libc_calloc');
+  assert(typeof wasmExports['__libc_free'] != 'undefined', 'missing Wasm export: __libc_free');
+  assert(typeof wasmExports['__libc_malloc'] != 'undefined', 'missing Wasm export: __libc_malloc');
+  assert(typeof wasmExports['__libc_realloc'] != 'undefined', 'missing Wasm export: __libc_realloc');
+  assert(typeof wasmExports['calloc'] != 'undefined', 'missing Wasm export: calloc');
+  assert(typeof wasmExports['emscripten_builtin_calloc'] != 'undefined', 'missing Wasm export: emscripten_builtin_calloc');
+  assert(typeof wasmExports['emscripten_builtin_free'] != 'undefined', 'missing Wasm export: emscripten_builtin_free');
+  assert(typeof wasmExports['emscripten_builtin_malloc'] != 'undefined', 'missing Wasm export: emscripten_builtin_malloc');
+  assert(typeof wasmExports['emscripten_builtin_realloc'] != 'undefined', 'missing Wasm export: emscripten_builtin_realloc');
+  assert(typeof wasmExports['malloc_size'] != 'undefined', 'missing Wasm export: malloc_size');
+  assert(typeof wasmExports['malloc_usable_size'] != 'undefined', 'missing Wasm export: malloc_usable_size');
+  assert(typeof wasmExports['reallocf'] != 'undefined', 'missing Wasm export: reallocf');
   assert(typeof wasmExports['emscripten_stack_init'] != 'undefined', 'missing Wasm export: emscripten_stack_init');
   assert(typeof wasmExports['emscripten_stack_get_free'] != 'undefined', 'missing Wasm export: emscripten_stack_get_free');
   assert(typeof wasmExports['_emscripten_stack_restore'] != 'undefined', 'missing Wasm export: _emscripten_stack_restore');
@@ -1723,6 +1957,7 @@ function assignWasmExports(wasmExports) {
   assert(typeof wasmExports['__indirect_function_table'] != 'undefined', 'missing Wasm export: __indirect_function_table');
   _init_context_ = Module['_init_context_'] = createExportWrapper('init_context_', 0);
   _new_ = Module['_new_'] = createExportWrapper('new_', 1);
+  _realloc = createExportWrapper('realloc', 2);
   _delete_ = Module['_delete_'] = createExportWrapper('delete_', 1);
   _free = Module['_free'] = createExportWrapper('free', 1);
   _is_finite_ = Module['_is_finite_'] = createExportWrapper('is_finite_', 1);
@@ -1741,7 +1976,30 @@ function assignWasmExports(wasmExports) {
   _fflush = createExportWrapper('fflush', 1);
   _emscripten_stack_get_end = wasmExports['emscripten_stack_get_end'];
   _emscripten_stack_get_base = wasmExports['emscripten_stack_get_base'];
+  __emscripten_timeout = createExportWrapper('_emscripten_timeout', 2);
+  _strdup = Module['_strdup'] = createExportWrapper('strdup', 1);
   _strerror = createExportWrapper('strerror', 1);
+  _strndup = Module['_strndup'] = createExportWrapper('strndup', 2);
+  __ZdaPv = Module['__ZdaPv'] = createExportWrapper('_ZdaPv', 1);
+  __ZdaPvm = Module['__ZdaPvm'] = createExportWrapper('_ZdaPvm', 2);
+  __ZdlPv = Module['__ZdlPv'] = createExportWrapper('_ZdlPv', 1);
+  __ZdlPvm = Module['__ZdlPvm'] = createExportWrapper('_ZdlPvm', 2);
+  __Znaj = Module['__Znaj'] = createExportWrapper('_Znaj', 1);
+  __ZnajSt11align_val_t = Module['__ZnajSt11align_val_t'] = createExportWrapper('_ZnajSt11align_val_t', 2);
+  __Znwj = Module['__Znwj'] = createExportWrapper('_Znwj', 1);
+  __ZnwjSt11align_val_t = Module['__ZnwjSt11align_val_t'] = createExportWrapper('_ZnwjSt11align_val_t', 2);
+  ___libc_calloc = Module['___libc_calloc'] = createExportWrapper('__libc_calloc', 2);
+  ___libc_free = Module['___libc_free'] = createExportWrapper('__libc_free', 1);
+  ___libc_malloc = Module['___libc_malloc'] = createExportWrapper('__libc_malloc', 1);
+  ___libc_realloc = Module['___libc_realloc'] = createExportWrapper('__libc_realloc', 2);
+  _calloc = createExportWrapper('calloc', 2);
+  _emscripten_builtin_calloc = Module['_emscripten_builtin_calloc'] = createExportWrapper('emscripten_builtin_calloc', 2);
+  _emscripten_builtin_free = Module['_emscripten_builtin_free'] = createExportWrapper('emscripten_builtin_free', 1);
+  _emscripten_builtin_malloc = Module['_emscripten_builtin_malloc'] = createExportWrapper('emscripten_builtin_malloc', 1);
+  _emscripten_builtin_realloc = Module['_emscripten_builtin_realloc'] = createExportWrapper('emscripten_builtin_realloc', 2);
+  _malloc_size = Module['_malloc_size'] = createExportWrapper('malloc_size', 1);
+  _malloc_usable_size = Module['_malloc_usable_size'] = createExportWrapper('malloc_usable_size', 1);
+  _reallocf = Module['_reallocf'] = createExportWrapper('reallocf', 2);
   _emscripten_stack_init = wasmExports['emscripten_stack_init'];
   _emscripten_stack_get_free = wasmExports['emscripten_stack_get_free'];
   __emscripten_stack_restore = wasmExports['_emscripten_stack_restore'];
@@ -1757,13 +2015,31 @@ var wasmImports = {
   /** @export */
   _abort_js: __abort_js,
   /** @export */
+  _emscripten_runtime_keepalive_clear: __emscripten_runtime_keepalive_clear,
+  /** @export */
+  _setitimer_js: __setitimer_js,
+  /** @export */
+  emscripten_date_now: _emscripten_date_now,
+  /** @export */
+  emscripten_err: _emscripten_err,
+  /** @export */
+  emscripten_get_now: _emscripten_get_now,
+  /** @export */
   emscripten_resize_heap: _emscripten_resize_heap,
+  /** @export */
+  environ_get: _environ_get,
+  /** @export */
+  environ_sizes_get: _environ_sizes_get,
   /** @export */
   fd_close: _fd_close,
   /** @export */
   fd_seek: _fd_seek,
   /** @export */
-  fd_write: _fd_write
+  fd_write: _fd_write,
+  /** @export */
+  proc_exit: _proc_exit,
+  /** @export */
+  random_get: _random_get
 };
 
 

@@ -224,10 +224,16 @@ function _convertToArrayProps(arr) {
 
     Object.keys(newItem).forEach(key => {
       const value = newItem[key];
-
+      if(Array.isArray(value)){
+        if(value.length>0 && value[0] instanceof bfjs.BigFloat){
+          newItem[key]=value.map(v=>v.f64());
+        }
+        return;
+      }
       if (value && typeof value.toArray === 'function') {
         newItem[key] = value.toArray();
       }
+      
     });
 
     return newItem;
@@ -334,8 +340,8 @@ box._compileExpression = function(expr, ndim = 1){
  * @param {Function} plotSpec.func - function | expression string
  * @param {Array[][]} plotSpec.range - default [[-10, 10], [-10, 10], [-10, 10]]
  * @param {number[]} plotSpec.samples - [500, 500]
- * @param {boolean} plotSpec.vectorized false
- * @param {number} plotSpec.supersample 8
+ * @param {boolean} [plotSpec.vectorized=false]
+ * @param {number} [plotSpec.supersample=0] - super sample count
  * @param {Object} layout - Plotly layout configuration.
  * @param {Object} config - Plotly config options.
  * @param {String} style - CSS style for the container.
@@ -373,7 +379,7 @@ box.plotFunction = function(plotSpec, layout=undefined, config=undefined, style=
     const defaultRanges = [[-10, 10], [-10, 10], [-10, 10]];
     let defaultSamples;
     if (ndim == 1) {
-      defaultSamples = [4000];
+      defaultSamples = [800];
     } else if (ndim == 2) {
       defaultSamples = [500, 500];
     } else {
@@ -405,7 +411,7 @@ box.plotFunction = function(plotSpec, layout=undefined, config=undefined, style=
       range,
       samples,
       vectorized: spec.vectorized || false,
-      supersample: spec.supersample || 8
+      supersample: spec.supersample || 1
     };
   }).filter(s => s !== null);
 
