@@ -1831,6 +1831,31 @@ var ndarray = (() => {
       }
     },
     /**
+     * Fits a polynomial of the specified degree to a set of 2D points using least squares.
+     * Model: Y = c0 + c1*X + c2*X^2 + ... + cd*X^d
+     * @param {NDArray} x - The independent variable (1D NDArray of float64).
+     * @param {NDArray} y - The dependent variable (1D NDArray of float64).
+     * @param {number} degree - The degree of the polynomial to fit (non-negative integer).
+     * @returns {Float64Array} - An array of coefficients in ascending order of degree [c0, c1, ..., cd].
+     * @throws {Error} If WASM runtime is not loaded, inputs are invalid, or degree is negative.
+     */
+    polyfit(x, y, degree) {
+      if (!NDWasm.runtime?.isLoaded) throw new Error("WasmRuntime not loaded.");
+      if (x.ndim !== 1 || y.ndim !== 1 || x.size !== y.size) throw new Error("Inputs must be 1D arrays of the same length.");
+      if (!Number.isInteger(degree) || degree < 0) throw new Error("Degree must be a non-negative integer.");
+      let xWasm, yWasm, coeffsWasm;
+      try {
+        xWasm = x.toWasm(NDWasm.runtime);
+        yWasm = y.toWasm(NDWasm.runtime);
+        coeffsWasm = NDWasm.runtime.createBuffer(degree + 1, "float64");
+        NDWasm.runtime.exports.Polyfit_F64(xWasm.ptr, yWasm.ptr, x.size, degree, coeffsWasm.ptr);
+        const coeffs = new Float64Array(coeffsWasm.refresh().view);
+        return coeffs;
+      } finally {
+        [xWasm, yWasm, coeffsWasm].forEach((b) => b?.dispose());
+      }
+    },
+    /**
      * Finds the minimum of a scalar function of one or more variables using an L-BFGS optimizer.
      * @param {Function} func - The objective function to be minimized. It must take a 1D `Float64Array` `x` (current point) and return a single number (the function value at `x`).
      * @param {NDArray} x0 - The initial guess for the optimization (1D NDArray of float64).
@@ -10797,6 +10822,50 @@ var ndarray = (() => {
             ]
           },
           description: "- An object containing the intercept (alpha) and slope (beta) of the fitted line."
+        }
+      ]
+    },
+    "NDWasmOptimize.polyfit": {
+      longname: "NDWasmOptimize.polyfit",
+      kind: "function",
+      description: "Fits a polynomial of the specified degree to a set of 2D points using least squares.\nModel: Y = c0 + c1*X + c2*X^2 + ... + cd*X^d",
+      params: [
+        {
+          name: "x",
+          description: "The independent variable (1D NDArray of float64).",
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "y",
+          description: "The dependent variable (1D NDArray of float64).",
+          type: {
+            names: [
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "degree",
+          description: "The degree of the polynomial to fit (non-negative integer).",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "Float64Array"
+            ]
+          },
+          description: "- An array of coefficients in ascending order of degree [c0, c1, ..., cd]."
         }
       ]
     },

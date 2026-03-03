@@ -877,6 +877,16 @@ declare module "ndwasm_optimize" {
             beta: number;
         };
         /**
+         * Fits a polynomial of the specified degree to a set of 2D points using least squares.
+         * Model: Y = c0 + c1*X + c2*X^2 + ... + cd*X^d
+         * @param {NDArray} x - The independent variable (1D NDArray of float64).
+         * @param {NDArray} y - The dependent variable (1D NDArray of float64).
+         * @param {number} degree - The degree of the polynomial to fit (non-negative integer).
+         * @returns {Float64Array} - An array of coefficients in ascending order of degree [c0, c1, ..., cd].
+         * @throws {Error} If WASM runtime is not loaded, inputs are invalid, or degree is negative.
+         */
+        function polyfit(x: NDArray, y: NDArray, degree: number): Float64Array;
+        /**
          * Finds the minimum of a scalar function of one or more variables using an L-BFGS optimizer.
          * @param {Function} func - The objective function to be minimized. It must take a 1D `Float64Array` `x` (current point) and return a single number (the function value at `x`).
          * @param {NDArray} x0 - The initial guess for the optimization (1D NDArray of float64).
@@ -1125,6 +1135,7 @@ declare module "ndarray_core" {
                 alpha: number;
                 beta: number;
             };
+            polyfit(x: NDArray, y: NDArray, degree: number): Float64Array;
             minimize(func: Function, x0: NDArray, options?: {
                 grad?: Function | undefined;
             }): {
