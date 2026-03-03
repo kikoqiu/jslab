@@ -156,6 +156,13 @@ ${code}
       plugins: ["bpo"],
       sourceType: "script",
       sourceMaps:"inline",
+      filename: `<cell>` ,
+
+      retainLines: true,  
+      generatorOpts: {
+        retainLines: true,
+      }
+
     } ).code;
 
     if (info) {

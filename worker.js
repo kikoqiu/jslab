@@ -30,6 +30,11 @@ async function loadLibs() {
         importScripts("3pty/groups.browser.js");
 
         self.postMessage({ type: 'ready' });
+
+        importScripts('libs/source-map.js');
+        sourceMap.SourceMapConsumer.initialize({
+            "lib/mappings.wasm": "libs/mappings.wasm",
+        });
     } catch (error) {
         self.postMessage({ type: 'error', payload: { message: `Failed to load libraries: ${error.message}` } });
     }
@@ -37,6 +42,131 @@ async function loadLibs() {
 
 loadLibs();
 
+
+// ---- Helper function: Restore Error Stack via inline Sourcemap ----
+async function mapErrorStack(error, code) {
+    // Prepare the return object containing two different arrays
+    const result = { mappedStack: [], htmlStack:[] };
+    const escapeHtml = (str) => str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    
+    if (!error || !error.stack) return result;
+    
+    const fallbackStack = error.stack.split('\n');
+
+    if (!code) {
+        result.mappedStack = fallbackStack;
+        result.htmlStack = fallbackStack.map(escapeHtml);
+        return result;
+    }
+
+    // 1. Match and extract the inline Base64 SourceMap from the code
+    const sourceMapRegex = /\/\/# sourceMappingURL=data:application\/json;(?:charset=[^;]+;)?base64,([a-zA-Z0-9+/=]+)/;
+    const match = code.match(sourceMapRegex);
+    
+    if (!match) {
+        result.mappedStack = fallbackStack;
+        result.htmlStack = fallbackStack.map(escapeHtml);
+        return result;
+    }
+
+    try {
+        // Decode Base64 to get the raw SourceMap JSON object
+        const rawSourceMap = JSON.parse(atob(match[1]));
+        const consumer = await new sourceMap.SourceMapConsumer(rawSourceMap);
+
+        // 2. Parse stack line by line
+        for (const line of fallbackStack) {
+            let isMatch = false;
+            let prefix = '', evalScope = '', lineNum = 0, colNum = 0, suffix = '';
+
+            // Match eval stack frames
+            // e.g., "    at test (eval at self.onmessage (http://...:220:36), <anonymous>:11:2)"
+            const evalRegex = /^(.*)\(eval at (.*?) \([^)]+\), (?:<anonymous>|[^\s/()]+):(\d+):(\d+)\)/;
+            const evalMatch = line.match(evalRegex);
+
+            if (evalMatch) {
+                isMatch = true;
+                prefix = evalMatch[1];       // e.g., "    at test "
+                evalScope = evalMatch[2];    // e.g., "self.onmessage"
+                lineNum = parseInt(evalMatch[3], 10);
+                colNum = parseInt(evalMatch[4], 10);
+            } else {
+                // Fallback to standard stack frames (non-eval)
+                const stdRegex = /^(.*?(?:\(| ))(?:<anonymous>|[^\s/()]+):(\d+):(\d+)(\)?)$/;
+                const stdMatch = line.match(stdRegex);
+                if (stdMatch) {
+                    isMatch = true;
+                    prefix = stdMatch[1];
+                    lineNum = parseInt(stdMatch[2], 10);
+                    colNum = parseInt(stdMatch[3], 10);
+                    suffix = stdMatch[4];
+                }
+            }
+
+            if (isMatch) {
+                const originalPosition = consumer.originalPositionFor({
+                    line: lineNum,
+                    column: colNum
+                });
+                
+                if (originalPosition.source) {
+                    const sourceName = originalPosition.source.replace(/^webpack:\/\//, ''); 
+                    
+                    let plainLine = '';
+                    if (evalMatch) {
+                        plainLine = `${prefix}(${sourceName}:${originalPosition.line-1}:${originalPosition.column})`;
+                    } else {
+                        plainLine = `${prefix}${sourceName}:${originalPosition.line}:${originalPosition.column}${suffix}`;
+                    }
+
+                    let htmlLine = escapeHtml(plainLine);
+                    
+                    // Extract the full original source code line
+                    const sourceContent = consumer.sourceContentFor(originalPosition.source, true);
+                    if (sourceContent) {
+                        const sourceLines = sourceContent.split('\n');
+                        const codeLine = sourceLines[originalPosition.line - 1]; 
+                        
+                        if (codeLine !== undefined) {
+                            const col = originalPosition.column || 0;
+                            
+                            // Split code at the error column to insert inline pointer
+                            const plainCodeBefore = codeLine.substring(0, col);
+                            const plainCodeAfter = codeLine.substring(col);
+                            
+                            // Append inline source code for mappedStack (Plain text)
+                            plainLine += ` (${plainCodeBefore}^${plainCodeAfter})`;
+                            
+                            // Escape < and > for htmlStack, and insert red highlighted inline arrow
+                            const htmlCodeBefore = escapeHtml(plainCodeBefore);
+                            const htmlCodeAfter = escapeHtml(plainCodeAfter);
+                            htmlLine += `| ${htmlCodeBefore}<span style="color: #ff5555; font-weight: bold;">--&gt;</span>${htmlCodeAfter}`;
+                        }
+                    }
+                    
+                    result.mappedStack.push(plainLine);
+                    result.htmlStack.push(htmlLine);
+                    continue;
+                }
+            }
+            
+            // If no match or no source map mapping found, keep original line (but escape htmlStack)
+            result.mappedStack.push(line);
+            result.htmlStack.push(escapeHtml(line));
+        }
+
+        // 3. Free WebAssembly memory (required for source-map v0.7+)
+        if (consumer.destroy) consumer.destroy();
+
+        return result;
+
+    } catch (e) {
+        console.warn("Failed to map sourcemap stack trace:", e);
+        result.mappedStack = fallbackStack;
+        result.htmlStack = fallbackStack.map(escapeHtml);
+        return result;
+    }
+}
 
 
 // --- State and Proxy Setup ---
@@ -173,7 +303,17 @@ self.onmessage = async function (e) {
                 self.postMessage({ type: 'executionResult', payload: { result } });
             } catch (error) {
                 console.error(error);
-                self.postMessage({ type: 'executionResult', payload: { error: { message: `${error.name}: ${error.message}\n${error.stack}` } } });
+
+                // Asynchronously map the Stack Trace when catching an exception
+                let htmlStack = error.stack;
+                try {
+                    let stack = await mapErrorStack(error, payload.code);
+                    htmlStack = stack.htmlStack.slice(0,-3).join('\n');
+                } catch (mappingError) {
+                    console.warn('Unable to map stack trace', mappingError);
+                }
+                
+                self.postMessage({ type: 'executionResult', payload: { error: { message: `${htmlStack}` } } });
             } finally {
                 // Clean up the cell_uuid from the box scope
                 delete box.cell_uuid;

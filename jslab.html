@@ -400,23 +400,7 @@ const App = {
       blocks.forEach(b => { this.blocks.push({ ...b, uuid: 'cell-' + crypto.randomUUID() }); });
     },
     formatError(source, e) {
-      let pos = -1, match = null;
-      let sk = e.stack.split('\n');
-      let reg = /at eval \(eval at self.onmessage [^\)]*\), <anonymous>:([0-9]+):([0-9]+)\)/;
-      for (let i = 0; i <= sk.length - 1; ++i) {
-        if (pos === -1) { match = sk[i].match(reg); if (match) { pos = i; break; } }
-      }
-      if (pos === -1) pos = sk.length; else ++pos;
-      let stack = sk.slice(0, pos).join('\n').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      let errorinfo = '';
-      if (match && source) {
-        try {
-          let line = parseInt(match[1]) - 1, col = parseInt(match[2]) - 1;
-          let sourceline = source.split('\n')[line];
-          errorinfo = `<span style='color:red;'>Error At </span> [${line - 1}, ${col + 1}]: ${sourceline.substr(0, col)}<span style='color:red;font-weight:bold;'>--&gt</span>${sourceline.substr(col)}\n`;
-        } catch (err) { } 
-      }
-      return `<pre>${errorinfo}<span style='color:red;'>Name</span>: ${e.name}\n<span style='color:red;'>Message</span>: ${e.message.replace(/</g,'&lt;').replace(/>/g,'&gt;')}\n</pre>`;
+      return `<pre>${e.message}\n</pre>`;
     },
     delay(durationMs) {
       return new Promise(resolve => setTimeout(resolve, durationMs));
@@ -437,7 +421,6 @@ const App = {
       } catch (e) {
         cur.result = this.formatError(info.compiled_code, e);
         cur.resultScript = '';
-        console.error(e);
       } finally {
         cur.eindex = this.maxeIndex++;
         /*if (!debug) {
