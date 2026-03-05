@@ -805,6 +805,14 @@ declare module "ndarray_factory" {
      */
     export function linspace(start: number, stop: number | null, num?: number, dtype?: string): NDArray;
     /**
+     * argwhere(condition)
+     *
+     * @param {NDArray|Array|number} condition - Input array to check for non-zero elements.
+     * @returns {NDArray} A new contiguous NDArray with shape[nz, condition.ndim], where nz is the number of non-zero elements in condition.
+     * Each row contains the indices of a non-zero element in condition.
+     */
+    export function argwhere(condition: NDArray | any[] | number): NDArray;
+    /**
      * where(condition, x, y)
      * Returns a new array with elements chosen from x or y depending on condition.
      * Supports NumPy-style broadcasting across all three arguments, including 0-sized dimensions.
@@ -901,6 +909,116 @@ declare module "ndwasm_optimize" {
             success: boolean;
             message: string;
         };
+        /**
+         * @param {Function} odefun - (t, y, f_out, m_out)
+         * @param {Array|NDArray} tspan -[t0, tfinal]
+         * @param {Array|NDArray} y0 - Initial state
+         * @param {Object} options - {absTol, relTol, initialStep, hasM, jac}
+         * @param {number} options.jac: (t, y, f, index_out, val_out) => returns nnz (number of non-zeros)
+         *     - index_out: NDArray of int32 with shape [max_nnz, 2]
+         *     - val_out: NDArray of float64 with shape [max_nnz]
+         * @param {boolean} options.hasM - Whether the ODE function uses the mass matrix M (i.e. M*dy/dt = f(t,y))
+         * @param {number} options.absTol - Absolute tolerance for ODE solver
+         * @param {number} options.relTol - Relative tolerance for ODE solver
+         * @param {number} options.maxStep - Maximum number of steps for ODE solver
+         * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
+         */
+        function ode15s(odefun: Function, tspan: any[] | NDArray, y0: any[] | NDArray, options?: {
+            jac: number;
+            hasM: boolean;
+            absTol: number;
+            relTol: number;
+            maxStep: number;
+            maxTime: number;
+        }): {
+            t: NDArray;
+            y: NDArray;
+            dy: NDArray;
+            steps: number;
+            runtime: number;
+        } | null;
+        /**
+         * @param {Function} odefun - (t, y, f_out, m_out)
+         * @param {Array|NDArray} tspan -[t0, tfinal]
+         * @param {Array|NDArray} y0 - Initial state
+         * @param {Object} options - {absTol, relTol, initialStep, hasM, jac}
+         * @param {number} options.jac: (t, y, f, index_out, val_out) => returns nnz (number of non-zeros)
+         *     - index_out: NDArray of int32 with shape [max_nnz, 2]
+         *     - val_out: NDArray of float64 with shape [max_nnz]
+         * @param {boolean} options.hasM - Whether the ODE function uses the mass matrix M (i.e. M*dy/dt = f(t,y))
+         * @param {number} options.absTol - Absolute tolerance for ODE solver
+         * @param {number} options.relTol - Relative tolerance for ODE solver
+         * @param {number} options.maxStep - Maximum number of steps for ODE solver
+         * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
+         */
+        function ode45(odefun: Function, tspan: any[] | NDArray, y0: any[] | NDArray, options?: {
+            jac: number;
+            hasM: boolean;
+            absTol: number;
+            relTol: number;
+            maxStep: number;
+            maxTime: number;
+        }): {
+            t: NDArray;
+            y: NDArray;
+            dy: NDArray;
+            steps: number;
+            runtime: number;
+        } | null;
+        /**
+         * @param {Function} odefun - (t, y, f_out, m_out)
+         * @param {Array|NDArray} tspan -[t0, tfinal]
+         * @param {Array|NDArray} y0 - Initial state
+         * @param {Object} options - {absTol, relTol, initialStep, method: 'ode45'|'ode15s', hasM, jac}
+         * @param {number} options.jac: (t, y, f, index_out, val_out) => returns nnz (number of non-zeros)
+         *     - index_out: NDArray of int32 with shape [max_nnz, 2]
+         *     - val_out: NDArray of float64 with shape [max_nnz]
+         * @param {boolean} options.hasM - Whether the ODE function uses the mass matrix M (i.e. M*dy/dt = f(t,y))
+         * @param {number} options.absTol - Absolute tolerance for ODE solver
+         * @param {number} options.relTol - Relative tolerance for ODE solver
+         * @param {number} options.maxStep - Maximum number of steps for ODE solver
+         * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
+         */
+        function odeSolve(odefun: Function, tspan: any[] | NDArray, y0: any[] | NDArray, options?: {
+            jac: number;
+            hasM: boolean;
+            absTol: number;
+            relTol: number;
+            maxStep: number;
+            maxTime: number;
+        }): {
+            t: NDArray;
+            y: NDArray;
+            dy: NDArray;
+            steps: number;
+            runtime: number;
+        } | null;
+        /**
+         * Solve 1D Parabolic and Elliptic PDEs using the method of lines with an underlying ODE15s integrator.
+         *
+         * @param {number} m - Symmetry parameter: 0 (slab), 1 (cylinder), 2 (sphere)
+         * @param {Function} pdefun - (x, t, u, dudx, c_out, f_out, s_out)
+         * @param {Function} icfun - (x) => returns initial conditions as Array or NDArray
+         * @param {Function} bcfun - (xl, ul, xr, ur, t, pl_out, ql_out, pr_out, qr_out)
+         * @param {Array|NDArray} xmesh - Spatial grid points [x0, ..., xN]
+         * @param {Array|NDArray} tspan - Time output points [t0, ..., tM]
+         * @param {Object} options - {absTol: 1e-5, relTol: 1e-4}
+         * @param {number} options.absTol - Absolute tolerance for ODE solver
+         * @param {number} options.relTol - Relative tolerance for ODE solver
+         * @param {number} options.maxStep - Maximum number of steps for ODE solver
+         * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
+         * @param {boolean} options.EstimateError - Whether to return an error estimate
+         * @param {boolean} options.EstimatedError - The returned error estimate (if options.EstimateError is true) will be a 2D tensor of shape [length(xmesh), dim] containing the estimated local truncation error at each point in space.
+         * @returns {NDArray|null} 3D Tensor of shape [length(tspan), length(xmesh), dim]
+         */
+        function pdepe(m: number, pdefun: Function, icfun: Function, bcfun: Function, xmesh: any[] | NDArray, tspan: any[] | NDArray, options?: {
+            absTol: number;
+            relTol: number;
+            maxStep: number;
+            maxTime: number;
+            EstimateError: boolean;
+            EstimatedError: boolean;
+        }): NDArray | null;
     }
     import { NDArray } from "ndarray_core";
 }
@@ -1143,6 +1261,56 @@ declare module "ndarray_core" {
                 success: boolean;
                 message: string;
             };
+            ode15s(odefun: Function, tspan: any[] | NDArray, y0: any[] | NDArray, options?: {
+                jac: number;
+                hasM: boolean;
+                absTol: number;
+                relTol: number;
+                maxStep: number;
+                maxTime: number;
+            }): {
+                t: NDArray;
+                y: NDArray;
+                dy: NDArray;
+                steps: number;
+                runtime: number;
+            } | null;
+            ode45(odefun: Function, tspan: any[] | NDArray, y0: any[] | NDArray, options?: {
+                jac: number;
+                hasM: boolean;
+                absTol: number;
+                relTol: number;
+                maxStep: number;
+                maxTime: number;
+            }): {
+                t: NDArray;
+                y: NDArray;
+                dy: NDArray;
+                steps: number;
+                runtime: number;
+            } | null;
+            odeSolve(odefun: Function, tspan: any[] | NDArray, y0: any[] | NDArray, options?: {
+                jac: number;
+                hasM: boolean;
+                absTol: number;
+                relTol: number;
+                maxStep: number;
+                maxTime: number;
+            }): {
+                t: NDArray;
+                y: NDArray;
+                dy: NDArray;
+                steps: number;
+                runtime: number;
+            } | null;
+            pdepe(m: number, pdefun: Function, icfun: Function, bcfun: Function, xmesh: any[] | NDArray, tspan: any[] | NDArray, options?: {
+                absTol: number;
+                relTol: number;
+                maxStep: number;
+                maxTime: number;
+                EstimateError: boolean;
+                EstimatedError: boolean;
+            }): NDArray | null;
         };
         /**
          * @param {TypedArray|number} data - The underlying physical storage. Or number when it's a scalar.
@@ -1191,15 +1359,17 @@ declare module "ndarray_core" {
         * High-performance element-wise mapping with jit compilation.
         * @param {string | Function} fnOrStr - The function string to apply to each element, like 'Math.sqrt(${val})', or a lambda expression
         * @returns {NDArray} A new array with the results.
+        * @see NDArray#iterate for a non-jit, pure Javascript map like alternative that allows early exit.
         *
         */
         map(fnOrStr: string | Function, dtype?: undefined): NDArray;
         /**
          * Generic iterator that handles stride logic. It's slow. use map/reduce if you want to use jit.
          * @param {Function} callback - A function called with `(value, index, flatPhysicalIndex)`, return true to exit early
+         * @returns {Array|null} If the callback returns true, returns the current multidimensional index. Otherwise, returns null after full iteration.
          * @see NDArray#map
          */
-        iterate(callback: Function): void;
+        iterate(callback: Function): any[] | null;
         /**
          * Element-wise addition. Supports broadcasting.
          * @function

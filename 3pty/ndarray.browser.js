@@ -45,6 +45,7 @@ var ndarray = (() => {
     add: () => add,
     analysis: () => NDWasmAnalysis,
     arange: () => arange,
+    argwhere: () => argwhere,
     array: () => array,
     bitwise_and: () => bitwise_and,
     bitwise_lshift: () => bitwise_lshift,
@@ -1417,6 +1418,7 @@ var ndarray = (() => {
   var ndarray_factory_exports = {};
   __export(ndarray_factory_exports, {
     arange: () => arange,
+    argwhere: () => argwhere,
     array: () => array,
     concat: () => concat,
     eye: () => eye,
@@ -1538,11 +1540,43 @@ var ndarray = (() => {
     }
     return new NDArray(data, { shape: [num], dtype });
   }
+  var toNDArray = (val, defaultDtype = "float64") => {
+    return val instanceof NDArray ? val : array(val, defaultDtype);
+  };
+  function argwhere(condition) {
+    const cond = toNDArray(condition, "int8").asContiguous();
+    let nz = 0;
+    for (let i = 0; i < cond.size; i++) {
+      if (cond.data[cond.offset + i]) {
+        nz++;
+      }
+    }
+    let ret = new NDArray(new Int32Array(nz * cond.ndim), {
+      shape: [nz, cond.ndim],
+      dtype: "int32"
+    });
+    let idx = 0;
+    for (let i = 0; i < cond.size; i++) {
+      if (cond.data[cond.offset + i]) {
+        if (cond.ndim > 0) {
+          ret.data[idx * cond.ndim] = Math.floor(i / cond.strides[0]);
+          for (let j = 1; j < cond.ndim; j++) {
+            ret.data[idx * cond.ndim + j] = Math.floor(i % cond.strides[j - 1] / cond.strides[j]);
+          }
+        }
+        idx++;
+      }
+    }
+    return ret;
+  }
   function where(condition, x, y) {
-    const toNDArray = (val, defaultDtype = "float64") => {
+    const toNDArray2 = (val, defaultDtype = "float64") => {
       return val instanceof NDArray ? val : array(val, defaultDtype);
     };
-    const cond = toNDArray(condition, "int8");
+    const cond = toNDArray2(condition, "int8");
+    if (x === void 0 || y === void 0) {
+      return argwhere(cond).transpose();
+    }
     const dtypes = [x instanceof NDArray ? x.dtype : null, y instanceof NDArray ? y.dtype : null];
     let dtype = null;
     for (let i of dtypes) {
@@ -1555,8 +1589,8 @@ var ndarray = (() => {
     if (dtype === null) {
       dtype = "float64";
     }
-    const xArr = toNDArray(x, dtype);
-    const yArr = toNDArray(y, dtype);
+    const xArr = toNDArray2(x, dtype);
+    const yArr = toNDArray2(y, dtype);
     const outNdim = Math.max(cond.ndim, xArr.ndim, yArr.ndim);
     const outShape = new Int32Array(outNdim);
     for (let i = 1; i <= outNdim; i++) {
@@ -1849,7 +1883,7 @@ var ndarray = (() => {
         yWasm = y.toWasm(NDWasm.runtime);
         coeffsWasm = NDWasm.runtime.createBuffer(degree + 1, "float64");
         NDWasm.runtime.exports.Polyfit_F64(xWasm.ptr, yWasm.ptr, x.size, degree, coeffsWasm.ptr);
-        const coeffs = new Float64Array(coeffsWasm.refresh().view);
+        const coeffs = fromWasm(coeffsWasm, [degree + 1], "float64");
         return coeffs;
       } finally {
         [xWasm, yWasm, coeffsWasm].forEach((b) => b?.dispose());
@@ -1908,6 +1942,285 @@ var ndarray = (() => {
         delete globalThis.ndarray_minimize_func;
         delete globalThis.ndarray_minimize_grad;
         [x0Wasm, resultWasm, statsWasm].forEach((b) => b?.dispose());
+      }
+    },
+    /**
+     * @param {Function} odefun - (t, y, f_out, m_out)
+     * @param {Array|NDArray} tspan -[t0, tfinal]
+     * @param {Array|NDArray} y0 - Initial state
+     * @param {Object} options - {absTol, relTol, initialStep, hasM, jac}
+     * @param {number} options.jac: (t, y, f, index_out, val_out) => returns nnz (number of non-zeros)
+     *     - index_out: NDArray of int32 with shape [max_nnz, 2]
+     *     - val_out: NDArray of float64 with shape [max_nnz]
+     * @param {boolean} options.hasM - Whether the ODE function uses the mass matrix M (i.e. M*dy/dt = f(t,y))
+     * @param {number} options.absTol - Absolute tolerance for ODE solver
+     * @param {number} options.relTol - Relative tolerance for ODE solver
+     * @param {number} options.maxStep - Maximum number of steps for ODE solver
+     * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
+     */
+    ode15s(odefun, tspan, y0, options = {}) {
+      return this.odeSolve(odefun, tspan, y0, { ...options, method: "ode15s" });
+    },
+    /**
+     * @param {Function} odefun - (t, y, f_out, m_out)
+     * @param {Array|NDArray} tspan -[t0, tfinal]
+     * @param {Array|NDArray} y0 - Initial state
+     * @param {Object} options - {absTol, relTol, initialStep, hasM, jac}
+     * @param {number} options.jac: (t, y, f, index_out, val_out) => returns nnz (number of non-zeros)
+     *     - index_out: NDArray of int32 with shape [max_nnz, 2]
+     *     - val_out: NDArray of float64 with shape [max_nnz]
+     * @param {boolean} options.hasM - Whether the ODE function uses the mass matrix M (i.e. M*dy/dt = f(t,y))
+     * @param {number} options.absTol - Absolute tolerance for ODE solver
+     * @param {number} options.relTol - Relative tolerance for ODE solver
+     * @param {number} options.maxStep - Maximum number of steps for ODE solver
+     * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
+     */
+    ode45(odefun, tspan, y0, options = {}) {
+      return this.odeSolve(odefun, tspan, y0, { ...options, method: "ode45" });
+    },
+    /**
+     * @param {Function} odefun - (t, y, f_out, m_out)
+     * @param {Array|NDArray} tspan -[t0, tfinal]
+     * @param {Array|NDArray} y0 - Initial state
+     * @param {Object} options - {absTol, relTol, initialStep, method: 'ode45'|'ode15s', hasM, jac}
+     * @param {number} options.jac: (t, y, f, index_out, val_out) => returns nnz (number of non-zeros)
+     *     - index_out: NDArray of int32 with shape [max_nnz, 2]
+     *     - val_out: NDArray of float64 with shape [max_nnz]
+     * @param {boolean} options.hasM - Whether the ODE function uses the mass matrix M (i.e. M*dy/dt = f(t,y))
+     * @param {number} options.absTol - Absolute tolerance for ODE solver
+     * @param {number} options.relTol - Relative tolerance for ODE solver
+     * @param {number} options.maxStep - Maximum number of steps for ODE solver
+     * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
+     */
+    odeSolve(odefun, tspan, y0, options = {}) {
+      if (!NDWasm.runtime?.isLoaded) throw new Error("WASM not loaded");
+      y0 = y0 instanceof NDArray ? y0 : array(y0);
+      tspan = tspan instanceof NDArray ? tspan : array(tspan);
+      const dim = y0.size;
+      const method = options.method === "ode15s" ? 1 : 0;
+      const hasM = options.hasM ? 1 : 0;
+      const hasJac = typeof options.jac === "function" ? 1 : 0;
+      let y0Wasm, tspanWasm, configWasm, statsWasm;
+      try {
+        {
+          const size = dim;
+          const yArr = new NDArray(null, { shape: [size], dtype: "float64" });
+          const fArr = new NDArray(null, { shape: [size], dtype: "float64" });
+          const mArr = hasM ? new NDArray(null, { shape: [size], dtype: "float64" }) : null;
+          globalThis.ndarray_ode_func = (t, yPtr2, fPtr, mPtr, size2) => {
+            let data = new Float64Array(NDWasm.runtime.exports.mem.buffer, 0);
+            yArr.data = data.subarray(yPtr2 / 8, yPtr2 / 8 + size2);
+            fArr.data = data.subarray(fPtr / 8, fPtr / 8 + size2);
+            let mArr2 = null;
+            if (hasM) {
+              mArr2 = data.subarray(mPtr / 8, mPtr / 8 + size2);
+            }
+            odefun(t, yArr, fArr, mArr2);
+          };
+        }
+        {
+          const size = dim;
+          const maxNnz = size * size;
+          const yArr = new NDArray(null, { shape: [size], dtype: "float64" });
+          const fArr = new NDArray(null, { shape: [size], dtype: "float64" });
+          const indexArr = new NDArray(null, { shape: [maxNnz, 2], dtype: "int32" });
+          const valArr = new NDArray(null, { shape: [maxNnz], dtype: "float64" });
+          globalThis.ndarray_ode_jac = hasJac ? (t, yPtr2, fPtr, indexPtr, valPtr, size2) => {
+            let data = new Float64Array(NDWasm.runtime.exports.mem.buffer, 0);
+            yArr.data = data.subarray(yPtr2 / 8, yPtr2 / 8 + size2);
+            fArr.data = data.subarray(fPtr / 8, fPtr / 8 + size2);
+            indexArr.data = new Int32Array(NDWasm.runtime.exports.mem.buffer, indexPtr, maxNnz * 2);
+            valArr.data = data.subarray(valPtr / 8, valPtr / 8 + maxNnz);
+            return options.jac(t, yArr, fArr, indexArr, valArr);
+          } : null;
+        }
+        y0Wasm = y0.toWasm(NDWasm.runtime);
+        tspanWasm = tspan.toWasm(NDWasm.runtime);
+        configWasm = NDWasm.runtime.createBuffer(4, "float64");
+        const cfgArr = new Float64Array(NDWasm.runtime.exports.mem.buffer, configWasm.ptr, 4);
+        cfgArr[0] = options.absTol || 1e-6;
+        cfgArr[1] = options.relTol || 1e-3;
+        cfgArr[2] = options.initialStep || 0;
+        cfgArr[3] = method;
+        cfgArr[4] = options.maxStep || 2e6;
+        cfgArr[5] = options.maxTime || 12e5;
+        statsWasm = NDWasm.runtime.createBuffer(7, "float64");
+        NDWasm.runtime.exports.Ode_Solve_F64(
+          y0Wasm.ptr,
+          dim,
+          tspanWasm.ptr,
+          configWasm.ptr,
+          statsWasm.ptr,
+          hasM
+        );
+        const stats = new Float64Array(NDWasm.runtime.exports.mem.buffer, statsWasm.ptr, 7);
+        if (stats[0] !== 1) {
+          options.status = stats[0];
+          console.log(`Ode_Solve_F64 failed with status: ${stats[0]}`);
+          return null;
+        }
+        const nPoints = stats[6];
+        const tPtr = stats[3];
+        const yPtr = stats[4];
+        const dyPtr = stats[5];
+        const T = new NDArray(new Float64Array(NDWasm.runtime.exports.mem.buffer, tPtr, nPoints), { shape: [nPoints], dtype: "float64" }).copy();
+        const Y = new NDArray(new Float64Array(NDWasm.runtime.exports.mem.buffer, yPtr, nPoints * dim), { shape: [nPoints, dim], dtype: "float64" }).copy();
+        const Dy = new NDArray(new Float64Array(NDWasm.runtime.exports.mem.buffer, dyPtr, nPoints * dim), { shape: [nPoints, dim], dtype: "float64" }).copy();
+        return {
+          t: T,
+          y: Y,
+          dy: Dy,
+          steps: stats[1],
+          runtime: stats[2]
+        };
+      } finally {
+        delete globalThis.ndarray_ode_func;
+        delete globalThis.ndarray_ode_jac;
+        [y0Wasm, tspanWasm, configWasm, statsWasm].forEach((b) => b?.dispose());
+      }
+    },
+    /**
+     * Solve 1D Parabolic and Elliptic PDEs using the method of lines with an underlying ODE15s integrator.
+     * 
+     * @param {number} m - Symmetry parameter: 0 (slab), 1 (cylinder), 2 (sphere)
+     * @param {Function} pdefun - (x, t, u, dudx, c_out, f_out, s_out)
+     * @param {Function} icfun - (x) => returns initial conditions as Array or NDArray
+     * @param {Function} bcfun - (xl, ul, xr, ur, t, pl_out, ql_out, pr_out, qr_out)
+     * @param {Array|NDArray} xmesh - Spatial grid points [x0, ..., xN]
+     * @param {Array|NDArray} tspan - Time output points [t0, ..., tM]
+     * @param {Object} options - {absTol: 1e-5, relTol: 1e-4}
+     * @param {number} options.absTol - Absolute tolerance for ODE solver
+     * @param {number} options.relTol - Relative tolerance for ODE solver
+     * @param {number} options.maxStep - Maximum number of steps for ODE solver
+     * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
+     * @param {boolean} options.EstimateError - Whether to return an error estimate
+     * @param {boolean} options.EstimatedError - The returned error estimate (if options.EstimateError is true) will be a 2D tensor of shape [length(xmesh), dim] containing the estimated local truncation error at each point in space.
+     * @returns {NDArray|null} 3D Tensor of shape [length(tspan), length(xmesh), dim]
+     */
+    pdepe(m, pdefun, icfun, bcfun, xmesh, tspan, options = {}) {
+      if (!NDWasm.runtime?.isLoaded) throw new Error("WASM not loaded");
+      const xArr = xmesh instanceof NDArray ? xmesh : array(xmesh);
+      const tArr = tspan instanceof NDArray ? tspan : array(tspan);
+      const xLen = xArr.size;
+      const tLen = tArr.size;
+      const testU0 = icfun(xArr.get(0));
+      const dim = testU0.size || testU0.length;
+      let xWasm, tWasm, configWasm, statsWasm, errorWasm;
+      try {
+        let lastErrorLogged = null;
+        globalThis.ndarray_ic_fun = (x, uPtr, dim2) => {
+          const mem2 = NDWasm.runtime.exports.mem.buffer;
+          const uArr = new Float64Array(mem2, uPtr, dim2);
+          let res;
+          try {
+            res = icfun(x);
+          } catch (e) {
+            lastErrorLogged = e;
+            console.error("Error in icfun at x =", x, ":", e);
+            uArr.fill(NaN);
+            return;
+          }
+          uArr.set(res.data || res);
+        };
+        const u = new NDArray(null, { shape: [dim], dtype: "float64" });
+        const dudx = new NDArray(null, { shape: [dim], dtype: "float64" });
+        const c = new NDArray(null, { shape: [dim], dtype: "float64" });
+        const f = new NDArray(null, { shape: [dim], dtype: "float64" });
+        const s = new NDArray(null, { shape: [dim], dtype: "float64" });
+        globalThis.ndarray_pde_fun = (x, t, uPtr, dudxPtr, cPtr, fPtr, sPtr, dim2) => {
+          const mem2 = NDWasm.runtime.exports.mem.buffer;
+          let data = new Float64Array(mem2, 0);
+          u.data = data.subarray(uPtr / 8, uPtr / 8 + dim2);
+          dudx.data = data.subarray(dudxPtr / 8, dudxPtr / 8 + dim2);
+          c.data = data.subarray(cPtr / 8, cPtr / 8 + dim2);
+          f.data = data.subarray(fPtr / 8, fPtr / 8 + dim2);
+          s.data = data.subarray(sPtr / 8, sPtr / 8 + dim2);
+          try {
+            pdefun(x, t, u, dudx, c, f, s);
+          } catch (e) {
+            lastErrorLogged = e;
+            console.error(`Error in pdefun at x=${x}, t=${t}:`, e);
+            c.set(NaN);
+            f.set(NaN);
+            s.set(NaN);
+          }
+        };
+        const ul = new NDArray(null, { shape: [dim], dtype: "float64" });
+        const ur = new NDArray(null, { shape: [dim], dtype: "float64" });
+        const pl = new NDArray(null, { shape: [dim], dtype: "float64" });
+        const ql = new NDArray(null, { shape: [dim], dtype: "float64" });
+        const pr = new NDArray(null, { shape: [dim], dtype: "float64" });
+        const qr = new NDArray(null, { shape: [dim], dtype: "float64" });
+        globalThis.ndarray_bc_fun = (xl, ulPtr, xr, urPtr, t, plPtr, qlPtr, prPtr, qrPtr, dim2) => {
+          const mem2 = NDWasm.runtime.exports.mem.buffer;
+          let data = new Float64Array(mem2, 0);
+          ul.data = data.subarray(ulPtr / 8, ulPtr / 8 + dim2);
+          ur.data = data.subarray(urPtr / 8, urPtr / 8 + dim2);
+          pl.data = data.subarray(plPtr / 8, plPtr / 8 + dim2);
+          ql.data = data.subarray(qlPtr / 8, qlPtr / 8 + dim2);
+          pr.data = data.subarray(prPtr / 8, prPtr / 8 + dim2);
+          qr.data = data.subarray(qrPtr / 8, qrPtr / 8 + dim2);
+          try {
+            bcfun(xl, ul, xr, ur, t, pl, ql, pr, qr);
+          } catch (e) {
+            lastErrorLogged = e;
+            console.error(`Error in bcfun at xl=${xl}, xr=${xr}, t=${t}:`, e);
+            pl.set(NaN);
+            ql.set(NaN);
+            pr.set(NaN);
+            qr.set(NaN);
+          }
+        };
+        const mem = NDWasm.runtime.exports.mem.buffer;
+        xWasm = xArr.toWasm(NDWasm.runtime);
+        tWasm = tArr.toWasm(NDWasm.runtime);
+        configWasm = NDWasm.runtime.createBuffer(4, "float64");
+        const cfgArr = new Float64Array(mem, configWasm.ptr, 5);
+        cfgArr[0] = options.absTol || 1e-5;
+        cfgArr[1] = options.relTol || 1e-4;
+        cfgArr[2] = options.maxStep || 2e6;
+        cfgArr[3] = options.maxTime || 12e5;
+        cfgArr[4] = options.EstimateError ? 1 : 0;
+        statsWasm = NDWasm.runtime.createBuffer(3, "float64");
+        errorWasm = options.EstimateError ? NDWasm.runtime.createBuffer(xLen * dim, "float64") : null;
+        NDWasm.runtime.exports.Pdepe_Solve_F64(
+          m,
+          xWasm.ptr,
+          xLen,
+          tWasm.ptr,
+          tLen,
+          dim,
+          configWasm.ptr,
+          statsWasm.ptr,
+          errorWasm?.ptr ?? 0
+        );
+        if (lastErrorLogged) {
+          throw lastErrorLogged;
+        }
+        const stats = new Float64Array(NDWasm.runtime.exports.mem.buffer, statsWasm.ptr, 3);
+        if (stats[0] !== 1) {
+          options.status = stats[0];
+          console.log(`Ode_Solve_F64 failed with status: ${stats[0]}`);
+          return null;
+        }
+        const solPtr = stats[2];
+        const runtimeMs = stats[1];
+        const solElements = tLen * xLen * dim;
+        const solTensor = new NDArray(
+          new Float64Array(NDWasm.runtime.exports.mem.buffer, solPtr, solElements),
+          { shape: [tLen, xLen, dim], dtype: "float64" }
+        ).copy();
+        if (errorWasm) {
+          const errors = errorWasm.pull().reshape([xLen, dim]);
+          options.EstimateError = errors;
+        }
+        options.runtime_ms = runtimeMs;
+        return solTensor;
+      } finally {
+        delete globalThis.ndarray_ic_fun;
+        delete globalThis.ndarray_pde_fun;
+        delete globalThis.ndarray_bc_fun;
+        [xWasm, tWasm, configWasm, statsWasm, errorWasm].forEach((b) => b?.dispose());
       }
     }
   };
@@ -2441,6 +2754,7 @@ var ndarray = (() => {
      */
     _getOffset(indices) {
       let ptr = this.offset;
+      indices = indices.map((idx, dim) => idx >= 0 ? idx : this.shape[dim] + idx);
       for (let i = 0; i < indices.length; i++) {
         ptr += indices[i] * this.strides[i];
       }
@@ -2513,6 +2827,7 @@ var ndarray = (() => {
     * High-performance element-wise mapping with jit compilation.
     * @param {string | Function} fnOrStr - The function string to apply to each element, like 'Math.sqrt(${val})', or a lambda expression
     * @returns {NDArray} A new array with the results.
+    * @see NDArray#iterate for a non-jit, pure Javascript map like alternative that allows early exit.
     * 
     */
     map(fnOrStr, dtype = void 0) {
@@ -2527,6 +2842,7 @@ var ndarray = (() => {
     /**
      * Generic iterator that handles stride logic. It's slow. use map/reduce if you want to use jit.
      * @param {Function} callback - A function called with `(value, index, flatPhysicalIndex)`, return true to exit early
+     * @returns {Array|null} If the callback returns true, returns the current multidimensional index. Otherwise, returns null after full iteration.
      * @see NDArray#map
      */
     iterate(callback) {
@@ -2535,13 +2851,14 @@ var ndarray = (() => {
         const ptr = this._getOffset(currentIdx);
         let earlyExit = callback(this.data[ptr], i, ptr);
         if (earlyExit === true) {
-          return;
+          return currentIdx;
         }
         for (let d = this.ndim - 1; d >= 0; d--) {
           if (++currentIdx[d] < this.shape[d]) break;
           currentIdx[d] = 0;
         }
       }
+      return null;
     }
     // --- Basic Arithmetic ---
     /**
@@ -4739,6 +5056,17 @@ var ndarray = (() => {
               "function"
             ]
           }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "Array",
+              "null"
+            ]
+          },
+          description: "If the callback returns true, returns the current multidimensional index. Otherwise, returns null after full iteration."
         }
       ]
     },
@@ -7718,6 +8046,34 @@ var ndarray = (() => {
               "NDArray"
             ]
           }
+        }
+      ]
+    },
+    argwhere: {
+      longname: "argwhere",
+      kind: "function",
+      description: "argwhere(condition)",
+      params: [
+        {
+          name: "condition",
+          description: "Input array to check for non-zero elements.",
+          type: {
+            names: [
+              "NDArray",
+              "Array",
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          },
+          description: "A new contiguous NDArray with shape[nz, condition.ndim], where nz is the number of non-zero elements in condition.\rEach row contains the indices of a non-zero element in condition."
         }
       ]
     },
@@ -10921,6 +11277,437 @@ var ndarray = (() => {
             ]
           },
           description: "The optimization result."
+        }
+      ]
+    },
+    "NDWasmOptimize.ode15s": {
+      longname: "NDWasmOptimize.ode15s",
+      kind: "function",
+      params: [
+        {
+          name: "odefun",
+          description: "(t, y, f_out, m_out)",
+          type: {
+            names: [
+              "function"
+            ]
+          }
+        },
+        {
+          name: "tspan",
+          description: "[t0, tfinal]",
+          type: {
+            names: [
+              "Array",
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "y0",
+          description: "Initial state",
+          type: {
+            names: [
+              "Array",
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "options",
+          description: "{absTol, relTol, initialStep, hasM, jac}",
+          type: {
+            names: [
+              "Object"
+            ]
+          }
+        },
+        {
+          name: "options.jac:",
+          description: "(t, y, f, index_out, val_out) => returns nnz (number of non-zeros)\n    - index_out: NDArray of int32 with shape [max_nnz, 2]\n    - val_out: NDArray of float64 with shape [max_nnz]",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.hasM",
+          description: "Whether the ODE function uses the mass matrix M (i.e. M*dy/dt = f(t,y))",
+          type: {
+            names: [
+              "boolean"
+            ]
+          }
+        },
+        {
+          name: "options.absTol",
+          description: "Absolute tolerance for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.relTol",
+          description: "Relative tolerance for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.maxStep",
+          description: "Maximum number of steps for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.maxTime",
+          description: "Maximum time for ODE solver in milliseconds",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        }
+      ]
+    },
+    "NDWasmOptimize.ode45": {
+      longname: "NDWasmOptimize.ode45",
+      kind: "function",
+      params: [
+        {
+          name: "odefun",
+          description: "(t, y, f_out, m_out)",
+          type: {
+            names: [
+              "function"
+            ]
+          }
+        },
+        {
+          name: "tspan",
+          description: "[t0, tfinal]",
+          type: {
+            names: [
+              "Array",
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "y0",
+          description: "Initial state",
+          type: {
+            names: [
+              "Array",
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "options",
+          description: "{absTol, relTol, initialStep, hasM, jac}",
+          type: {
+            names: [
+              "Object"
+            ]
+          }
+        },
+        {
+          name: "options.jac:",
+          description: "(t, y, f, index_out, val_out) => returns nnz (number of non-zeros)\n    - index_out: NDArray of int32 with shape [max_nnz, 2]\n    - val_out: NDArray of float64 with shape [max_nnz]",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.hasM",
+          description: "Whether the ODE function uses the mass matrix M (i.e. M*dy/dt = f(t,y))",
+          type: {
+            names: [
+              "boolean"
+            ]
+          }
+        },
+        {
+          name: "options.absTol",
+          description: "Absolute tolerance for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.relTol",
+          description: "Relative tolerance for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.maxStep",
+          description: "Maximum number of steps for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.maxTime",
+          description: "Maximum time for ODE solver in milliseconds",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        }
+      ]
+    },
+    "NDWasmOptimize.odeSolve": {
+      longname: "NDWasmOptimize.odeSolve",
+      kind: "function",
+      params: [
+        {
+          name: "odefun",
+          description: "(t, y, f_out, m_out)",
+          type: {
+            names: [
+              "function"
+            ]
+          }
+        },
+        {
+          name: "tspan",
+          description: "[t0, tfinal]",
+          type: {
+            names: [
+              "Array",
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "y0",
+          description: "Initial state",
+          type: {
+            names: [
+              "Array",
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "options",
+          description: "{absTol, relTol, initialStep, method: 'ode45'|'ode15s', hasM, jac}",
+          type: {
+            names: [
+              "Object"
+            ]
+          }
+        },
+        {
+          name: "options.jac:",
+          description: "(t, y, f, index_out, val_out) => returns nnz (number of non-zeros)\n    - index_out: NDArray of int32 with shape [max_nnz, 2]\n    - val_out: NDArray of float64 with shape [max_nnz]",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.hasM",
+          description: "Whether the ODE function uses the mass matrix M (i.e. M*dy/dt = f(t,y))",
+          type: {
+            names: [
+              "boolean"
+            ]
+          }
+        },
+        {
+          name: "options.absTol",
+          description: "Absolute tolerance for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.relTol",
+          description: "Relative tolerance for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.maxStep",
+          description: "Maximum number of steps for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.maxTime",
+          description: "Maximum time for ODE solver in milliseconds",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        }
+      ]
+    },
+    "NDWasmOptimize.pdepe": {
+      longname: "NDWasmOptimize.pdepe",
+      kind: "function",
+      description: "Solve 1D Parabolic and Elliptic PDEs using the method of lines with an underlying ODE15s integrator.",
+      params: [
+        {
+          name: "m",
+          description: "Symmetry parameter: 0 (slab), 1 (cylinder), 2 (sphere)",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "pdefun",
+          description: "(x, t, u, dudx, c_out, f_out, s_out)",
+          type: {
+            names: [
+              "function"
+            ]
+          }
+        },
+        {
+          name: "icfun",
+          description: "(x) => returns initial conditions as Array or NDArray",
+          type: {
+            names: [
+              "function"
+            ]
+          }
+        },
+        {
+          name: "bcfun",
+          description: "(xl, ul, xr, ur, t, pl_out, ql_out, pr_out, qr_out)",
+          type: {
+            names: [
+              "function"
+            ]
+          }
+        },
+        {
+          name: "xmesh",
+          description: "Spatial grid points [x0, ..., xN]",
+          type: {
+            names: [
+              "Array",
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "tspan",
+          description: "Time output points [t0, ..., tM]",
+          type: {
+            names: [
+              "Array",
+              "NDArray"
+            ]
+          }
+        },
+        {
+          name: "options",
+          description: "{absTol: 1e-5, relTol: 1e-4}",
+          type: {
+            names: [
+              "Object"
+            ]
+          }
+        },
+        {
+          name: "options.absTol",
+          description: "Absolute tolerance for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.relTol",
+          description: "Relative tolerance for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.maxStep",
+          description: "Maximum number of steps for ODE solver",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.maxTime",
+          description: "Maximum time for ODE solver in milliseconds",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        },
+        {
+          name: "options.EstimateError",
+          description: "Whether to return an error estimate",
+          type: {
+            names: [
+              "boolean"
+            ]
+          }
+        },
+        {
+          name: "options.EstimatedError",
+          description: "The returned error estimate (if options.EstimateError is true) will be a 2D tensor of shape [length(xmesh), dim] containing the estimated local truncation error at each point in space.",
+          type: {
+            names: [
+              "boolean"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray",
+              "null"
+            ]
+          },
+          description: "3D Tensor of shape [length(tspan), length(xmesh), dim]"
         }
       ]
     },
