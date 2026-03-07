@@ -2015,7 +2015,13 @@ var ndarray = (() => {
             if (hasM) {
               mArr2 = data.subarray(mPtr / 8, mPtr / 8 + size2);
             }
-            odefun(t, yArr, fArr, mArr2);
+            try {
+              odefun(t, yArr, fArr, mArr2);
+            } catch (e) {
+              console.error(`Error in odefun at t=${t}:`, e);
+              return false;
+            }
+            return true;
           };
         }
         {
@@ -2093,8 +2099,8 @@ var ndarray = (() => {
      * @param {number} options.relTol - Relative tolerance for ODE solver
      * @param {number} options.maxStep - Maximum number of steps for ODE solver
      * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
-     * @param {boolean} options.EstimateError - Whether to return an error estimate
-     * @param {boolean} options.EstimatedError - The returned error estimate (if options.EstimateError is true) will be a 2D tensor of shape [length(xmesh), dim] containing the estimated local truncation error at each point in space.
+     * @param {boolean} options.estimateError - Whether to return an error estimate
+     * @param {boolean} options.estimatedError - The returned error estimate (if options.estimateError is true) will be a 2D tensor of shape [length(xmesh), dim] containing the estimated local truncation error at each point in space.
      * @returns {NDArray|null} 3D Tensor of shape [length(tspan), length(xmesh), dim]
      */
     pdepe(m, pdefun, icfun, bcfun, xmesh, tspan, options = {}) {
@@ -2117,10 +2123,10 @@ var ndarray = (() => {
           } catch (e) {
             lastErrorLogged = e;
             console.error("Error in icfun at x =", x, ":", e);
-            uArr.fill(NaN);
-            return;
+            return false;
           }
           uArr.set(res.data || res);
+          return true;
         };
         const u = new NDArray(null, { shape: [dim], dtype: "float64" });
         const dudx = new NDArray(null, { shape: [dim], dtype: "float64" });
@@ -2140,10 +2146,9 @@ var ndarray = (() => {
           } catch (e) {
             lastErrorLogged = e;
             console.error(`Error in pdefun at x=${x}, t=${t}:`, e);
-            c.set(NaN);
-            f.set(NaN);
-            s.set(NaN);
+            return false;
           }
+          return true;
         };
         const ul = new NDArray(null, { shape: [dim], dtype: "float64" });
         const ur = new NDArray(null, { shape: [dim], dtype: "float64" });
@@ -2165,11 +2170,9 @@ var ndarray = (() => {
           } catch (e) {
             lastErrorLogged = e;
             console.error(`Error in bcfun at xl=${xl}, xr=${xr}, t=${t}:`, e);
-            pl.set(NaN);
-            ql.set(NaN);
-            pr.set(NaN);
-            qr.set(NaN);
+            return false;
           }
+          return true;
         };
         const mem = NDWasm.runtime.exports.mem.buffer;
         xWasm = xArr.toWasm(NDWasm.runtime);
@@ -2180,9 +2183,9 @@ var ndarray = (() => {
         cfgArr[1] = options.relTol || 1e-4;
         cfgArr[2] = options.maxStep || 2e6;
         cfgArr[3] = options.maxTime || 12e5;
-        cfgArr[4] = options.EstimateError ? 1 : 0;
+        cfgArr[4] = options.estimateError ? 1 : 0;
         statsWasm = NDWasm.runtime.createBuffer(3, "float64");
-        errorWasm = options.EstimateError ? NDWasm.runtime.createBuffer(xLen * dim, "float64") : null;
+        errorWasm = options.estimateError ? NDWasm.runtime.createBuffer(xLen * dim, "float64") : null;
         NDWasm.runtime.exports.Pdepe_Solve_F64(
           m,
           xWasm.ptr,
@@ -2212,7 +2215,7 @@ var ndarray = (() => {
         ).copy();
         if (errorWasm) {
           const errors = errorWasm.pull().reshape([xLen, dim]);
-          options.EstimateError = errors;
+          options.estimatedError = errors;
         }
         options.runtime_ms = runtimeMs;
         return solTensor;
@@ -3577,6 +3580,25 @@ var ndarray = (() => {
       });
     }
     /**
+     * Insert a new axis of length one at the specified axis position.
+     * This is an O(1) operation that returns a new view.
+     * 
+     * @param {number} axis - The index at which to insert the new axis. 
+     *                        Supports negative indexing (e.g., -1 for the last position).
+     * @returns {NDArray} NDArray view with the expanded dimension.
+     */
+    expandDims(axis) {
+      if (axis < 0) {
+        axis += this.ndim + 1;
+      }
+      if (axis < 0 || axis > this.ndim) {
+        throw new Error(`Axis ${axis} is out of bounds for array of dimension ${this.ndim}`);
+      }
+      const newShape = [...this.shape];
+      newShape.splice(axis, 0, 1);
+      return this.reshape(...newShape);
+    }
+    /**
      * Returns a new, contiguous array with the same data. O(n) operation.
      * This converts any view (transposed, sliced) into a new array with a standard C-style memory layout.
      * 
@@ -4355,7 +4377,16 @@ var ndarray = (() => {
       return NDWasmAnalysis.kmeans(this, k, maxIter);
     }
     _binaryOp(other, opFn, isInplace = false) {
-      const b = typeof other === "number" ? array([other]) : other;
+      let b;
+      if (typeof other === "number") {
+        b = array([other]);
+      } else if (typeof other === "object" && Array.isArray(other)) {
+        b = array(other);
+      } else if (other instanceof _NDArray) {
+        b = other;
+      } else {
+        throw new Error(`Unsupported type for binary operation: ${typeof other}`);
+      }
       const { outShape, strideA, strideB } = broadcastShapes(this, b);
       const result = isInplace ? this : zeros(outShape, this.dtype);
       const strideOut = result.strides;
@@ -6399,6 +6430,32 @@ var ndarray = (() => {
             ]
           },
           description: "NDArray view."
+        }
+      ]
+    },
+    "NDArray.prototype.expandDims": {
+      longname: "NDArray#expandDims",
+      kind: "function",
+      description: "Insert a new axis of length one at the specified axis position.\rThis is an O(1) operation that returns a new view.",
+      params: [
+        {
+          name: "axis",
+          description: "The index at which to insert the new axis. \r                       Supports negative indexing (e.g., -1 for the last position).",
+          type: {
+            names: [
+              "number"
+            ]
+          }
+        }
+      ],
+      returns: [
+        {
+          type: {
+            names: [
+              "NDArray"
+            ]
+          },
+          description: "NDArray view with the expanded dimension."
         }
       ]
     },
@@ -11681,7 +11738,7 @@ var ndarray = (() => {
           }
         },
         {
-          name: "options.EstimateError",
+          name: "options.estimateError",
           description: "Whether to return an error estimate",
           type: {
             names: [
@@ -11690,8 +11747,8 @@ var ndarray = (() => {
           }
         },
         {
-          name: "options.EstimatedError",
-          description: "The returned error estimate (if options.EstimateError is true) will be a 2D tensor of shape [length(xmesh), dim] containing the estimated local truncation error at each point in space.",
+          name: "options.estimatedError",
+          description: "The returned error estimate (if options.estimateError is true) will be a 2D tensor of shape [length(xmesh), dim] containing the estimated local truncation error at each point in space.",
           type: {
             names: [
               "boolean"

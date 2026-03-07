@@ -3,10 +3,8 @@ let _Op = (function () {
 	return {
 		add(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a + b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorAdd) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorAdd) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorAdd) return a.operatorAdd(b);
 			return a + b;
@@ -14,10 +12,8 @@ let _Op = (function () {
 
 		sub(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a - b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorSub) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorSub) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorSub) return a.operatorSub(b);
 			return a - b;
@@ -25,10 +21,8 @@ let _Op = (function () {
 
 		mul(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a * b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorMul) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorMul) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorMul) return a.operatorMul(b);
 			return a * b;
@@ -36,10 +30,8 @@ let _Op = (function () {
 
 		div(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a / b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorDiv) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorDiv) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorDiv) return a.operatorDiv(b);
 			return a / b;
@@ -47,10 +39,8 @@ let _Op = (function () {
 
 		mod(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a % b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorMod) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorMod) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorMod) return a.operatorMod(b);
 			return a % b;
@@ -58,10 +48,8 @@ let _Op = (function () {
 
 		pow(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a ** b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorPow) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorPow) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorPow) return a.operatorPow(b);
 			return a ** b;
@@ -69,10 +57,8 @@ let _Op = (function () {
 
 		bitwiseAnd(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a & b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseAnd) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorBitwiseAnd) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorBitwiseAnd) return a.operatorBitwiseAnd(b);
 			return a & b;
@@ -80,10 +66,8 @@ let _Op = (function () {
 
 		bitwiseOr(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a | b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseOr) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorBitwiseOr) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorBitwiseOr) return a.operatorBitwiseOr(b);
 			return a | b;
@@ -91,10 +75,8 @@ let _Op = (function () {
 
 		bitwiseXor(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a ^ b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseXor) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorBitwiseXor) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorBitwiseXor) return a.operatorBitwiseXor(b);
 			return a ^ b;
@@ -102,10 +84,8 @@ let _Op = (function () {
 
 		bitwiseLShift(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a << b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseLShift) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorBitwiseLShift) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorBitwiseLShift) return a.operatorBitwiseLShift(b);
 			return a << b;
@@ -113,10 +93,8 @@ let _Op = (function () {
 
 		bitwiseRShift(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a >> b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseRShift) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorBitwiseRShift) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorBitwiseRShift) return a.operatorBitwiseRShift(b);
 			return a >> b;
@@ -124,10 +102,8 @@ let _Op = (function () {
 
 		bitwiseURShift(a, b) {
 			if ((typeof (a) == 'number' && typeof (b) == 'number') || (typeof (a) == 'bigint' && typeof (b) == 'bigint')) return a >>> b;
-			if (typeof (a) != 'object' && typeof (b) == 'object' && b.operatorBitwiseURShift) {
+			if ((typeof (a) != 'object' || Array.isArray(a)) && typeof (b) == 'object' && b.operatorBitwiseURShift) {
 				try { a = new b.constructor(a); } catch (e) { throw new Error(`bpo: cannot convert ${a} to ${b.constructor.name}, ${e.message}`); }
-			} else if (typeof (a) == 'object' && typeof (b) == 'object' && a.constructor != b.constructor) {
-				throw new Error('bpo: not the same class');
 			}
 			if (typeof (a) == 'object' && a.operatorBitwiseURShift) return a.operatorBitwiseURShift(b);
 			return a >>> b;

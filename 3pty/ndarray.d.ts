@@ -1007,8 +1007,8 @@ declare module "ndwasm_optimize" {
          * @param {number} options.relTol - Relative tolerance for ODE solver
          * @param {number} options.maxStep - Maximum number of steps for ODE solver
          * @param {number} options.maxTime - Maximum time for ODE solver in milliseconds
-         * @param {boolean} options.EstimateError - Whether to return an error estimate
-         * @param {boolean} options.EstimatedError - The returned error estimate (if options.EstimateError is true) will be a 2D tensor of shape [length(xmesh), dim] containing the estimated local truncation error at each point in space.
+         * @param {boolean} options.estimateError - Whether to return an error estimate
+         * @param {boolean} options.estimatedError - The returned error estimate (if options.estimateError is true) will be a 2D tensor of shape [length(xmesh), dim] containing the estimated local truncation error at each point in space.
          * @returns {NDArray|null} 3D Tensor of shape [length(tspan), length(xmesh), dim]
          */
         function pdepe(m: number, pdefun: Function, icfun: Function, bcfun: Function, xmesh: any[] | NDArray, tspan: any[] | NDArray, options?: {
@@ -1016,8 +1016,8 @@ declare module "ndwasm_optimize" {
             relTol: number;
             maxStep: number;
             maxTime: number;
-            EstimateError: boolean;
-            EstimatedError: boolean;
+            estimateError: boolean;
+            estimatedError: boolean;
         }): NDArray | null;
     }
     import { NDArray } from "ndarray_core";
@@ -1308,8 +1308,8 @@ declare module "ndarray_core" {
                 relTol: number;
                 maxStep: number;
                 maxTime: number;
-                EstimateError: boolean;
-                EstimatedError: boolean;
+                estimateError: boolean;
+                estimatedError: boolean;
             }): NDArray | null;
         };
         /**
@@ -1802,6 +1802,15 @@ declare module "ndarray_core" {
          * @returns {NDArray} NDArray view.
          */
         squeeze(axis?: number | null): NDArray;
+        /**
+         * Insert a new axis of length one at the specified axis position.
+         * This is an O(1) operation that returns a new view.
+         *
+         * @param {number} axis - The index at which to insert the new axis.
+         *                        Supports negative indexing (e.g., -1 for the last position).
+         * @returns {NDArray} NDArray view with the expanded dimension.
+         */
+        expandDims(axis: number): NDArray;
         /**
          * Returns a new, contiguous array with the same data. O(n) operation.
          * This converts any view (transposed, sliced) into a new array with a standard C-style memory layout.
