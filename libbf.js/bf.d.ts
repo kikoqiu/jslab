@@ -427,6 +427,14 @@ declare module "matrix" {
          */
         mul(B: SparseMatrixCSC): SparseMatrixCSC;
         /**
+         * Scalar Multiplication (B = s * A).
+         * Executes in O(nnz) time.
+         *
+         * @param {number|string|BigFloat} scalar - The scalar value to multiply with.
+         * @returns {SparseMatrixCSC} - The resulting sparse matrix.
+         */
+        mulScalar(scalar: number | string | BigFloat): SparseMatrixCSC;
+        /**
          * Matrix-Vector Multiplication (y = A * x).
          * Linear time execution: O(nnz(A)).
          *
@@ -602,8 +610,20 @@ declare module "matrix" {
             R: SparseMatrixCSC;
         };
         /**
+         * Computes ALL eigenvalues and eigenvectors using the globally convergent QR Algorithm.
+         * Uses $O(n^3)$ Hessenberg Reduction followed by $O(n^2)$ Implicit Double-Shift Francis QR.
+         *
+         * @param {number|string|BigFloat}[tol="1e-15"] - Convergence tolerance.
+         * @param {number}[maxIter] - Maximum iterations (Defaults to dynamic bound based on size).
+         * @returns {Array<{eigenvalue: Complex, eigenvector: Array<Complex>}>} - List of complex eigenpairs sorted by magnitude descending.
+         */
+        eig(tol?: number | string | BigFloat, maxIter?: number): Array<{
+            eigenvalue: Complex;
+            eigenvector: Array<Complex>;
+        }>;
+        /**
          * Computes the Dominant Eigenpair using Power Iteration.
-         * In sparse libraries, eigenvalue solvers extract top-K values iteratively.
+         * Eigenvalue solvers extract top-K values iteratively.
          *
          * @param {number|string|BigFloat} [tol="1e-20"] - Convergence tolerance.
          * @param {number} [maxIter=1000] - Maximum iterations.
@@ -627,8 +647,141 @@ declare module "matrix" {
             v: Vector;
         };
     }
+    export class MatrixDense {
+        /**
+         * Reduces a dense square matrix H to Upper Hessenberg form in-place using Householder reflections.
+         * Accumulates the orthogonal transformations into matrix V.
+         *
+         * @static
+         * @param {BigFloat[][]} H - Dense square matrix (Modified in-place).
+         * @param {BigFloat[][]} V - Transformation matrix (Modified in-place).
+         */
+        static hessenbergReduction(H: BigFloat[][], V: BigFloat[][]): void;
+        /**
+         * Implements the Implicit Double-Shift Francis QR Algorithm.
+         * Reduces an Upper Hessenberg matrix H to Real Schur Form in-place.
+         *
+         * @static
+         * @param {BigFloat[][]} H - Upper Hessenberg matrix (Modified in-place).
+         * @param {BigFloat[][]} V - Transformation matrix (Modified in-place).
+         * @param {BigFloat} eps - Convergence tolerance.
+         * @param {number} maxIterTotal - Maximum number of iterations before throwing an error.
+         */
+        static schurFrancisQR(H: BigFloat[][], V: BigFloat[][], eps: BigFloat, maxIterTotal: number): void;
+        /**
+         * Extracts complex and real eigenvalues from a Real Schur Form matrix.
+         *
+         * @static
+         * @param {BigFloat[][]} H - Matrix in Real Schur Form.
+         * @param {BigFloat} eps - Convergence tolerance.
+         * @returns {Array<{lambda: Complex, index: number}>} - Extracted eigenvalues and submatrix boundary index.
+         */
+        static extractSchurEigenvalues(H: BigFloat[][], eps: BigFloat): Array<{
+            lambda: Complex;
+            index: number;
+        }>;
+        /**
+         * Computes complex eigenvectors based on the Real Schur Form via Back-Substitution.
+         * Projects the vectors back into the original space using the orthogonal matrix V.
+         *
+         * @static
+         * @param {BigFloat[][]} H - Matrix in Real Schur Form.
+         * @param {BigFloat[][]} V - Cumulative Orthogonal Transformation Matrix.
+         * @param {Array<{lambda: Complex, index: number}>} eigenvaluesInfo - List of extracted eigenvalues.
+         * @returns {Array<{eigenvalue: Complex, eigenvector: Array<Complex>}>} - Complete set of Eigenpairs.
+         */
+        static computeEigenvectors(H: BigFloat[][], V: BigFloat[][], eigenvaluesInfo: Array<{
+            lambda: Complex;
+            index: number;
+        }>): Array<{
+            eigenvalue: Complex;
+            eigenvector: Array<Complex>;
+        }>;
+    }
     import { BigFloat } from "bf";
     import { Vector } from "vector";
+    import { Complex } from "complex";
+}
+declare module "matrix_gal" {
+    export namespace gallery {
+        /**
+         * Generates an n-by-n Grcar matrix.
+         * A Grcar matrix is a Toeplitz matrix with -1 on the subdiagonal,
+         * 1 on the main diagonal, and 1 on the first three superdiagonals.
+         *
+         * @param {number} n - The dimension of the square matrix.
+         * @returns {SparseMatrixCSC}
+         */
+        function grcar(n: number): SparseMatrixCSC;
+        /**
+         * Generates a 2D Poisson block tridiagonal matrix of size N = n^2.
+         * This arises from the 5-point finite difference approximation of the Poisson equation.
+         *
+         * @param {number} n - The grid dimension (the resulting matrix is n^2 by n^2).
+         * @returns {SparseMatrixCSC}
+         */
+        function poisson(n: number): SparseMatrixCSC;
+        /**
+         * Generates an n-by-n Tridiagonal matrix.
+         * Default generates a typical 1D finite difference matrix: sub=-1, diag=2, sup=-1.
+         *
+         * @param {number} n - Dimension of the matrix.
+         * @param {number}[c=-1] - Subdiagonal value.
+         * @param {number} [d=2] - Main diagonal value.
+         * @param {number} [e=-1] - Superdiagonal value.
+         * @returns {SparseMatrixCSC}
+         */
+        function tridiag(n: number, c?: number, d?: number, e?: number): SparseMatrixCSC;
+        /**
+         * Generates the n-by-n Clement matrix.
+         * A tridiagonal matrix with zero on the main diagonal and known eigenvalues.
+         *
+         * @param {number} n - Dimension of the matrix.
+         * @returns {SparseMatrixCSC}
+         */
+        function clement(n: number): SparseMatrixCSC;
+        /**
+         * Generates an n-by-n min(i, j) symmetric positive definite matrix.
+         * A_ij = min(i, j) where indices are 1-based.
+         *
+         * @param {number} n - Dimension of the matrix.
+         * @returns {SparseMatrixCSC}
+         */
+        function minij(n: number): SparseMatrixCSC;
+        /**
+         * Generates an n-by-n Lehmer matrix.
+         * A symmetric positive definite matrix where A_ij = min(i,j) / max(i,j).
+         *
+         * @param {number} n - Dimension of the matrix.
+         * @returns {SparseMatrixCSC}
+         */
+        function lehmer(n: number): SparseMatrixCSC;
+        /**
+         * Generates the Pei matrix.
+         * A symmetric matrix where A_ij = 1, except A_ii = alpha + 1.
+         *
+         * @param {number} n - Dimension of the matrix.
+         * @param {number}[alpha=1] - Scalar to add to the main diagonal.
+         * @returns {SparseMatrixCSC}
+         */
+        function pei(n: number, alpha?: number): SparseMatrixCSC;
+        /**
+         * Generates an n-by-n Hilbert matrix.
+         * A notoriously ill-conditioned matrix where A_ij = 1 / (i + j - 1). (1-based indices)
+         *
+         * @param {number} n - Dimension of the matrix.
+         * @returns {SparseMatrixCSC}
+         */
+        function hilb(n: number): SparseMatrixCSC;
+        /**
+         * Generates a Circulant matrix from a given vector.
+         *
+         * @param {number[]} v - The first row of the matrix.
+         * @returns {SparseMatrixCSC}
+         */
+        function circul(v: number[]): SparseMatrixCSC;
+    }
+    import { SparseMatrixCSC } from "matrix";
 }
 declare module "polyfit" {
     /**
@@ -3166,6 +3319,7 @@ declare module "bf" {
     export * from "complex";
     export * from "vector";
     export * from "matrix";
+    export * from "matrix_gal";
     export * from "polyfit";
     export * from "ode45";
     export * from "ode15s";

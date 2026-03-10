@@ -27,6 +27,7 @@ var bfjs = (() => {
     Constants: () => Constants,
     E: () => E,
     Flags: () => Flags,
+    MatrixDense: () => MatrixDense,
     O: () => O,
     PI: () => PI,
     Poly: () => Poly,
@@ -60,6 +61,7 @@ var bfjs = (() => {
     fpround: () => fpround,
     frac: () => frac,
     fzero: () => fzero,
+    gallery: () => gallery,
     gamma: () => gamma,
     gc_ele_limit: () => gc_ele_limit,
     getEpsilon: () => getEpsilon,
@@ -350,10 +352,10 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     asin() {
-      const i = new _Complex(zero, one2);
-      const one2 = new _Complex(one2, zero);
+      const i = new _Complex(zero, one);
+      const c_one = new _Complex(one, zero);
       const iz = i.mul(this);
-      const sqrtPart = one2.sub(this.mul(this)).sqrt();
+      const sqrtPart = c_one.sub(this.mul(this)).sqrt();
       return iz.add(sqrtPart).log().mul(i.neg());
     }
     /**
@@ -361,9 +363,9 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     acos() {
-      const i = new _Complex(zero, one2);
-      const one2 = new _Complex(one2, zero);
-      const sqrtPart = one2.sub(this.mul(this)).sqrt();
+      const i = new _Complex(zero, one);
+      const c_one = new _Complex(one, zero);
+      const sqrtPart = c_one.sub(this.mul(this)).sqrt();
       return this.add(i.mul(sqrtPart)).log().mul(i.neg());
     }
     /**
@@ -382,25 +384,25 @@ var bfjs = (() => {
      * @returns {Complex}
      */
     asinh() {
-      const one2 = new _Complex(one2, zero);
-      return this.add(this.mul(this).add(one2).sqrt()).log();
+      const c_one = new _Complex(one, zero);
+      return this.add(this.mul(this).add(c_one).sqrt()).log();
     }
     /**
      * Inverse Hyperbolic Cosine acosh(z) = ln(z + sqrt(z^2 - 1))
      * @returns {Complex}
      */
     acosh() {
-      const one2 = new _Complex(one2, zero);
-      return this.add(this.mul(this).sub(one2).sqrt()).log();
+      const c_one = new _Complex(one, zero);
+      return this.add(this.mul(this).sub(c_one).sqrt()).log();
     }
     /**
      * Inverse Hyperbolic Tangent atanh(z) = 0.5 * ln((1+z)/(1-z))
      * @returns {Complex}
      */
     atanh() {
-      const one2 = new _Complex(one2, zero);
+      const c_one = new _Complex(one, zero);
       const half2 = new _Complex(half2, zero);
-      return one2.add(this).div(one2.sub(this)).log().mul(half2);
+      return c_one.add(this).div(c_one.sub(this)).log().mul(half2);
     }
     // --- Utilities ---
     /**
@@ -1164,6 +1166,21 @@ var bfjs = (() => {
         new Uint32Array(resultRowIndices),
         resultColPointers
       );
+    }
+    /**
+     * Scalar Multiplication (B = s * A).
+     * Executes in O(nnz) time.
+     * 
+     * @param {number|string|BigFloat} scalar - The scalar value to multiply with.
+     * @returns {SparseMatrixCSC} - The resulting sparse matrix.
+     */
+    mulScalar(scalar2) {
+      const s = scalar2 instanceof BigFloat ? scalar2 : bf(scalar2);
+      if (s.isZero()) {
+        return new _SparseMatrixCSC(this.rows, this.cols, [], new Uint32Array(), new Uint32Array(this.cols + 1));
+      }
+      const newValues = this.values.map((v) => v.mul(s));
+      return new _SparseMatrixCSC(this.rows, this.cols, newValues, this.rowIndices, this.colPointers);
     }
     /**
      * Matrix-Vector Multiplication (y = A * x).
@@ -1933,8 +1950,40 @@ var bfjs = (() => {
       };
     }
     /**
+     * Computes ALL eigenvalues and eigenvectors using the globally convergent QR Algorithm.
+     * Uses $O(n^3)$ Hessenberg Reduction followed by $O(n^2)$ Implicit Double-Shift Francis QR.
+     * 
+     * @param {number|string|BigFloat}[tol="1e-15"] - Convergence tolerance.
+     * @param {number}[maxIter] - Maximum iterations (Defaults to dynamic bound based on size).
+     * @returns {Array<{eigenvalue: Complex, eigenvector: Array<Complex>}>} - List of complex eigenpairs sorted by magnitude descending.
+     */
+    eig(tol = "1e-15", maxIter = null) {
+      if (this.rows !== this.cols) throw new Error("Matrix must be square for Eigenvalue computation.");
+      const n = this.rows;
+      const eps = tol instanceof BigFloat ? tol : bf(tol);
+      const maxIterTotal = maxIter || 50 * Math.max(n, 10);
+      let H = this.toDense();
+      let V = new Array(n);
+      for (let i = 0; i < n; i++) {
+        V[i] = new Array(n).fill(zero);
+        V[i][i] = one;
+      }
+      MatrixDense.hessenbergReduction(H, V);
+      MatrixDense.schurFrancisQR(H, V, eps, maxIterTotal);
+      const eigenvaluesInfo = MatrixDense.extractSchurEigenvalues(H, eps);
+      const result = MatrixDense.computeEigenvectors(H, V, eigenvaluesInfo);
+      result.sort((a, b) => {
+        let absA = a.eigenvalue.abs();
+        let absB = b.eigenvalue.abs();
+        if (absA.cmp(absB) > 0) return -1;
+        if (absA.cmp(absB) < 0) return 1;
+        return 0;
+      });
+      return result;
+    }
+    /**
      * Computes the Dominant Eigenpair using Power Iteration.
-     * In sparse libraries, eigenvalue solvers extract top-K values iteratively.
+     * Eigenvalue solvers extract top-K values iteratively.
      * 
      * @param {number|string|BigFloat} [tol="1e-20"] - Convergence tolerance.
      * @param {number} [maxIter=1000] - Maximum iterations.
@@ -1996,6 +2045,511 @@ var bfjs = (() => {
         u = this.mulVec(v).scale(one.div(singularValue));
       }
       return { singularValue, u, v };
+    }
+  };
+  var MatrixDense = class {
+    // ============================================================================
+    // --- Independent Dense Matrix Algorithms (Static Utilities) ---
+    // ============================================================================
+    /**
+     * Reduces a dense square matrix H to Upper Hessenberg form in-place using Householder reflections.
+     * Accumulates the orthogonal transformations into matrix V.
+     * 
+     * @static
+     * @param {BigFloat[][]} H - Dense square matrix (Modified in-place).
+     * @param {BigFloat[][]} V - Transformation matrix (Modified in-place).
+     */
+    static hessenbergReduction(H, V) {
+      const n = H.length;
+      for (let k = 0; k < n - 2; k++) {
+        let scale = zero;
+        for (let i = k + 1; i < n; i++) scale = scale.add(H[i][k].abs());
+        if (!scale.isZero()) {
+          let lowerZero = true;
+          for (let i = k + 2; i < n; i++) {
+            if (!H[i][k].isZero()) {
+              lowerZero = false;
+              break;
+            }
+          }
+          if (!lowerZero) {
+            let sumSq = zero;
+            let u = new Array(n - k - 1);
+            for (let i = 0; i < u.length; i++) {
+              u[i] = H[k + 1 + i][k].div(scale);
+              sumSq = sumSq.add(u[i].mul(u[i]));
+            }
+            let alpha = sumSq.sqrt();
+            if (u[0].cmp(zero) > 0) alpha = alpha.neg();
+            u[0] = u[0].sub(alpha);
+            let normU2 = alpha.mul(alpha).sub(u[0].add(alpha).mul(alpha));
+            for (let j = k; j < n; j++) {
+              let dot = zero;
+              for (let i = 0; i < u.length; i++) dot = dot.add(u[i].mul(H[k + 1 + i][j]));
+              dot = dot.div(normU2);
+              for (let i = 0; i < u.length; i++) H[k + 1 + i][j] = H[k + 1 + i][j].sub(dot.mul(u[i]));
+            }
+            for (let i = 0; i < n; i++) {
+              let dot = zero;
+              for (let j = 0; j < u.length; j++) dot = dot.add(u[j].mul(H[i][k + 1 + j]));
+              dot = dot.div(normU2);
+              for (let j = 0; j < u.length; j++) H[i][k + 1 + j] = H[i][k + 1 + j].sub(dot.mul(u[j]));
+            }
+            for (let i = 0; i < n; i++) {
+              let dot = zero;
+              for (let j = 0; j < u.length; j++) dot = dot.add(u[j].mul(V[i][k + 1 + j]));
+              dot = dot.div(normU2);
+              for (let j = 0; j < u.length; j++) V[i][k + 1 + j] = V[i][k + 1 + j].sub(dot.mul(u[j]));
+            }
+            H[k + 1][k] = alpha.mul(scale);
+            for (let i = k + 2; i < n; i++) H[i][k] = zero;
+          }
+        }
+      }
+    }
+    /**
+     * Implements the Implicit Double-Shift Francis QR Algorithm.
+     * Reduces an Upper Hessenberg matrix H to Real Schur Form in-place.
+     * 
+     * @static
+     * @param {BigFloat[][]} H - Upper Hessenberg matrix (Modified in-place).
+     * @param {BigFloat[][]} V - Transformation matrix (Modified in-place).
+     * @param {BigFloat} eps - Convergence tolerance.
+     * @param {number} maxIterTotal - Maximum number of iterations before throwing an error.
+     */
+    static schurFrancisQR(H, V, eps, maxIterTotal) {
+      const n = H.length;
+      let normH = zero;
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          normH = normH.add(H[i][j].abs());
+        }
+      }
+      if (normH.isZero()) normH = one;
+      let p = n - 1;
+      let iterCount = 0;
+      const bf1_5 = bf(1.5);
+      while (p > 0) {
+        if (iterCount > maxIterTotal) throw new Error("QR Algorithm failed to converge within maximum iterations.");
+        let l = p;
+        while (l > 0) {
+          let subDiag = H[l][l - 1].abs();
+          let diagSum = H[l - 1][l - 1].abs().add(H[l][l].abs());
+          if (diagSum.isZero()) diagSum = normH;
+          if (subDiag.cmp(diagSum.mul(eps)) <= 0) {
+            H[l][l - 1] = zero;
+            break;
+          }
+          l--;
+        }
+        if (l === p) {
+          p--;
+          iterCount = 0;
+          continue;
+        }
+        if (l === p - 1) {
+          p -= 2;
+          iterCount = 0;
+          continue;
+        }
+        let s, t;
+        if (iterCount > 0 && iterCount % 10 === 0) {
+          let ad = H[p][p - 1].abs();
+          if (p > 1) ad = ad.add(H[p - 1][p - 2].abs());
+          s = ad.mul(bf1_5);
+          t = ad.mul(ad);
+        } else {
+          let p11 = H[p - 1][p - 1], p12 = H[p - 1][p], p21 = H[p][p - 1], p22 = H[p][p];
+          s = p11.add(p22);
+          t = p11.mul(p22).sub(p12.mul(p21));
+        }
+        let h_ll = H[l][l], h_l1_l = H[l + 1][l];
+        let h_l_l1 = H[l][l + 1], h_l1_l1 = H[l + 1][l + 1];
+        let x = h_ll.mul(h_ll).add(h_l_l1.mul(h_l1_l)).sub(s.mul(h_ll)).add(t);
+        let y = h_l1_l.mul(h_ll.add(h_l1_l1).sub(s));
+        let z = h_l1_l.mul(H[l + 2][l + 1]);
+        for (let k = l; k <= p - 1; k++) {
+          let nr = k === p - 1 ? 2 : 3;
+          let max_val = x.abs();
+          if (y.abs().cmp(max_val) > 0) max_val = y.abs();
+          if (nr === 3 && z.abs().cmp(max_val) > 0) max_val = z.abs();
+          if (!max_val.isZero()) {
+            let x_n = x.div(max_val);
+            let y_n = y.div(max_val);
+            let z_n = nr === 3 ? z.div(max_val) : zero;
+            let sumSq = x_n.mul(x_n).add(y_n.mul(y_n)).add(z_n.mul(z_n));
+            let alpha = sumSq.sqrt();
+            if (x_n.cmp(zero) > 0) alpha = alpha.neg();
+            let u0 = x_n.sub(alpha);
+            let u1 = y_n;
+            let u2 = z_n;
+            let normU2 = alpha.mul(alpha).sub(x_n.mul(alpha));
+            for (let j = Math.max(0, k - 1); j < n; j++) {
+              let dot = u0.mul(H[k][j]).add(u1.mul(H[k + 1][j]));
+              if (nr === 3) dot = dot.add(u2.mul(H[k + 2][j]));
+              dot = dot.div(normU2);
+              H[k][j] = H[k][j].sub(dot.mul(u0));
+              H[k + 1][j] = H[k + 1][j].sub(dot.mul(u1));
+              if (nr === 3) H[k + 2][j] = H[k + 2][j].sub(dot.mul(u2));
+            }
+            let end_i = Math.min(k + 3, n - 1);
+            for (let i = 0; i <= end_i; i++) {
+              let dot = u0.mul(H[i][k]).add(u1.mul(H[i][k + 1]));
+              if (nr === 3) dot = dot.add(u2.mul(H[i][k + 2]));
+              dot = dot.div(normU2);
+              H[i][k] = H[i][k].sub(dot.mul(u0));
+              H[i][k + 1] = H[i][k + 1].sub(dot.mul(u1));
+              if (nr === 3) H[i][k + 2] = H[i][k + 2].sub(dot.mul(u2));
+            }
+            for (let i = 0; i < n; i++) {
+              let dot = u0.mul(V[i][k]).add(u1.mul(V[i][k + 1]));
+              if (nr === 3) dot = dot.add(u2.mul(V[i][k + 2]));
+              dot = dot.div(normU2);
+              V[i][k] = V[i][k].sub(dot.mul(u0));
+              V[i][k + 1] = V[i][k + 1].sub(dot.mul(u1));
+              if (nr === 3) V[i][k + 2] = V[i][k + 2].sub(dot.mul(u2));
+            }
+          }
+          if (k < p - 1) {
+            x = H[k + 1][k];
+            y = H[k + 2][k];
+            z = k < p - 2 ? H[k + 3][k] : zero;
+          }
+        }
+        for (let i = l; i <= p; i++) {
+          for (let j = 0; j <= i - 2; j++) {
+            H[i][j] = zero;
+          }
+        }
+        iterCount++;
+      }
+    }
+    /**
+     * Extracts complex and real eigenvalues from a Real Schur Form matrix.
+     * 
+     * @static
+     * @param {BigFloat[][]} H - Matrix in Real Schur Form.
+     * @param {BigFloat} eps - Convergence tolerance.
+     * @returns {Array<{lambda: Complex, index: number}>} - Extracted eigenvalues and submatrix boundary index.
+     */
+    static extractSchurEigenvalues(H, eps) {
+      const n = H.length;
+      const half2 = bf("0.5");
+      const eigenvaluesInfo = [];
+      let i = 0;
+      while (i < n) {
+        if (i < n - 1) {
+          let subDiag = H[i + 1][i].abs();
+          if (subDiag.cmp(eps) > 0) {
+            let a = H[i][i], b = H[i][i + 1], c = H[i + 1][i], d = H[i + 1][i + 1];
+            let T_val = a.add(d);
+            let D_val = a.mul(d).sub(b.mul(c));
+            let halfT = T_val.mul(half2);
+            let disc = halfT.mul(halfT).sub(D_val);
+            if (disc.cmp(zero) >= 0) {
+              let sqrtDisc = disc.sqrt();
+              eigenvaluesInfo.push({ lambda: new Complex(halfT.add(sqrtDisc), zero), index: i + 1 });
+              eigenvaluesInfo.push({ lambda: new Complex(halfT.sub(sqrtDisc), zero), index: i + 1 });
+            } else {
+              let sqrtDisc = disc.neg().sqrt();
+              eigenvaluesInfo.push({ lambda: new Complex(halfT, sqrtDisc), index: i + 1 });
+              eigenvaluesInfo.push({ lambda: new Complex(halfT, sqrtDisc.neg()), index: i + 1 });
+            }
+            i += 2;
+            continue;
+          }
+        }
+        eigenvaluesInfo.push({ lambda: new Complex(H[i][i], zero), index: i });
+        i += 1;
+      }
+      return eigenvaluesInfo;
+    }
+    /**
+     * Computes complex eigenvectors based on the Real Schur Form via Back-Substitution.
+     * Projects the vectors back into the original space using the orthogonal matrix V.
+     * 
+     * @static
+     * @param {BigFloat[][]} H - Matrix in Real Schur Form.
+     * @param {BigFloat[][]} V - Cumulative Orthogonal Transformation Matrix.
+     * @param {Array<{lambda: Complex, index: number}>} eigenvaluesInfo - List of extracted eigenvalues.
+     * @returns {Array<{eigenvalue: Complex, eigenvector: Array<Complex>}>} - Complete set of Eigenpairs.
+     */
+    static computeEigenvectors(H, V, eigenvaluesInfo) {
+      const n = H.length;
+      const result = [];
+      for (const info of eigenvaluesInfo) {
+        const lambda = info.lambda;
+        const m = info.index;
+        const H_sub = [];
+        for (let r = 0; r <= m; r++) {
+          H_sub.push(new Array(m + 1));
+          for (let c = 0; c <= m; c++) {
+            let val = new Complex(H[r][c], zero);
+            if (r === c) val = val.sub(lambda);
+            H_sub[r][c] = val;
+          }
+        }
+        for (let k = 0; k < m; k++) {
+          let pivotMag = H_sub[k][k].abs();
+          let subMag = H_sub[k + 1][k].abs();
+          if (subMag.cmp(pivotMag) > 0) {
+            let temp = H_sub[k];
+            H_sub[k] = H_sub[k + 1];
+            H_sub[k + 1] = temp;
+          }
+          if (H_sub[k][k].isZero()) continue;
+          let multiplier = H_sub[k + 1][k].div(H_sub[k][k]);
+          for (let j = k; j <= m; j++) {
+            H_sub[k + 1][j] = H_sub[k + 1][j].sub(multiplier.mul(H_sub[k][j]));
+          }
+        }
+        const u = new Array(n).fill(null).map(() => new Complex(zero, zero));
+        u[m] = new Complex(one, zero);
+        for (let k = m - 1; k >= 0; k--) {
+          let sum = new Complex(zero, zero);
+          for (let j = k + 1; j <= m; j++) {
+            sum = sum.add(H_sub[k][j].mul(u[j]));
+          }
+          if (!H_sub[k][k].isZero()) {
+            u[k] = sum.neg().div(H_sub[k][k]);
+          } else {
+            u[k] = new Complex(one, zero);
+          }
+        }
+        const eigvec = new Array(n).fill(null).map(() => new Complex(zero, zero));
+        for (let i_row = 0; i_row < n; i_row++) {
+          let sum = new Complex(zero, zero);
+          for (let j = 0; j <= m; j++) {
+            if (!u[j].isZero()) {
+              sum = sum.add(u[j].mul(V[i_row][j]));
+            }
+          }
+          eigvec[i_row] = sum;
+        }
+        let normSq = zero;
+        for (let j = 0; j < n; j++) {
+          let mag = eigvec[j].abs();
+          normSq = normSq.add(mag.mul(mag));
+        }
+        let normVec = normSq.sqrt();
+        if (!normVec.isZero()) {
+          let cNorm = new Complex(normVec, zero);
+          for (let j = 0; j < n; j++) {
+            eigvec[j] = eigvec[j].div(cNorm);
+          }
+        }
+        result.push({ eigenvalue: lambda, eigenvector: eigvec });
+      }
+      return result;
+    }
+  };
+
+  // src/matrix_gal.js
+  var gallery = {
+    /**
+     * Generates an n-by-n Grcar matrix.
+     * A Grcar matrix is a Toeplitz matrix with -1 on the subdiagonal, 
+     * 1 on the main diagonal, and 1 on the first three superdiagonals.
+     * 
+     * @param {number} n - The dimension of the square matrix.
+     * @returns {SparseMatrixCSC}
+     */
+    grcar(n) {
+      const rowIdx = [], colIdx = [], vals = [];
+      for (let i = 0; i < n; i++) {
+        if (i > 0) {
+          rowIdx.push(i);
+          colIdx.push(i - 1);
+          vals.push(-1);
+        }
+        rowIdx.push(i);
+        colIdx.push(i);
+        vals.push(1);
+        for (let k = 1; k <= 3; k++) {
+          if (i + k < n) {
+            rowIdx.push(i);
+            colIdx.push(i + k);
+            vals.push(1);
+          }
+        }
+      }
+      return SparseMatrixCSC.fromCOO(n, n, rowIdx, colIdx, vals);
+    },
+    /**
+     * Generates a 2D Poisson block tridiagonal matrix of size N = n^2.
+     * This arises from the 5-point finite difference approximation of the Poisson equation.
+     * 
+     * @param {number} n - The grid dimension (the resulting matrix is n^2 by n^2).
+     * @returns {SparseMatrixCSC}
+     */
+    poisson(n) {
+      const rowIdx = [], colIdx = [], vals = [];
+      const N = n * n;
+      for (let i = 0; i < N; i++) {
+        rowIdx.push(i);
+        colIdx.push(i);
+        vals.push(4);
+        if (i % n !== 0) {
+          rowIdx.push(i);
+          colIdx.push(i - 1);
+          vals.push(-1);
+        }
+        if (i % n !== n - 1) {
+          rowIdx.push(i);
+          colIdx.push(i + 1);
+          vals.push(-1);
+        }
+        if (i >= n) {
+          rowIdx.push(i);
+          colIdx.push(i - n);
+          vals.push(-1);
+        }
+        if (i < N - n) {
+          rowIdx.push(i);
+          colIdx.push(i + n);
+          vals.push(-1);
+        }
+      }
+      return SparseMatrixCSC.fromCOO(N, N, rowIdx, colIdx, vals);
+    },
+    /**
+     * Generates an n-by-n Tridiagonal matrix.
+     * Default generates a typical 1D finite difference matrix: sub=-1, diag=2, sup=-1.
+     * 
+     * @param {number} n - Dimension of the matrix.
+     * @param {number}[c=-1] - Subdiagonal value.
+     * @param {number} [d=2] - Main diagonal value.
+     * @param {number} [e=-1] - Superdiagonal value.
+     * @returns {SparseMatrixCSC}
+     */
+    tridiag(n, c = -1, d = 2, e = -1) {
+      const rowIdx = [], colIdx = [], vals = [];
+      for (let i = 0; i < n; i++) {
+        if (i > 0) {
+          rowIdx.push(i);
+          colIdx.push(i - 1);
+          vals.push(c);
+        }
+        rowIdx.push(i);
+        colIdx.push(i);
+        vals.push(d);
+        if (i < n - 1) {
+          rowIdx.push(i);
+          colIdx.push(i + 1);
+          vals.push(e);
+        }
+      }
+      return SparseMatrixCSC.fromCOO(n, n, rowIdx, colIdx, vals);
+    },
+    /**
+     * Generates the n-by-n Clement matrix.
+     * A tridiagonal matrix with zero on the main diagonal and known eigenvalues.
+     * 
+     * @param {number} n - Dimension of the matrix.
+     * @returns {SparseMatrixCSC}
+     */
+    clement(n) {
+      const rowIdx = [], colIdx = [], vals = [];
+      for (let i = 0; i < n - 1; i++) {
+        rowIdx.push(i + 1);
+        colIdx.push(i);
+        vals.push(n - (i + 1));
+        rowIdx.push(i);
+        colIdx.push(i + 1);
+        vals.push(i + 1);
+      }
+      return SparseMatrixCSC.fromCOO(n, n, rowIdx, colIdx, vals);
+    },
+    /**
+     * Generates an n-by-n min(i, j) symmetric positive definite matrix.
+     * A_ij = min(i, j) where indices are 1-based.
+     * 
+     * @param {number} n - Dimension of the matrix.
+     * @returns {SparseMatrixCSC}
+     */
+    minij(n) {
+      const rowIdx = [], colIdx = [], vals = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          rowIdx.push(i);
+          colIdx.push(j);
+          vals.push(Math.min(i + 1, j + 1));
+        }
+      }
+      return SparseMatrixCSC.fromCOO(n, n, rowIdx, colIdx, vals);
+    },
+    /**
+     * Generates an n-by-n Lehmer matrix.
+     * A symmetric positive definite matrix where A_ij = min(i,j) / max(i,j).
+     * 
+     * @param {number} n - Dimension of the matrix.
+     * @returns {SparseMatrixCSC}
+     */
+    lehmer(n) {
+      const rowIdx = [], colIdx = [], vals = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          rowIdx.push(i);
+          colIdx.push(j);
+          vals.push(Math.min(i + 1, j + 1) / Math.max(i + 1, j + 1));
+        }
+      }
+      return SparseMatrixCSC.fromCOO(n, n, rowIdx, colIdx, vals);
+    },
+    /**
+     * Generates the Pei matrix.
+     * A symmetric matrix where A_ij = 1, except A_ii = alpha + 1.
+     * 
+     * @param {number} n - Dimension of the matrix.
+     * @param {number}[alpha=1] - Scalar to add to the main diagonal.
+     * @returns {SparseMatrixCSC}
+     */
+    pei(n, alpha = 1) {
+      const rowIdx = [], colIdx = [], vals = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          rowIdx.push(i);
+          colIdx.push(j);
+          vals.push(i === j ? alpha + 1 : 1);
+        }
+      }
+      return SparseMatrixCSC.fromCOO(n, n, rowIdx, colIdx, vals);
+    },
+    /**
+     * Generates an n-by-n Hilbert matrix.
+     * A notoriously ill-conditioned matrix where A_ij = 1 / (i + j - 1). (1-based indices)
+     * 
+     * @param {number} n - Dimension of the matrix.
+     * @returns {SparseMatrixCSC}
+     */
+    hilb(n) {
+      const rowIdx = [], colIdx = [], vals = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          rowIdx.push(i);
+          colIdx.push(j);
+          vals.push(1 / (i + j + 1));
+        }
+      }
+      return SparseMatrixCSC.fromCOO(n, n, rowIdx, colIdx, vals);
+    },
+    /**
+     * Generates a Circulant matrix from a given vector.
+     * 
+     * @param {number[]} v - The first row of the matrix.
+     * @returns {SparseMatrixCSC}
+     */
+    circul(v) {
+      const n = v.length;
+      const rowIdx = [], colIdx = [], vals = [];
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          rowIdx.push(i);
+          colIdx.push(j);
+          vals.push(v[(j - i + n) % n]);
+        }
+      }
+      return SparseMatrixCSC.fromCOO(n, n, rowIdx, colIdx, vals);
     }
   };
 
