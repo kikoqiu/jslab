@@ -338,6 +338,7 @@ box._compileExpression = function(expr, ndim = 1){
  *
  * @param {Function|Function[]|Object[]} plotSpec - The function(s) or configuration object(s) to plot.
  * @param {Function} plotSpec.func - function | expression string
+ * @param {number} plotSpec.ndim - Number of dimensions (1, 2, or 3). Default is 1.
  * @param {Array[][]} plotSpec.range - default [[-10, 10], [-10, 10], [-10, 10]]
  * @param {number[]} plotSpec.samples - [500, 500]
  * @param {boolean} [plotSpec.vectorized=false]
