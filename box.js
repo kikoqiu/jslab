@@ -1209,6 +1209,14 @@ box.loadSheetJS=async function(){
 }
 
 /**
+ * load tfjs library
+ * @returns 
+ */
+box.loadTfjs=async function(){
+  importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js");
+}
+
+/**
  * Open an Excel file and return the workbook object
  * @returns workbook object
  */

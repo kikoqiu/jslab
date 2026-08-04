@@ -26995,12 +26995,13 @@
         });
     };
 
-    // --- AI COPILOT INTEGRATION ---
-    function createCopilotExtension(function_info) {
-        const settingManager = SettingManager.getInstance();
-        const aiSettings = settingManager.get('ai');
-        if (!aiSettings || !aiSettings.enabled) {
-            return []; // Return an empty array if disabled
+    let contextPrompt = null;
+    function getContextPrompt(function_info) {
+        if (contextPrompt)
+            return contextPrompt;
+        if (function_info.length === 0) {
+            console.warn("No function info provided for AI Copilot context prompt.");
+            return '';
         }
         //let functions = function_info.map(f => `- ${f.value.split('\n')[0].substring(4)}`).join('\n');
         let functions = function_info.map(f => {
@@ -27008,7 +27009,7 @@
             return `- ${l[0].substring(4)} | ` + l.slice(1).join(' | ');
         }).join('\n');
         // Generate the concise context prompt
-        const contextPrompt = `Code is run in the web workder context, you can use the following global libraries:
+        contextPrompt = `Global libraries:
 - math.js available as 'math'
 - d3.js available as 'd3'
 - SheetJS available as 'XLSX'
@@ -27016,20 +27017,31 @@
 - browser web worker APIs (like fetch, import, importScripts etc. DOM api is also available, use document.body.append if you need, but echoHTML is suggested.) 
 - build in browser APIs (like console, BigInt, URL, URLSearchParams, TextEncoder, TextDecoder, btoa, atob etc.)
 All the code runs in an async function context, so you can use 'await' directly. Functions like readFile, writeFile must be awaited.
-Available functions:
+Other available functions:
 ${functions}
 `;
-        //console.log("AI Copilot context prompt:", contextPrompt);
+        return contextPrompt;
+    }
+    // --- AI COPILOT INTEGRATION ---
+    function createCopilotExtension(function_info) {
+        const settingManager = SettingManager.getInstance();
+        const aiSettings = settingManager.get('ai');
+        if (!aiSettings || !aiSettings.enabled) {
+            return []; // Return an empty array if disabled
+        }
         let onSuggestionRequest = async (prefix, suffix) => {
             const aiSettings = settingManager.get('ai');
             const { apiUrl, apiKey, model, enabled, advMode } = aiSettings;
             let systemPrompt;
             if (advMode) {
                 systemPrompt =
-                    `You are an expert JavaScript programmer. Your task is to analyze a snippet of code and provide a completion or a replacement.
+                    `You are a JavaScript auto completion assistant. Your task is to analyze a snippet of code and provide a completion.
 Current cursor position is marked with <!--CUR_CURSOR-->. 
 **WARNING:** Reply with DIRECT json content. Do **NOT** add any explanation or markdown formatting.
 The result is directly parsed by JSON.parse, any markdown formatting elements will lead to failure.
+Code is run in the web workder context, do NOT use any functions other than the provided functions and libraries.
+Read the signatures of the global functions and strictly follow them.
+You can use 'await' directly in your code.
 
 You **MUST** respond in a structured JSON format with the following fields:
 - text (string): The code to insert at the cursor's position.
@@ -27056,11 +27068,14 @@ If linesToDelete >= 1, it means the current line is deleted. And you should repe
             }
             else {
                 systemPrompt =
-                    `You are an expert JavaScript programmer. Your task is to analyze a snippet of code and provide a completion.
+                    `You are a JavaScript auto completion assistant. Your task is to analyze a snippet of code and provide a completion.
 Only output the code that replaces <!--CUR_CURSOR--> part. 
-**WARNING:** Do **NOT** add any explanation or MARKDOWN around the code.
-The returned result is directly inserted into the javascript code, any markdown formatting elements will lead to failure.
-
+**WARNING:** Do **NOT** add any explanation or MARKDOWN formatting around the code.
+The returned result is directly inserted into the javascript code, any markdown formatting elements will **lead to failure**.
+Use the context of the code to generate a relevant and accurate completion.
+Code is run in the web workder context, do NOT use any functions other than the provided functions and libraries.
+Read the signatures of the global functions and strictly follow them.
+You can use 'await' directly in your code.
 `;
             }
             if (!enabled) {
@@ -27070,10 +27085,12 @@ The returned result is directly inserted into the javascript code, any markdown 
                 console.warn("AI Copilot is enabled, but the API URL is not set.");
                 return [];
             }
+            let contextPrompt = getContextPrompt(function_info);
+            //console.log("AI Copilot context prompt:", contextPrompt);
             const userPrompt = `${prefix}<!--CUR_CURSOR-->${suffix}`;
             const messages = [
-                { role: 'system', content: systemPrompt + '\n' + contextPrompt },
-                { role: 'user', content: userPrompt }
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: contextPrompt + '\n\n---\n' + userPrompt }
             ];
             try {
                 let requestJson = JSON.stringify({
